@@ -701,7 +701,9 @@ async function showNearbyPois(): Promise<void> {
     toast(`${pois.length} nearby — tap a marker for detail`, 3500);
   } catch (e) {
     hideToast();
-    toast(`Couldn't load nearby points: ${(e as Error).message}`, 5000);
+    // OpenStreetMap's free query servers are shared and often rate-limit or
+    // time out; a retry a moment later usually succeeds.
+    toast(`Map data servers busy (${(e as Error).message}) — try again in a moment`, 5000);
   }
 }
 
@@ -756,7 +758,8 @@ function openMapPanel(): void {
     <div class="row"><button id="keyBtn" class="secondary" style="flex:1">Map key — what the symbols mean</button></div>
     <hr/>
     <h3>Nearby</h3>
-    <p class="hint">Summits, viewpoints and water sources from OpenStreetMap, around what you can see. Tap again to hide them.</p>
+    <p class="hint">Summits, viewpoints and water sources from OpenStreetMap, around what you can see.
+    Needs signal, and the free map-data servers are sometimes busy — retry if it fails. Tap again to hide.</p>
     <div class="row"><button id="poiBtn" style="flex:1">${poiLayer ? 'Hide nearby points' : "What's nearby"}</button></div>
     <hr/>
     <h3>Overlay</h3>
