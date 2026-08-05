@@ -175,7 +175,15 @@ body.planning #statusBanner { display: none; }
   display: flex; align-items: flex-start; gap: 10px;
   padding: 6px 2px; font-size: 13px; line-height: 1.35;
 }
-#panel .keyRow svg { margin-top: 2px; }
+#panel .keyRow svg { margin-top: 1px; }
+#panel .keyRow b { font-weight: 600; }
+#panel .keyNote { display: block; font-size: 12px; color: #777; }
+#panel .keyGroup {
+  margin: 14px 0 4px;
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: #2d6a4f;
+  border-bottom: 1px solid #e5e5e5; padding-bottom: 3px;
+}
 
 /* Plan bar */
 #planBar {
