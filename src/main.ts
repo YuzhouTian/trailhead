@@ -813,6 +813,9 @@ function openSettingsPanel(): void {
       <input type="number" id="speedInput" min="1" max="8" step="0.5" value="${settings.speedKmh}" style="width:70px"/>
       <label>km/h</label>
     </div>
+    <hr/>
+    <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'} (UTC).
+    If this looks old after a deploy, fully close the app from the app switcher and reopen it.</p>
   `);
 
   $('osKeyInput').addEventListener('change', (e) => {
