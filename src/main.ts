@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'leaflet-rotate';
 import './style.css';
 import {
   BASE_LAYERS,
@@ -65,16 +66,22 @@ function downloadFile(name: string, content: string, mime: string): void {
 const settings = loadSettings();
 let routes = loadRoutes();
 
-const map = L.map('map', { zoomControl: true }).setView([54.5, -3.0], 6);
+const map = L.map('map', {
+  zoomControl: true,
+  rotate: true,
+  touchRotate: false,
+  rotateControl: false
+}).setView([54.5, -3.0], 6);
 
 // iOS standalone mode settles its viewport after load, leaving Leaflet with a
-// stale (shorter) size and a white strip at the bottom — re-measure whenever
-// the visual viewport changes and shortly after startup.
+// stale (shorter) size and a blank strip at the bottom — re-measure whenever
+// the visual viewport changes and repeatedly while startup settles.
 const remeasure = () => map.invalidateSize({ animate: false });
 window.visualViewport?.addEventListener('resize', remeasure);
 window.addEventListener('orientationchange', () => setTimeout(remeasure, 250));
 window.addEventListener('pageshow', () => setTimeout(remeasure, 100));
-setTimeout(remeasure, 350);
+window.addEventListener('touchstart', remeasure, { once: true });
+for (const t of [100, 350, 700, 1500, 3000]) setTimeout(remeasure, t);
 
 let baseTiles: L.TileLayer | null = null;
 let overlayTiles: L.TileLayer | null = null;
@@ -446,20 +453,64 @@ function onFix(pos: GeolocationPosition): void {
   updateBanner();
 }
 
+// --- compass (heading-up) mode ---------------------------------------
+
+let headingOn = false;
+let headingHandler: ((e: DeviceOrientationEvent) => void) | null = null;
+let lastBearingSet = 0;
+
+async function startHeading(): Promise<boolean> {
+  type DOEStatic = { requestPermission?: () => Promise<string> };
+  const doe = DeviceOrientationEvent as unknown as DOEStatic;
+  try {
+    if (typeof doe.requestPermission === 'function') {
+      if ((await doe.requestPermission()) !== 'granted') return false;
+    }
+  } catch {
+    return false;
+  }
+  headingHandler = (e: DeviceOrientationEvent) => {
+    const webkit = (e as DeviceOrientationEvent & { webkitCompassHeading?: number })
+      .webkitCompassHeading;
+    let hdg: number | null = null;
+    if (typeof webkit === 'number' && !Number.isNaN(webkit)) hdg = webkit;
+    else if (e.absolute && typeof e.alpha === 'number') hdg = 360 - e.alpha;
+    if (hdg === null) return;
+    const now = Date.now();
+    if (now - lastBearingSet < 100) return; // throttle to 10 Hz
+    lastBearingSet = now;
+    map.setBearing(-hdg);
+  };
+  window.addEventListener('deviceorientation', headingHandler);
+  headingOn = true;
+  return true;
+}
+
+function stopHeading(): void {
+  if (headingHandler) window.removeEventListener('deviceorientation', headingHandler);
+  headingHandler = null;
+  headingOn = false;
+  map.setBearing(0);
+}
+
 function stopWatch(): void {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   watchId = null;
   follow = false;
+  stopHeading();
   gpsMarker?.remove();
   accCircle?.remove();
   gpsMarker = null;
   accCircle = null;
   lastFix = null;
   $('btnLocate').classList.remove('active');
+  $('btnLocate').innerHTML = '&#9678;';
   updateBanner();
 }
 
-$('btnLocate').addEventListener('click', () => {
+// Tap cycle: off → follow north-up → follow heading-up → off.
+// A map drag pauses following; the next tap just re-centres.
+$('btnLocate').addEventListener('click', async () => {
   if (watchId === null) {
     if (!('geolocation' in navigator)) return toast('No geolocation on this device');
     follow = true;
@@ -468,9 +519,18 @@ $('btnLocate').addEventListener('click', () => {
       toast(`GPS error: ${err.message}`, 5000);
       stopWatch();
     }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+    toast('Following you — tap again to rotate with your heading', 3000);
   } else if (!follow) {
     follow = true;
     if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15));
+  } else if (!headingOn) {
+    if (await startHeading()) {
+      $('btnLocate').innerHTML = '&#129517;';
+      toast('Heading-up — the map turns with you. Tap again to stop.', 3000);
+    } else {
+      toast('Compass not available — staying north-up. Tap again to stop.', 3500);
+      stopWatch();
+    }
   } else {
     stopWatch();
   }

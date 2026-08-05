@@ -5,7 +5,13 @@ body {
   -webkit-tap-highlight-color: transparent;
   background: #c8d1c9; /* neutral map-ish tone behind tiles, never white */
 }
-#map { position: fixed; inset: 0; }
+#map {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  height: 100vh;  /* fallback */
+  height: 100lvh; /* iOS: large viewport — extends under the home indicator */
+}
+.leaflet-container { background: #c8d1c9; }
 .hidden { display: none !important; }
 
 /* Toolbar */
