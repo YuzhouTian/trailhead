@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Trailhead</title>
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#2d6a4f" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icon-180.png" />
+  <link rel="icon" href="./icon-180.png" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <div id="statusBanner" class="hidden"></div>
+
+  <nav id="toolbar">
+    <button id="btnLayers" title="Map layers">&#9776;</button>
+    <button id="btnPlan" title="Plan a route">&#9998;</button>
+    <button id="btnRoutes" title="Saved routes">&#128193;</button>
+    <button id="btnLocate" title="My location">&#9678;</button>
+    <button id="btnOffline" title="Download route tiles for offline">&#8681;</button>
+  </nav>
+
+  <div id="panel" class="hidden">
+    <div id="panelContent"></div>
+  </div>
+
+  <div id="planBar" class="hidden">
+    <span id="planStats">Tap the map to add points</span>
+    <div class="planBtns">
+      <button id="planUndo">Undo</button>
+      <button id="planClear">Clear</button>
+      <button id="planSave">Save</button>
+      <button id="planExport">GPX</button>
+      <button id="planDone">Done</button>
+    </div>
+  </div>
+
+  <input type="file" id="gpxFile" accept=".gpx,application/gpx+xml" class="hidden" />
+
+  <div id="toast" class="hidden"></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,89 @@
+/* Trailhead service worker: offline app shell + map tile cache. */
+const STATIC_CACHE = 'trailhead-static-v1';
+const TILE_CACHE = 'trailhead-tiles-v1';
+
+const PRECACHE = ['./', './index.html', './manifest.webmanifest'];
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting())
+  );
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((k) => k !== STATIC_CACHE && k !== TILE_CACHE)
+            .map((k) => caches.delete(k))
+        )
+      )
+      .then(() => self.clients.claim())
+  );
+});
+
+function isTileRequest(url) {
+  return (
+    url.hostname.endsWith('tile.openstreetmap.org') ||
+    url.hostname.endsWith('tile.opentopomap.org') ||
+    (url.hostname === 'api.os.uk' && url.pathname.startsWith('/maps/'))
+  );
+}
+
+/* Normalise tile URLs so cache hits don't depend on the {s} subdomain
+   or on the OS API key. */
+function tileCacheKey(url) {
+  const u = new URL(url.href);
+  u.hostname = u.hostname.replace(/^[abc]\.tile\./, 'tile.');
+  if (u.hostname === 'api.os.uk') u.searchParams.delete('key');
+  return u.href;
+}
+
+self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+
+  // Map tiles: cache-first, populate on fetch.
+  if (isTileRequest(url)) {
+    const key = tileCacheKey(url);
+    event.respondWith(
+      caches.open(TILE_CACHE).then(async (cache) => {
+        const hit = await cache.match(key);
+        if (hit) return hit;
+        const res = await fetch(req);
+        if (res.ok || res.type === 'opaque') cache.put(key, res.clone());
+        return res;
+      })
+    );
+    return;
+  }
+
+  // Never cache routing calls.
+  if (url.hostname.includes('brouter')) return;
+
+  // Same-origin app files: stale-while-revalidate, offline navigation fallback.
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then(async (cache) => {
+        const cached = await cache.match(req);
+        const network = fetch(req)
+          .then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          })
+          .catch(async () => {
+            if (req.mode === 'navigate') {
+              const shell = await cache.match('./index.html');
+              if (shell) return shell;
+            }
+            throw new Error('offline');
+          });
+        return cached || network;
+      })
+    );
+  }
+});
