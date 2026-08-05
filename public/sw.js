@@ -65,7 +65,26 @@ self.addEventListener('fetch', (event) => {
   // Never cache routing calls.
   if (url.hostname.includes('brouter')) return;
 
-  // Same-origin app files: stale-while-revalidate, offline navigation fallback.
+  // Page loads: network-first so a new deploy shows up immediately;
+  // cached shell only when offline.
+  if (req.mode === 'navigate' && url.origin === self.location.origin) {
+    event.respondWith(
+      caches.open(STATIC_CACHE).then(async (cache) => {
+        try {
+          const res = await fetch(req);
+          if (res.ok) cache.put('./index.html', res.clone());
+          return res;
+        } catch {
+          const shell = (await cache.match(req)) || (await cache.match('./index.html'));
+          if (shell) return shell;
+          throw new Error('offline');
+        }
+      })
+    );
+    return;
+  }
+
+  // Other same-origin files (hashed JS/CSS, icons): stale-while-revalidate.
   if (url.origin === self.location.origin) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
@@ -75,11 +94,7 @@ self.addEventListener('fetch', (event) => {
             if (res.ok) cache.put(req, res.clone());
             return res;
           })
-          .catch(async () => {
-            if (req.mode === 'navigate') {
-              const shell = await cache.match('./index.html');
-              if (shell) return shell;
-            }
+          .catch(() => {
             throw new Error('offline');
           });
         return cached || network;
