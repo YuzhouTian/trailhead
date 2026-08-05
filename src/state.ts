@@ -5,6 +5,8 @@ export interface SavedRoute {
   name: string;
   /** Planner waypoints, if the route was made in the planner (allows re-editing). */
   waypoints: LatLng[] | null;
+  /** Per-leg snap flags (snaps[i] = leg into waypoint i follows paths). Missing = all snapped. */
+  snaps?: boolean[] | null;
   /** Full snapped/imported geometry. */
   coords: LatLng[];
   distanceM: number;

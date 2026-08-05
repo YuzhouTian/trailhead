@@ -23,8 +23,8 @@ import {
   type LatLng
 } from './geo';
 import { parseGpx, toGpx } from './gpx';
-import { routeViaBrouter } from './routing';
-import { buildShareUrl, parseShareHash } from './share';
+import { routeMixed } from './routing';
+import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
   loadRoutes,
   loadSettings,
@@ -167,6 +167,9 @@ const wpIcon = L.divIcon({ className: '', html: '<div class="wpMarker"></div>', 
 
 let planning = false;
 let planWaypoints: LatLng[] = [];
+/** planSnaps[i]: the leg arriving at waypoint i follows paths (magnet on). */
+let planSnaps: boolean[] = [];
+let snapMode = true;
 let planMarkers: L.Marker[] = [];
 let planLine: L.Polyline | null = null;
 let planResult: { coords: LatLng[]; distanceM: number; ascentM: number } | null = null;
@@ -186,6 +189,7 @@ function setPlanning(on: boolean): void {
 
 function clearPlan(): void {
   planWaypoints = [];
+  planSnaps = [];
   planMarkers.forEach((m) => m.remove());
   planMarkers = [];
   planLine?.remove();
@@ -211,6 +215,7 @@ function updatePlanStats(text?: string): void {
 
 function addWaypoint(p: LatLng): void {
   planWaypoints.push(p);
+  planSnaps.push(snapMode);
   const marker = L.marker(p, { icon: wpIcon, draggable: true }).addTo(map);
   marker.on('dragend', () => {
     const i = planMarkers.indexOf(marker);
@@ -240,7 +245,7 @@ async function recomputePlan(): Promise<void> {
   planAbort = new AbortController();
   updatePlanStats('Routing…');
   try {
-    const result = await routeViaBrouter(planWaypoints, settings.profile, planAbort.signal);
+    const result = await routeMixed(planWaypoints, planSnaps, settings.profile, planAbort.signal);
     planResult = result;
     planLine?.remove();
     planLine = L.polyline(result.coords, { color: '#1a73e8', weight: 4 }).addTo(map);
@@ -280,6 +285,7 @@ function planToRoute(name: string): SavedRoute | null {
     id: String(Date.now()),
     name,
     waypoints: [...planWaypoints],
+    snaps: [...planSnaps],
     coords: planResult.coords,
     distanceM: planResult.distanceM,
     ascentM: planResult.ascentM,
@@ -288,8 +294,14 @@ function planToRoute(name: string): SavedRoute | null {
 }
 
 $('btnPlan').addEventListener('click', () => setPlanning(!planning));
+$('planSnap').addEventListener('click', () => {
+  snapMode = !snapMode;
+  $('planSnap').classList.toggle('active', snapMode);
+  toast(snapMode ? 'Snap to paths ON' : 'Freeform ON — next points connect in straight lines', 2500);
+});
 $('planUndo').addEventListener('click', () => {
   planWaypoints.pop();
+  planSnaps.pop();
   planMarkers.pop()?.remove();
   scheduleRecompute();
 });
@@ -538,8 +550,26 @@ function openRoutesPanel(): void {
     <h3>Saved routes</h3>
     ${items}
     <hr/>
+    <div class="row"><button id="pasteRoute" style="flex:1">Paste shared route</button></div>
+    <p class="hint">Copied a route link (e.g. from Safari after scanning a QR)? This imports it here.</p>
     <div class="row"><button id="clearActive" class="secondary" style="flex:1">Hide active route</button></div>
   `);
+  $('pasteRoute').addEventListener('click', async () => {
+    let text = '';
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      text = prompt('Paste the route link:') ?? '';
+    }
+    const m = text.match(/#r=[A-Za-z0-9_-]+/);
+    let parsed: ParsedShare | null = null;
+    try {
+      parsed = m && parseShareHash(m[0]);
+    } catch { /* fall through to toast */ }
+    if (!parsed) return toast('No route link found on the clipboard', 4000);
+    hidePanel();
+    await importParsed(parsed);
+  });
 
   content.querySelectorAll<HTMLButtonElement>('.routeItem button').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -603,24 +633,22 @@ map.on('click', hidePanel);
 
 // ---------------------------------------------------------------- shared-link import
 
-async function importSharedRoute(): Promise<void> {
-  let parsed;
-  try {
-    parsed = parseShareHash(location.hash);
-  } catch {
-    return toast('Could not read the shared route link', 5000);
-  }
-  if (!parsed) return;
-  history.replaceState(null, '', location.pathname + location.search);
+/** Import a parsed share payload: re-route (waypoint shares), save, activate. */
+async function importParsed(parsed: ParsedShare): Promise<void> {
   try {
     let r: SavedRoute;
     if (parsed.waypoints) {
       toast('Loading shared route…', 0);
-      const res = await routeViaBrouter(parsed.waypoints, parsed.profile || settings.profile);
+      const res = await routeMixed(
+        parsed.waypoints,
+        parsed.snaps,
+        parsed.profile || settings.profile
+      );
       r = {
         id: String(Date.now()),
         name: parsed.name,
         waypoints: parsed.waypoints,
+        snaps: parsed.snaps ?? null,
         coords: res.coords,
         distanceM: res.distanceM,
         ascentM: res.ascentM,
@@ -648,6 +676,50 @@ async function importSharedRoute(): Promise<void> {
   } catch (e) {
     hideToast();
     toast(`Shared route failed to load: ${(e as Error).message}`, 6000);
+  }
+}
+
+const isStandalone =
+  window.matchMedia('(display-mode: standalone)').matches ||
+  (navigator as unknown as { standalone?: boolean }).standalone === true;
+
+/** iOS opens scanned QR links in Safari, whose storage is separate from the
+    home-screen app's — walk the user through the clipboard hand-off. */
+function openHandoffPanel(url: string, name: string): void {
+  showPanel(`
+    <h3>Get this route into the app</h3>
+    <p class="hint">The route loaded here in the browser, but the home-screen app keeps
+    its own separate storage. To hand “${name.replace(/</g, '&lt;')}” over:</p>
+    <ol style="font-size:14px; padding-left:20px; line-height:1.5">
+      <li>Tap <b>Copy route link</b> below</li>
+      <li>Open <b>Trailhead</b> from your home screen</li>
+      <li>Tap &#128193; → <b>Paste shared route</b></li>
+    </ol>
+    <div class="row"><button id="handoffCopy" style="flex:1">Copy route link</button></div>
+  `);
+  $('handoffCopy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Copied — now open the Trailhead app');
+    } catch {
+      prompt('Copy the link:', url);
+    }
+  });
+}
+
+async function importSharedRoute(): Promise<void> {
+  let parsed: ParsedShare | null;
+  const originalUrl = location.href;
+  try {
+    parsed = parseShareHash(location.hash);
+  } catch {
+    return toast('Could not read the shared route link', 5000);
+  }
+  if (!parsed) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  await importParsed(parsed);
+  if (!isStandalone && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+    openHandoffPanel(originalUrl, parsed.name);
   }
 }
 

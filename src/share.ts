@@ -7,6 +7,7 @@ interface SharePayload {
   n: string; // name
   p?: string; // routing profile (waypoint shares)
   w?: string; // encoded planner waypoints — receiver re-routes via BRouter
+  s?: string; // per-leg snap flags for w as '1'/'0' chars (missing = all snapped)
   c?: string; // encoded full track (imported routes with no waypoints)
   e?: string; // encoded elevations for c, metres (abused 1D polyline)
 }
@@ -18,6 +19,9 @@ export function buildShareUrl(route: SavedRoute, profile: string): string {
   if (route.waypoints && route.waypoints.length >= 2) {
     payload.w = encodePolyline(route.waypoints.map((p) => [p[0], p[1]]));
     payload.p = profile;
+    if (route.snaps && route.snaps.some((s) => s === false)) {
+      payload.s = route.snaps.map((s) => (s === false ? '0' : '1')).join('');
+    }
   } else {
     let coords = route.coords;
     // Thin dense tracks so the link (and its QR code) stays a sane size.
@@ -40,6 +44,7 @@ export interface ParsedShare {
   name: string;
   profile?: string;
   waypoints?: LatLng[];
+  snaps?: boolean[];
   coords?: LatLng[];
 }
 
@@ -55,6 +60,7 @@ export function parseShareHash(hash: string): ParsedShare | null {
   if (payload.w) {
     out.waypoints = decodePolyline(payload.w) as LatLng[];
     out.profile = payload.p;
+    if (payload.s) out.snaps = [...payload.s].map((ch) => ch !== '0');
   } else if (payload.c) {
     const coords = decodePolyline(payload.c) as LatLng[];
     if (payload.e) {

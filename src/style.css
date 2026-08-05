@@ -103,6 +103,8 @@ body {
   background: #e5e5e5; font-size: 14px; font-weight: 600; cursor: pointer;
 }
 #planDone { background: #2d6a4f; color: #fff; }
+#planSnap { flex: 0 0 46px; opacity: 0.45; }
+#planSnap.active { opacity: 1; background: #d7e8ff; }
 
 /* Elevation profile */
 #elevPanel {

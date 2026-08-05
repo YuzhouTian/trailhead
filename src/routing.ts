@@ -1,5 +1,5 @@
 import { BROUTER_URL } from './config';
-import type { LatLng } from './geo';
+import { haversine, type LatLng } from './geo';
 
 export interface RouteResult {
   coords: LatLng[];
@@ -38,4 +38,55 @@ export async function routeViaBrouter(
     distanceM: parseFloat(props['track-length'] ?? '0') || 0,
     ascentM: parseFloat(props['filtered ascend'] ?? props['plain-ascend'] ?? '0') || 0
   };
+}
+
+/**
+ * Route through waypoints where each leg may be snapped to paths (BRouter)
+ * or drawn as a straight freeform line. `snaps[i]` says whether the leg
+ * *arriving at* waypoint i is snapped; missing/undefined means all snapped.
+ */
+export async function routeMixed(
+  waypoints: LatLng[],
+  snaps: boolean[] | undefined | null,
+  profile: string,
+  signal?: AbortSignal
+): Promise<RouteResult> {
+  // Group consecutive same-mode legs so a run of snapped legs is one BRouter call.
+  const groups: { pts: LatLng[]; snap: boolean }[] = [];
+  for (let i = 1; i < waypoints.length; i++) {
+    const snap = snaps ? snaps[i] !== false : true;
+    const last = groups[groups.length - 1];
+    if (last && last.snap === snap) {
+      last.pts.push(waypoints[i]);
+    } else {
+      groups.push({ pts: [waypoints[i - 1], waypoints[i]], snap });
+    }
+  }
+
+  const results = await Promise.all(
+    groups.map(async (g): Promise<RouteResult> => {
+      if (g.snap) return routeViaBrouter(g.pts, profile, signal);
+      let d = 0;
+      for (let i = 1; i < g.pts.length; i++) d += haversine(g.pts[i - 1], g.pts[i]);
+      return { coords: g.pts.map((p) => [...p] as LatLng), distanceM: d, ascentM: 0 };
+    })
+  );
+
+  const coords: LatLng[] = [];
+  let distanceM = 0;
+  let ascentM = 0;
+  for (const r of results) {
+    const start =
+      coords.length &&
+      r.coords.length &&
+      coords[coords.length - 1][0] === r.coords[0][0] &&
+      coords[coords.length - 1][1] === r.coords[0][1]
+        ? 1
+        : 0;
+    coords.push(...r.coords.slice(start));
+    distanceM += r.distanceM;
+    ascentM += r.ascentM;
+  }
+  if (coords.length < 2) throw new Error('Route needs at least two points');
+  return { coords, distanceM, ascentM };
 }
