@@ -104,6 +104,33 @@ body {
 }
 #planDone { background: #2d6a4f; color: #fff; }
 
+/* Elevation profile */
+#elevPanel {
+  position: fixed;
+  left: 0; right: 0;
+  bottom: env(safe-area-inset-bottom, 0px);
+  background: #fff;
+  box-shadow: 0 -2px 8px rgba(0,0,0,.2);
+  padding: 6px 10px calc(env(safe-area-inset-bottom, 0px) + 6px);
+  z-index: 950;
+}
+#elevPanel.abovePlan { bottom: 104px; padding-bottom: 6px; }
+#elevHeader {
+  display: flex; align-items: center;
+  font-size: 13px; font-weight: 600;
+  padding-bottom: 2px;
+}
+#elevStats { flex: 1; }
+#elevClose {
+  border: none; background: none; color: #888;
+  font-size: 20px; padding: 0 6px; cursor: pointer;
+}
+#elevChart { touch-action: none; }
+
+/* QR share */
+.qrBox { text-align: center; padding: 8px 0; }
+.qrBox svg { max-width: 100%; height: auto; }
+
 /* Toast */
 #toast {
   position: fixed;

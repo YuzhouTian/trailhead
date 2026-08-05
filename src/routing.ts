@@ -27,7 +27,8 @@ export async function routeViaBrouter(
   const json = await res.json();
   const feature = json?.features?.[0];
   const coords: LatLng[] = (feature?.geometry?.coordinates ?? []).map(
-    (c: number[]) => [c[1], c[0]] as LatLng
+    (c: number[]) =>
+      (typeof c[2] === 'number' ? [c[1], c[0], c[2]] : [c[1], c[0]]) as LatLng
   );
   if (coords.length < 2) throw new Error('Router returned an empty route');
 

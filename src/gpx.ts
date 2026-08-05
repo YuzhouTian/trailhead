@@ -13,10 +13,15 @@ export function parseGpx(text: string, fallbackName: string): GpxData {
   }
 
   const readPoints = (selector: string): LatLng[] =>
-    Array.from(doc.querySelectorAll(selector)).map((el) => [
-      parseFloat(el.getAttribute('lat') ?? ''),
-      parseFloat(el.getAttribute('lon') ?? '')
-    ] as LatLng).filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+    Array.from(doc.querySelectorAll(selector)).map((el) => {
+      const p: LatLng = [
+        parseFloat(el.getAttribute('lat') ?? ''),
+        parseFloat(el.getAttribute('lon') ?? '')
+      ];
+      const ele = parseFloat(el.querySelector('ele')?.textContent ?? '');
+      if (Number.isFinite(ele)) p.push(ele);
+      return p;
+    }).filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
 
   let coords = readPoints('trkpt');
   if (coords.length === 0) coords = readPoints('rtept');
@@ -34,7 +39,11 @@ export function toGpx(name: string, coords: LatLng[]): string {
   const esc = (s: string) =>
     s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const pts = coords
-    .map(([lat, lng]) => `      <trkpt lat="${lat.toFixed(6)}" lon="${lng.toFixed(6)}"/>`)
+    .map((p) =>
+      typeof p[2] === 'number'
+        ? `      <trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}"><ele>${p[2].toFixed(1)}</ele></trkpt>`
+        : `      <trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}"/>`
+    )
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Trailhead" xmlns="http://www.topografix.com/GPX/1/1">

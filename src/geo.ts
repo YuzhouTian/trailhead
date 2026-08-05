@@ -1,4 +1,4 @@
-export type LatLng = [number, number]; // [lat, lng]
+export type LatLng = [number, number, number?]; // [lat, lng, elevation?]
 
 const R = 6371000;
 
@@ -52,7 +52,77 @@ function distToSegment(a: [number, number], b: [number, number]): number {
 }
 
 export function formatDistance(m: number): string {
-  return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(1)} km`;
+  if (m < 1000) return `${Math.round(m)} m`;
+  return `${(m / 1000).toFixed(1)} km / ${(m / 1609.344).toFixed(1)} mi`;
+}
+
+export function formatDuration(hours: number): string {
+  const h = Math.floor(hours);
+  const min = Math.round((hours - h) * 60);
+  return h > 0 ? `${h} h ${min.toString().padStart(2, '0')} min` : `${min} min`;
+}
+
+/** Naismith's rule: pace on the flat plus one hour per 600 m of ascent. */
+export function naismithHours(distM: number, ascentM: number, speedKmh: number): number {
+  return distM / 1000 / Math.max(speedKmh, 0.1) + ascentM / 600;
+}
+
+/** Total climb, ignoring wobbles under 5 m so GPS noise doesn't inflate it. */
+export function computeAscent(coords: LatLng[]): number {
+  let ascent = 0;
+  let ref: number | null = null;
+  for (const c of coords) {
+    const e = c[2];
+    if (typeof e !== 'number') continue;
+    if (ref === null) {
+      ref = e;
+    } else if (e > ref + 5) {
+      ascent += e - ref;
+      ref = e;
+    } else if (e < ref - 5) {
+      ref = e;
+    }
+  }
+  return ascent;
+}
+
+/**
+ * Douglas-Peucker simplification returning indices of kept points,
+ * so parallel arrays (e.g. elevations) stay aligned.
+ */
+export function simplifyIndices(coords: LatLng[], toleranceDeg: number): number[] {
+  if (coords.length <= 2) return coords.map((_, i) => i);
+  const keep = new Array(coords.length).fill(false);
+  keep[0] = keep[coords.length - 1] = true;
+  const stack: [number, number][] = [[0, coords.length - 1]];
+  while (stack.length) {
+    const [a, b] = stack.pop()!;
+    let maxD = 0;
+    let maxI = -1;
+    for (let i = a + 1; i < b; i++) {
+      const d = pointSegDistDeg(coords[i], coords[a], coords[b]);
+      if (d > maxD) {
+        maxD = d;
+        maxI = i;
+      }
+    }
+    if (maxD > toleranceDeg && maxI > 0) {
+      keep[maxI] = true;
+      stack.push([a, maxI], [maxI, b]);
+    }
+  }
+  return keep.flatMap((k, i) => (k ? [i] : []));
+}
+
+function pointSegDistDeg(p: LatLng, a: LatLng, b: LatLng): number {
+  const abx = b[1] - a[1];
+  const aby = b[0] - a[0];
+  const len2 = abx * abx + aby * aby;
+  let t = 0;
+  if (len2 > 0) {
+    t = Math.max(0, Math.min(1, ((p[1] - a[1]) * abx + (p[0] - a[0]) * aby) / len2));
+  }
+  return Math.hypot(p[1] - (a[1] + t * abx), p[0] - (a[0] + t * aby));
 }
 
 /** Slippy-map tile coordinates for a lat/lng at a zoom level. */

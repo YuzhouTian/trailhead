@@ -18,6 +18,8 @@ export interface Settings {
   overlayLayer: string; // '' = none
   overlayOpacity: number;
   profile: string;
+  /** Average walking speed on the flat, km/h (Naismith time estimate). */
+  speedKmh: number;
 }
 
 const SETTINGS_KEY = 'trailhead.settings';
@@ -29,7 +31,8 @@ export function loadSettings(): Settings {
     baseLayer: 'osm',
     overlayLayer: '',
     overlayOpacity: 0.5,
-    profile: 'hiking-mountain'
+    profile: 'hiking-mountain',
+    speedKmh: 4
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };

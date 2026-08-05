@@ -10,15 +10,21 @@ import {
   OFFLINE_ZOOMS,
   type BaseLayerDef
 } from './config';
+import qrcode from 'qrcode-generator';
+import { renderProfile } from './elevation';
 import {
+  computeAscent,
   distanceToPolyline,
   formatDistance,
+  formatDuration,
   haversine,
   latLngToTile,
+  naismithHours,
   type LatLng
 } from './geo';
 import { parseGpx, toGpx } from './gpx';
 import { routeViaBrouter } from './routing';
+import { buildShareUrl, parseShareHash } from './share';
 import {
   loadRoutes,
   loadSettings,
@@ -116,8 +122,44 @@ function setActiveRoute(r: SavedRoute | null, fit = true): void {
     }).addTo(map);
     if (fit) map.fitBounds(activeLine.getBounds(), { padding: [40, 40] });
   }
+  elevVisible = !!r;
+  updateElevPanel();
   updateBanner();
 }
+
+// ------------------------------------------------- elevation / stats panel
+
+let elevVisible = false;
+
+/** Refresh the bottom stats+profile panel from the plan in progress or the active route. */
+function updateElevPanel(): void {
+  const src = planning ? planResult : activeRoute;
+  const panel = $('elevPanel');
+  if (!src || !elevVisible) {
+    panel.classList.add('hidden');
+    $('btnElev').classList.remove('active');
+    return;
+  }
+  panel.classList.remove('hidden');
+  panel.classList.toggle('abovePlan', planning);
+  $('btnElev').classList.add('active');
+  const est = naismithHours(src.distanceM, src.ascentM, settings.speedKmh);
+  $('elevStats').textContent =
+    `${formatDistance(src.distanceM)} · ${Math.round(src.ascentM)} m ↑ · ~${formatDuration(est)}`;
+  if (!renderProfile($('elevChart'), src.coords)) {
+    $('elevChart').innerHTML = '<p class="hint">No elevation data for this route.</p>';
+  }
+}
+
+$('btnElev').addEventListener('click', () => {
+  if (!activeRoute && !(planning && planResult)) return toast('Load or plan a route first');
+  elevVisible = !elevVisible;
+  updateElevPanel();
+});
+$('elevClose').addEventListener('click', () => {
+  elevVisible = false;
+  updateElevPanel();
+});
 
 // ---------------------------------------------------------------- route planner
 
@@ -158,7 +200,8 @@ function updatePlanStats(text?: string): void {
   if (text) {
     el.textContent = text;
   } else if (planResult) {
-    el.textContent = `${formatDistance(planResult.distanceM)} · ${Math.round(planResult.ascentM)} m ascent · ${planWaypoints.length} points`;
+    const est = naismithHours(planResult.distanceM, planResult.ascentM, settings.speedKmh);
+    el.textContent = `${formatDistance(planResult.distanceM)} · ${Math.round(planResult.ascentM)} m ↑ · ~${formatDuration(est)}`;
   } else if (planWaypoints.length < 2) {
     el.textContent = 'Tap the map to add points — the route follows real paths';
   } else {
@@ -202,6 +245,8 @@ async function recomputePlan(): Promise<void> {
     planLine?.remove();
     planLine = L.polyline(result.coords, { color: '#1a73e8', weight: 4 }).addTo(map);
     updatePlanStats();
+    elevVisible = true;
+    updateElevPanel();
   } catch (e) {
     if ((e as Error).name === 'AbortError') return;
     // Router unreachable (offline / bad segment): fall back to straight lines.
@@ -220,6 +265,7 @@ async function recomputePlan(): Promise<void> {
       dashArray: '6 8'
     }).addTo(map);
     updatePlanStats();
+    updateElevPanel();
     toast(`Router error — showing straight line. ${(e as Error).message}`, 5000);
   }
 }
@@ -285,7 +331,7 @@ $('gpxFile').addEventListener('change', async (e) => {
       waypoints: null,
       coords: gpx.coords,
       distanceM: dist,
-      ascentM: 0,
+      ascentM: computeAscent(gpx.coords),
       createdAt: Date.now()
     };
     routes.push(r);
@@ -424,6 +470,13 @@ function openLayersPanel(): void {
     <h3>Routing profile</h3>
     <div class="row"><select id="profileSel" style="flex:1">${profileOpts}</select></div>
     <hr/>
+    <h3>Walking speed</h3>
+    <p class="hint">Your pace on the flat. Time estimates add 1 h per 600 m of climb (Naismith's rule).</p>
+    <div class="row">
+      <input type="number" id="speedInput" min="1" max="8" step="0.5" value="${settings.speedKmh}" style="width:70px"/>
+      <label>km/h</label>
+    </div>
+    <hr/>
     <div class="row"><button id="importBtn" style="flex:1">Import GPX file</button></div>
   `);
 
@@ -451,6 +504,15 @@ function openLayersPanel(): void {
     settings.profile = (e.target as HTMLSelectElement).value;
     saveSettings(settings);
   });
+  $('speedInput').addEventListener('change', (e) => {
+    const v = parseFloat((e.target as HTMLInputElement).value);
+    if (Number.isFinite(v) && v > 0) {
+      settings.speedKmh = v;
+      saveSettings(settings);
+      updatePlanStats();
+      updateElevPanel();
+    }
+  });
   $('importBtn').addEventListener('click', () => $('gpxFile').click());
 }
 
@@ -464,6 +526,7 @@ function openRoutesPanel(): void {
           <div class="sub">${formatDistance(r.distanceM)}${r.ascentM ? ` · ${Math.round(r.ascentM)} m ↑` : ''}</div>
         </div>
         <button data-act="load">Load</button>
+        <button data-act="share" class="secondary">Share</button>
         <button data-act="gpx" class="secondary">GPX</button>
         <button data-act="del" class="danger">✕</button>
       </div>`
@@ -487,6 +550,8 @@ function openRoutesPanel(): void {
       if (act === 'load') {
         setActiveRoute(r);
         hidePanel();
+      } else if (act === 'share') {
+        openSharePanel(r);
       } else if (act === 'gpx') {
         downloadFile(`${r.name}.gpx`, toGpx(r.name, r.coords), 'application/gpx+xml');
       } else if (act === 'del') {
@@ -504,9 +569,89 @@ function openRoutesPanel(): void {
   });
 }
 
+function openSharePanel(r: SavedRoute): void {
+  const url = buildShareUrl(r, settings.profile);
+  let qrHtml: string;
+  try {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    qrHtml = `<div class="qrBox">${qr.createSvgTag({ cellSize: 4, margin: 2 })}</div>`;
+  } catch {
+    qrHtml = '<p class="hint">Route too detailed for a QR code — use the link instead.</p>';
+  }
+  showPanel(`
+    <h3>Share “${r.name.replace(/</g, '&lt;')}”</h3>
+    <p class="hint">Scan with your phone's camera to open this route in Trailhead on the phone
+    (it saves itself automatically), or copy the link and send it any way you like.</p>
+    ${qrHtml}
+    <div class="row"><button id="copyLink" style="flex:1">Copy link</button></div>
+  `);
+  $('copyLink').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast('Link copied');
+    } catch {
+      prompt('Copy the link:', url);
+    }
+  });
+}
+
 $('btnLayers').addEventListener('click', openLayersPanel);
 $('btnRoutes').addEventListener('click', openRoutesPanel);
 map.on('click', hidePanel);
+
+// ---------------------------------------------------------------- shared-link import
+
+async function importSharedRoute(): Promise<void> {
+  let parsed;
+  try {
+    parsed = parseShareHash(location.hash);
+  } catch {
+    return toast('Could not read the shared route link', 5000);
+  }
+  if (!parsed) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    let r: SavedRoute;
+    if (parsed.waypoints) {
+      toast('Loading shared route…', 0);
+      const res = await routeViaBrouter(parsed.waypoints, parsed.profile || settings.profile);
+      r = {
+        id: String(Date.now()),
+        name: parsed.name,
+        waypoints: parsed.waypoints,
+        coords: res.coords,
+        distanceM: res.distanceM,
+        ascentM: res.ascentM,
+        createdAt: Date.now()
+      };
+    } else {
+      const coords = parsed.coords!;
+      let dist = 0;
+      for (let i = 1; i < coords.length; i++) dist += haversine(coords[i - 1], coords[i]);
+      r = {
+        id: String(Date.now()),
+        name: parsed.name,
+        waypoints: null,
+        coords,
+        distanceM: dist,
+        ascentM: computeAscent(coords),
+        createdAt: Date.now()
+      };
+    }
+    hideToast();
+    routes.push(r);
+    saveRoutes(routes);
+    setActiveRoute(r);
+    toast(`Loaded “${r.name}” (${formatDistance(r.distanceM)})`);
+  } catch (e) {
+    hideToast();
+    toast(`Shared route failed to load: ${(e as Error).message}`, 6000);
+  }
+}
+
+importSharedRoute();
 
 // ---------------------------------------------------------------- offline tiles
 

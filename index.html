@@ -22,8 +22,17 @@
     <button id="btnPlan" title="Plan a route">&#9998;</button>
     <button id="btnRoutes" title="Saved routes">&#128193;</button>
     <button id="btnLocate" title="My location">&#9678;</button>
+    <button id="btnElev" title="Elevation profile">&#9968;</button>
     <button id="btnOffline" title="Download route tiles for offline">&#8681;</button>
   </nav>
+
+  <div id="elevPanel" class="hidden">
+    <div id="elevHeader">
+      <span id="elevStats"></span>
+      <button id="elevClose">&times;</button>
+    </div>
+    <div id="elevChart"></div>
+  </div>
 
   <div id="panel" class="hidden">
     <div id="panelContent"></div>
