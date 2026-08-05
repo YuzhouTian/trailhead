@@ -11,6 +11,8 @@ export interface SavedRoute {
   coords: LatLng[];
   distanceM: number;
   ascentM: number;
+  /** Missing on routes saved before descent tracking existed. */
+  descentM?: number;
   createdAt: number;
 }
 

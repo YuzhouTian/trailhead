@@ -1,10 +1,11 @@
 import { BROUTER_URL } from './config';
-import { haversine, type LatLng } from './geo';
+import { computeClimbs, haversine, type LatLng } from './geo';
 
 export interface RouteResult {
   coords: LatLng[];
   distanceM: number;
   ascentM: number;
+  descentM: number;
 }
 
 /**
@@ -36,7 +37,8 @@ export async function routeViaBrouter(
   return {
     coords,
     distanceM: parseFloat(props['track-length'] ?? '0') || 0,
-    ascentM: parseFloat(props['filtered ascend'] ?? props['plain-ascend'] ?? '0') || 0
+    ascentM: parseFloat(props['filtered ascend'] ?? props['plain-ascend'] ?? '0') || 0,
+    descentM: computeClimbs(coords).descentM
   };
 }
 
@@ -68,13 +70,14 @@ export async function routeMixed(
       if (g.snap) return routeViaBrouter(g.pts, profile, signal);
       let d = 0;
       for (let i = 1; i < g.pts.length; i++) d += haversine(g.pts[i - 1], g.pts[i]);
-      return { coords: g.pts.map((p) => [...p] as LatLng), distanceM: d, ascentM: 0 };
+      return { coords: g.pts.map((p) => [...p] as LatLng), distanceM: d, ascentM: 0, descentM: 0 };
     })
   );
 
   const coords: LatLng[] = [];
   let distanceM = 0;
   let ascentM = 0;
+  let descentM = 0;
   for (const r of results) {
     const start =
       coords.length &&
@@ -86,7 +89,8 @@ export async function routeMixed(
     coords.push(...r.coords.slice(start));
     distanceM += r.distanceM;
     ascentM += r.ascentM;
+    descentM += r.descentM;
   }
   if (coords.length < 2) throw new Error('Route needs at least two points');
-  return { coords, distanceM, ascentM };
+  return { coords, distanceM, ascentM, descentM };
 }

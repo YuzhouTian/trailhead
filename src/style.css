@@ -3,6 +3,7 @@ html, body { margin: 0; height: 100%; overscroll-behavior: none; }
 body {
   font-family: -apple-system, system-ui, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  background: #c8d1c9; /* neutral map-ish tone behind tiles, never white */
 }
 #map { position: fixed; inset: 0; }
 .hidden { display: none !important; }
@@ -85,6 +86,11 @@ body {
 }
 #panel .routeItem .meta .sub { font-size: 12px; color: #777; }
 #panel .hint { font-size: 12px; color: #777; margin: 6px 0; }
+#panel .keyRow {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 6px 2px; font-size: 13px; line-height: 1.35;
+}
+#panel .keyRow svg { margin-top: 2px; }
 
 /* Plan bar */
 #planBar {

@@ -12,8 +12,9 @@ import {
 } from './config';
 import qrcode from 'qrcode-generator';
 import { renderProfile } from './elevation';
+import { legendHtml } from './legend';
 import {
-  computeAscent,
+  computeClimbs,
   distanceToPolyline,
   formatDistance,
   formatDuration,
@@ -23,7 +24,7 @@ import {
   type LatLng
 } from './geo';
 import { parseGpx, toGpx } from './gpx';
-import { routeMixed } from './routing';
+import { routeMixed, type RouteResult } from './routing';
 import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
   loadRoutes,
@@ -66,6 +67,15 @@ let routes = loadRoutes();
 
 const map = L.map('map', { zoomControl: true }).setView([54.5, -3.0], 6);
 
+// iOS standalone mode settles its viewport after load, leaving Leaflet with a
+// stale (shorter) size and a white strip at the bottom — re-measure whenever
+// the visual viewport changes and shortly after startup.
+const remeasure = () => map.invalidateSize({ animate: false });
+window.visualViewport?.addEventListener('resize', remeasure);
+window.addEventListener('orientationchange', () => setTimeout(remeasure, 250));
+window.addEventListener('pageshow', () => setTimeout(remeasure, 100));
+setTimeout(remeasure, 350);
+
 let baseTiles: L.TileLayer | null = null;
 let overlayTiles: L.TileLayer | null = null;
 
@@ -77,7 +87,10 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
   const opts: L.TileLayerOptions = {
     attribution: def.attribution,
     maxZoom: def.maxZoom,
-    maxNativeZoom: def.maxNativeZoom
+    maxNativeZoom: def.maxNativeZoom,
+    // CORS requests let the service worker distinguish real tiles from
+    // errors, so failures are never cached as permanent grey squares.
+    crossOrigin: 'anonymous'
   };
   if (def.minNativeZoom !== undefined) opts.minNativeZoom = def.minNativeZoom;
   return L.tileLayer(def.url.replace('{osKey}', settings.osKey), opts);
@@ -129,7 +142,34 @@ function setActiveRoute(r: SavedRoute | null, fit = true): void {
 
 // ------------------------------------------------- elevation / stats panel
 
+function climbText(ascentM: number, descentM?: number): string {
+  let s = `↑ ${Math.round(ascentM)} m`;
+  if (descentM !== undefined && Math.round(descentM) > 0) s += ` · ↓ ${Math.round(descentM)} m`;
+  return s;
+}
+
 let elevVisible = false;
+let scrubMarker: L.CircleMarker | null = null;
+
+function onProfileScrub(pos: LatLng | null): void {
+  if (!pos) {
+    scrubMarker?.remove();
+    scrubMarker = null;
+    return;
+  }
+  if (!scrubMarker) {
+    scrubMarker = L.circleMarker(pos, {
+      radius: 7,
+      color: '#c1121f',
+      weight: 3,
+      fillColor: '#fff',
+      fillOpacity: 1,
+      interactive: false
+    }).addTo(map);
+  } else {
+    scrubMarker.setLatLng(pos);
+  }
+}
 
 /** Refresh the bottom stats+profile panel from the plan in progress or the active route. */
 function updateElevPanel(): void {
@@ -138,6 +178,7 @@ function updateElevPanel(): void {
   if (!src || !elevVisible) {
     panel.classList.add('hidden');
     $('btnElev').classList.remove('active');
+    onProfileScrub(null);
     return;
   }
   panel.classList.remove('hidden');
@@ -145,8 +186,8 @@ function updateElevPanel(): void {
   $('btnElev').classList.add('active');
   const est = naismithHours(src.distanceM, src.ascentM, settings.speedKmh);
   $('elevStats').textContent =
-    `${formatDistance(src.distanceM)} · ${Math.round(src.ascentM)} m ↑ · ~${formatDuration(est)}`;
-  if (!renderProfile($('elevChart'), src.coords)) {
+    `${formatDistance(src.distanceM)} · ${climbText(src.ascentM, src.descentM)} · ~${formatDuration(est)}`;
+  if (!renderProfile($('elevChart'), src.coords, onProfileScrub)) {
     $('elevChart').innerHTML = '<p class="hint">No elevation data for this route.</p>';
   }
 }
@@ -172,7 +213,7 @@ let planSnaps: boolean[] = [];
 let snapMode = true;
 let planMarkers: L.Marker[] = [];
 let planLine: L.Polyline | null = null;
-let planResult: { coords: LatLng[]; distanceM: number; ascentM: number } | null = null;
+let planResult: RouteResult | null = null;
 let planAbort: AbortController | null = null;
 let planTimer: number | undefined;
 
@@ -205,7 +246,7 @@ function updatePlanStats(text?: string): void {
     el.textContent = text;
   } else if (planResult) {
     const est = naismithHours(planResult.distanceM, planResult.ascentM, settings.speedKmh);
-    el.textContent = `${formatDistance(planResult.distanceM)} · ${Math.round(planResult.ascentM)} m ↑ · ~${formatDuration(est)}`;
+    el.textContent = `${formatDistance(planResult.distanceM)} · ${climbText(planResult.ascentM, planResult.descentM)} · ~${formatDuration(est)}`;
   } else if (planWaypoints.length < 2) {
     el.textContent = 'Tap the map to add points — the route follows real paths';
   } else {
@@ -261,7 +302,8 @@ async function recomputePlan(): Promise<void> {
         (acc, p, i) => (i ? acc + haversine(planWaypoints[i - 1], p) : 0),
         0
       ),
-      ascentM: 0
+      ascentM: 0,
+      descentM: 0
     };
     planLine?.remove();
     planLine = L.polyline(planResult.coords, {
@@ -289,6 +331,7 @@ function planToRoute(name: string): SavedRoute | null {
     coords: planResult.coords,
     distanceM: planResult.distanceM,
     ascentM: planResult.ascentM,
+    descentM: planResult.descentM,
     createdAt: Date.now()
   };
 }
@@ -343,7 +386,7 @@ $('gpxFile').addEventListener('change', async (e) => {
       waypoints: null,
       coords: gpx.coords,
       distanceM: dist,
-      ascentM: computeAscent(gpx.coords),
+      ...computeClimbs(gpx.coords),
       createdAt: Date.now()
     };
     routes.push(r);
@@ -462,12 +505,15 @@ function openLayersPanel(): void {
     .concat(BASE_LAYERS.map((l) => `<option value="${l.id}" ${settings.overlayLayer === l.id ? 'selected' : ''}>${l.name}</option>`))
     .join('');
   const profileOpts = BROUTER_PROFILES.map(
-    (p) => `<option value="${p}" ${settings.profile === p ? 'selected' : ''}>${p}</option>`
+    (p) => `<option value="${p.id}" ${settings.profile === p.id ? 'selected' : ''}>${p.label}</option>`
   ).join('');
+  const profileDesc = (id: string) =>
+    BROUTER_PROFILES.find((p) => p.id === id)?.desc ?? '';
 
   showPanel(`
     <h3>Base map</h3>
     ${baseRows}
+    <div class="row"><button id="keyBtn" class="secondary" style="flex:1">Map key — what the symbols mean</button></div>
     <hr/>
     <h3>Overlay</h3>
     <div class="row"><select id="overlaySel" style="flex:1">${overlayOpts}</select></div>
@@ -481,6 +527,7 @@ function openLayersPanel(): void {
     <hr/>
     <h3>Routing profile</h3>
     <div class="row"><select id="profileSel" style="flex:1">${profileOpts}</select></div>
+    <p class="hint" id="profileHint">${profileDesc(settings.profile)}</p>
     <hr/>
     <h3>Walking speed</h3>
     <p class="hint">Your pace on the flat. Time estimates add 1 h per 600 m of climb (Naismith's rule).</p>
@@ -515,7 +562,9 @@ function openLayersPanel(): void {
   $('profileSel').addEventListener('change', (e) => {
     settings.profile = (e.target as HTMLSelectElement).value;
     saveSettings(settings);
+    $('profileHint').textContent = profileDesc(settings.profile);
   });
+  $('keyBtn').addEventListener('click', () => showPanel(legendHtml(settings.baseLayer)));
   $('speedInput').addEventListener('change', (e) => {
     const v = parseFloat((e.target as HTMLInputElement).value);
     if (Number.isFinite(v) && v > 0) {
@@ -535,7 +584,7 @@ function openRoutesPanel(): void {
           (r) => `<div class="routeItem" data-id="${r.id}">
         <div class="meta">
           <div class="name">${r.name.replace(/</g, '&lt;')}</div>
-          <div class="sub">${formatDistance(r.distanceM)}${r.ascentM ? ` · ${Math.round(r.ascentM)} m ↑` : ''}</div>
+          <div class="sub">${formatDistance(r.distanceM)}${r.ascentM ? ` · ${climbText(r.ascentM, r.descentM)}` : ''}</div>
         </div>
         <button data-act="load">Load</button>
         <button data-act="share" class="secondary">Share</button>
@@ -652,6 +701,7 @@ async function importParsed(parsed: ParsedShare): Promise<void> {
         coords: res.coords,
         distanceM: res.distanceM,
         ascentM: res.ascentM,
+        descentM: res.descentM,
         createdAt: Date.now()
       };
     } else {
@@ -664,7 +714,7 @@ async function importParsed(parsed: ParsedShare): Promise<void> {
         waypoints: null,
         coords,
         distanceM: dist,
-        ascentM: computeAscent(coords),
+        ...computeClimbs(coords),
         createdAt: Date.now()
       };
     }
@@ -778,7 +828,8 @@ $('btnOffline').addEventListener('click', async () => {
     while (queue.length) {
       const url = queue.shift()!;
       try {
-        await fetch(url, { mode: 'no-cors' });
+        const res = await fetch(url);
+        if (!res.ok) failed++;
       } catch {
         failed++;
       }

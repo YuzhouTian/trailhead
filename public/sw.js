@@ -1,6 +1,8 @@
 /* Trailhead service worker: offline app shell + map tile cache. */
 const STATIC_CACHE = 'trailhead-static-v1';
-const TILE_CACHE = 'trailhead-tiles-v1';
+// v2: v1 could contain opaque error responses cached as if they were tiles
+// (permanent grey squares) — bumping the name discards them.
+const TILE_CACHE = 'trailhead-tiles-v2';
 
 const PRECACHE = ['./', './index.html', './manifest.webmanifest'];
 
@@ -54,8 +56,10 @@ self.addEventListener('fetch', (event) => {
       caches.open(TILE_CACHE).then(async (cache) => {
         const hit = await cache.match(key);
         if (hit) return hit;
+        // Tiles are requested with CORS, so status is visible: only cache
+        // real tiles. Failures stay uncached and are retried on next view.
         const res = await fetch(req);
-        if (res.ok || res.type === 'opaque') cache.put(key, res.clone());
+        if (res.ok) cache.put(key, res.clone());
         return res;
       })
     );

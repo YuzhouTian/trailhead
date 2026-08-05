@@ -67,9 +67,10 @@ export function naismithHours(distM: number, ascentM: number, speedKmh: number):
   return distM / 1000 / Math.max(speedKmh, 0.1) + ascentM / 600;
 }
 
-/** Total climb, ignoring wobbles under 5 m so GPS noise doesn't inflate it. */
-export function computeAscent(coords: LatLng[]): number {
-  let ascent = 0;
+/** Total climb and drop, ignoring wobbles under 5 m so GPS noise doesn't inflate them. */
+export function computeClimbs(coords: LatLng[]): { ascentM: number; descentM: number } {
+  let ascentM = 0;
+  let descentM = 0;
   let ref: number | null = null;
   for (const c of coords) {
     const e = c[2];
@@ -77,13 +78,14 @@ export function computeAscent(coords: LatLng[]): number {
     if (ref === null) {
       ref = e;
     } else if (e > ref + 5) {
-      ascent += e - ref;
+      ascentM += e - ref;
       ref = e;
     } else if (e < ref - 5) {
+      descentM += ref - e;
       ref = e;
     }
   }
-  return ascent;
+  return { ascentM, descentM };
 }
 
 /**

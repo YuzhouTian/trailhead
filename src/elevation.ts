@@ -2,17 +2,22 @@ import { formatDistance, haversine, type LatLng } from './geo';
 
 /**
  * Render a distance-vs-elevation profile into the container as SVG,
- * with a touch/mouse scrubber. Returns false if the route has no
- * elevation data to draw.
+ * with a touch/mouse scrubber. `onScrub` fires with the map position
+ * under the scrubber (null when scrubbing ends). Returns false if the
+ * route has no elevation data to draw.
  */
-export function renderProfile(container: HTMLElement, coords: LatLng[]): boolean {
-  const pts: { d: number; e: number }[] = [];
+export function renderProfile(
+  container: HTMLElement,
+  coords: LatLng[],
+  onScrub?: (pos: LatLng | null) => void
+): boolean {
+  const pts: { d: number; e: number; lat: number; lng: number }[] = [];
   let dist = 0;
   let prev: LatLng | null = null;
   for (const c of coords) {
     if (prev) dist += haversine(prev, c);
     prev = c;
-    if (typeof c[2] === 'number') pts.push({ d: dist, e: c[2] });
+    if (typeof c[2] === 'number') pts.push({ d: dist, e: c[2], lat: c[0], lng: c[1] });
   }
   if (pts.length < 2 || dist <= 0) {
     container.innerHTML = '';
@@ -78,13 +83,20 @@ export function renderProfile(container: HTMLElement, coords: LatLng[]): boolean
     const flip = x(best.d) > W - 110;
     label.setAttribute('x', String(x(best.d) + (flip ? -6 : 6)));
     label.setAttribute('text-anchor', flip ? 'end' : 'start');
+    onScrub?.([best.lat, best.lng, best.e]);
+  };
+  const endScrub = () => {
+    scrub.style.display = 'none';
+    onScrub?.(null);
   };
   svg.addEventListener('mousemove', (e) => onMove(e.clientX));
+  svg.addEventListener('touchstart', (e) => onMove(e.touches[0].clientX), { passive: true });
   svg.addEventListener('touchmove', (e) => {
     onMove(e.touches[0].clientX);
     e.preventDefault();
   }, { passive: false });
-  svg.addEventListener('mouseleave', () => (scrub.style.display = 'none'));
-  svg.addEventListener('touchend', () => (scrub.style.display = 'none'));
+  svg.addEventListener('mouseleave', endScrub);
+  svg.addEventListener('touchend', endScrub);
+  svg.addEventListener('touchcancel', endScrub);
   return true;
 }

@@ -52,7 +52,35 @@ export const BASE_LAYERS: BaseLayerDef[] = [
 ];
 
 export const BROUTER_URL = 'https://brouter.de/brouter';
-export const BROUTER_PROFILES = ['hiking-mountain', 'hiking-beta', 'trekking', 'shortest'];
+
+export interface ProfileDef {
+  id: string;
+  label: string;
+  desc: string;
+}
+
+export const BROUTER_PROFILES: ProfileDef[] = [
+  {
+    id: 'hiking-mountain',
+    label: 'Mountain hiking',
+    desc: 'Prefers proper hiking trails and is happy to use steep, rough or exposed mountain paths. Best for fell and mountain walks.'
+  },
+  {
+    id: 'hiking-beta',
+    label: 'General hiking',
+    desc: 'Footpaths and easier trails; steers away from technical mountain terrain more than the mountain profile.'
+  },
+  {
+    id: 'trekking',
+    label: 'Trekking (bike-style)',
+    desc: "BRouter's bicycle-touring profile. Prefers smoother, cycle-friendly ways and avoids steps — a useful fallback when the hiking profiles refuse to connect two points."
+  },
+  {
+    id: 'shortest',
+    label: 'Shortest',
+    desc: 'The shortest routable way regardless of surface or scenery. Good for comparison, or as a last resort.'
+  }
+];
 
 /** Distance (m) from the route line beyond which you count as off-route. */
 export const OFF_ROUTE_THRESHOLD_M = 50;
