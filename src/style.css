@@ -5,11 +5,13 @@ body {
   -webkit-tap-highlight-color: transparent;
   background: #c8d1c9; /* neutral map-ish tone behind tiles, never white */
 }
+/* No explicit height: with top and bottom both pinned, the map fills the
+   whole fixed containing block, which viewport-fit=cover extends under the
+   home indicator. Setting a height as well overrides `bottom` and can leave
+   a strip of background showing at the foot of the screen. */
 #map {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
-  height: 100vh;  /* fallback */
-  height: 100lvh; /* iOS: large viewport — extends under the home indicator */
 }
 .leaflet-container { background: #c8d1c9; }
 .hidden { display: none !important; }
@@ -34,6 +36,18 @@ body {
 #bottomBar button .lbl { font-size: 10px; font-weight: 600; }
 #bottomBar button.active { color: #2d6a4f; }
 body.planning #bottomBar { display: none; }
+
+/* Belt and braces: paint the bar's own colour from its bottom edge down past
+   the foot of the screen, so nothing can show through beneath it whatever
+   iOS decides the viewport bottom is. */
+#bottomBar::after, #planBar::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 100%;
+  height: 120px;
+  background: inherit;
+  pointer-events: none;
+}
 
 /* Search */
 #searchWrap {
@@ -162,7 +176,9 @@ body.planning #statusBanner { display: none; }
 #planBar {
   position: fixed;
   left: 0; right: 0;
-  bottom: env(safe-area-inset-bottom, 0px);
+  /* Sit flush with the screen edge; the inset is handled by padding below,
+     so the bar's background covers the home-indicator strip. */
+  bottom: 0;
   background: #fff;
   box-shadow: 0 -2px 8px rgba(0,0,0,.2);
   padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
