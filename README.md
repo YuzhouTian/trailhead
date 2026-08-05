@@ -1,5 +1,7 @@
 # Trailhead
 
+**Live: https://yuzhoutian.github.io/trailhead/**
+
 A personal, bloat-free hiking map PWA. No accounts, no paywalls, no tracking — just maps,
 routes that follow real paths, and a dot showing where you are.
 
@@ -30,20 +32,14 @@ npm run dev
 
 OSM and OpenTopoMap layers work with no key at all.
 
-## Deploy (needed for iPhone GPS)
+## Deploy
 
-Geolocation and the service worker require HTTPS, so host the built app anywhere free:
+Already set up: pushing to `main` triggers `.github/workflows/deploy.yml`, which builds
+and publishes to GitHub Pages. Nothing else to do — `git push` is the deploy.
 
-```
-npm run build   # output in dist/
-```
+(Pages source is set to "GitHub Actions" in repo Settings → Pages; that's a one-time setting.)
 
-- **GitHub Pages**: push this repo, enable Pages from a branch serving `dist/`
-  (or a tiny Actions workflow that runs `npm run build`).
-- **Cloudflare Pages / Netlify**: point it at the repo, build command `npm run build`,
-  output dir `dist`. Free tier is far more than enough for one person.
-
-Then on your iPhone: open the URL in Safari → Share → **Add to Home Screen**.
+On your iPhone: open the live URL in Safari → Share → **Add to Home Screen**.
 It launches full-screen like a native app.
 
 ## On the trail
