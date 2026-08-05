@@ -491,8 +491,8 @@ function onFix(pos: GeolocationPosition): void {
     `<div style="font-size:13px;line-height:1.5">${positionText(p)}<br>
      <span style="color:#777">±${Math.round(pos.coords.accuracy)} m</span></div>`
   );
-  // Unanimated: with map rotation enabled the animated path intermittently
-  // does nothing, which would silently stop the map following you.
+  // Recentre instantly: fixes arrive every second or so, and queueing a pan
+  // animation per fix looks jittery and stalls entirely while backgrounded.
   if (follow) map.setView(p, Math.max(map.getZoom(), 15), { animate: false });
   updateBanner();
 }
@@ -634,8 +634,8 @@ function showSearchHits(hits: SearchHit[]): void {
       const hit = hits[Number(el.dataset.i)];
       searchMarker?.remove();
       searchMarker = L.marker(hit.pos).addTo(map);
-      // Centre first, unanimated: a popup's auto-pan would otherwise animate
-      // over the top of setView, and the animated path can silently no-op.
+      // Centre first and without animation, so the popup's auto-pan can't
+      // animate over the top of it and leave the map where it started.
       map.setView(hit.pos, Math.max(map.getZoom(), 15), { animate: false });
       searchMarker
         .bindPopup(
