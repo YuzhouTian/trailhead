@@ -106,7 +106,7 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
 function applyLayers(): void {
   let base = layerDef(settings.baseLayer) ?? BASE_LAYERS[0];
   if (base.needsOsKey && !settings.osKey) {
-    toast('Ordnance Survey layer needs an API key — add it in the layers panel');
+    toast('Ordnance Survey layer needs an API key — add it in Settings');
     base = BASE_LAYERS[0];
     settings.baseLayer = base.id;
   }
@@ -142,7 +142,6 @@ function setActiveRoute(r: SavedRoute | null, fit = true): void {
     }).addTo(map);
     if (fit) map.fitBounds(activeLine.getBounds(), { padding: [40, 40] });
   }
-  elevVisible = !!r;
   updateElevPanel();
   updateBanner();
 }
@@ -155,7 +154,7 @@ function climbText(ascentM: number, descentM?: number): string {
   return s;
 }
 
-let elevVisible = false;
+let chartOpen = false;
 let scrubMarker: L.CircleMarker | null = null;
 
 function onProfileScrub(pos: LatLng | null): void {
@@ -178,36 +177,41 @@ function onProfileScrub(pos: LatLng | null): void {
   }
 }
 
-/** Refresh the bottom stats+profile panel from the plan in progress or the active route. */
+/** Refresh the active-route card from the plan in progress or the active route. */
 function updateElevPanel(): void {
   const src = planning ? planResult : activeRoute;
-  const panel = $('elevPanel');
-  if (!src || !elevVisible) {
-    panel.classList.add('hidden');
-    $('btnElev').classList.remove('active');
+  const card = $('routeCard');
+  if (!src) {
+    card.classList.add('hidden');
     onProfileScrub(null);
     return;
   }
-  panel.classList.remove('hidden');
-  panel.classList.toggle('abovePlan', planning);
-  $('btnElev').classList.add('active');
+  card.classList.remove('hidden');
+  card.classList.toggle('abovePlan', planning);
+  $('rcName').textContent = planning ? 'New route' : activeRoute?.name ?? '';
   const est = naismithHours(src.distanceM, src.ascentM, settings.speedKmh);
-  $('elevStats').textContent =
+  $('rcStats').textContent =
     `${formatDistance(src.distanceM)} · ${climbText(src.ascentM, src.descentM)} · ~${formatDuration(est)}`;
-  if (!renderProfile($('elevChart'), src.coords, onProfileScrub)) {
-    $('elevChart').innerHTML = '<p class="hint">No elevation data for this route.</p>';
+  $('rcOffline').classList.toggle('hidden', planning);
+  $('rcClose').classList.toggle('hidden', planning);
+  $('rcChart').classList.toggle('active', chartOpen);
+  const chart = $('elevChart');
+  if (chartOpen) {
+    chart.classList.remove('hidden');
+    if (!renderProfile(chart, src.coords, onProfileScrub)) {
+      chart.innerHTML = '<p class="hint">No elevation data for this route.</p>';
+    }
+  } else {
+    chart.classList.add('hidden');
+    onProfileScrub(null);
   }
 }
 
-$('btnElev').addEventListener('click', () => {
-  if (!activeRoute && !(planning && planResult)) return toast('Load or plan a route first');
-  elevVisible = !elevVisible;
+$('rcChart').addEventListener('click', () => {
+  chartOpen = !chartOpen;
   updateElevPanel();
 });
-$('elevClose').addEventListener('click', () => {
-  elevVisible = false;
-  updateElevPanel();
-});
+$('rcClose').addEventListener('click', () => setActiveRoute(null));
 
 // ---------------------------------------------------------------- route planner
 
@@ -226,6 +230,7 @@ let planTimer: number | undefined;
 
 function setPlanning(on: boolean): void {
   planning = on;
+  document.body.classList.toggle('planning', on);
   $('btnPlan').classList.toggle('active', on);
   $('planBar').classList.toggle('hidden', !on);
   map.getContainer().style.cursor = on ? 'crosshair' : '';
@@ -233,6 +238,7 @@ function setPlanning(on: boolean): void {
     setActiveRoute(null);
     updatePlanStats();
   }
+  updateElevPanel();
 }
 
 function clearPlan(): void {
@@ -298,7 +304,6 @@ async function recomputePlan(): Promise<void> {
     planLine?.remove();
     planLine = L.polyline(result.coords, { color: '#1a73e8', weight: 4 }).addTo(map);
     updatePlanStats();
-    elevVisible = true;
     updateElevPanel();
   } catch (e) {
     if ((e as Error).name === 'AbortError') return;
@@ -504,7 +509,7 @@ function stopWatch(): void {
   accCircle = null;
   lastFix = null;
   $('btnLocate').classList.remove('active');
-  $('btnLocate').innerHTML = '&#9678;';
+  $('locateIco').innerHTML = '&#9678;';
   updateBanner();
 }
 
@@ -525,7 +530,7 @@ $('btnLocate').addEventListener('click', async () => {
     if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15));
   } else if (!headingOn) {
     if (await startHeading()) {
-      $('btnLocate').innerHTML = '&#129517;';
+      $('locateIco').innerHTML = '&#129517;';
       toast('Heading-up — the map turns with you. Tap again to stop.', 3000);
     } else {
       toast('Compass not available — staying north-up. Tap again to stop.', 3500);
@@ -554,7 +559,7 @@ function showPanel(html: string): HTMLElement {
   return content;
 }
 
-function openLayersPanel(): void {
+function openMapPanel(): void {
   const baseRows = BASE_LAYERS.map(
     (l) => `<div class="row">
       <input type="radio" name="base" id="base-${l.id}" value="${l.id}" ${settings.baseLayer === l.id ? 'checked' : ''}/>
@@ -564,12 +569,6 @@ function openLayersPanel(): void {
   const overlayOpts = ['<option value="">None</option>']
     .concat(BASE_LAYERS.map((l) => `<option value="${l.id}" ${settings.overlayLayer === l.id ? 'selected' : ''}>${l.name}</option>`))
     .join('');
-  const profileOpts = BROUTER_PROFILES.map(
-    (p) => `<option value="${p.id}" ${settings.profile === p.id ? 'selected' : ''}>${p.label}</option>`
-  ).join('');
-  const profileDesc = (id: string) =>
-    BROUTER_PROFILES.find((p) => p.id === id)?.desc ?? '';
-
   showPanel(`
     <h3>Base map</h3>
     ${baseRows}
@@ -580,23 +579,6 @@ function openLayersPanel(): void {
     <div class="row"><label>Opacity</label>
       <input type="range" id="overlayOp" min="0.1" max="0.9" step="0.1" value="${settings.overlayOpacity}"/>
     </div>
-    <hr/>
-    <h3>Ordnance Survey API key</h3>
-    <p class="hint">Free from osdatahub.os.uk — needed only for the OS layers.</p>
-    <div class="row"><input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/></div>
-    <hr/>
-    <h3>Routing profile</h3>
-    <div class="row"><select id="profileSel" style="flex:1">${profileOpts}</select></div>
-    <p class="hint" id="profileHint">${profileDesc(settings.profile)}</p>
-    <hr/>
-    <h3>Walking speed</h3>
-    <p class="hint">Your pace on the flat. Time estimates add 1 h per 600 m of climb (Naismith's rule).</p>
-    <div class="row">
-      <input type="number" id="speedInput" min="1" max="8" step="0.5" value="${settings.speedKmh}" style="width:70px"/>
-      <label>km/h</label>
-    </div>
-    <hr/>
-    <div class="row"><button id="importBtn" style="flex:1">Import GPX file</button></div>
   `);
 
   BASE_LAYERS.forEach((l) => {
@@ -614,6 +596,33 @@ function openLayersPanel(): void {
     overlayTiles?.setOpacity(settings.overlayOpacity);
     saveSettings(settings);
   });
+  $('keyBtn').addEventListener('click', () => showPanel(legendHtml(settings.baseLayer)));
+}
+
+function openSettingsPanel(): void {
+  const profileOpts = BROUTER_PROFILES.map(
+    (p) => `<option value="${p.id}" ${settings.profile === p.id ? 'selected' : ''}>${p.label}</option>`
+  ).join('');
+  const profileDesc = (id: string) =>
+    BROUTER_PROFILES.find((p) => p.id === id)?.desc ?? '';
+
+  showPanel(`
+    <h3>Ordnance Survey API key</h3>
+    <p class="hint">Free from osdatahub.os.uk — needed only for the OS layers.</p>
+    <div class="row"><input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/></div>
+    <hr/>
+    <h3>Routing profile</h3>
+    <div class="row"><select id="profileSel" style="flex:1">${profileOpts}</select></div>
+    <p class="hint" id="profileHint">${profileDesc(settings.profile)}</p>
+    <hr/>
+    <h3>Walking speed</h3>
+    <p class="hint">Your pace on the flat. Time estimates add 1 h per 600 m of climb (Naismith's rule).</p>
+    <div class="row">
+      <input type="number" id="speedInput" min="1" max="8" step="0.5" value="${settings.speedKmh}" style="width:70px"/>
+      <label>km/h</label>
+    </div>
+  `);
+
   $('osKeyInput').addEventListener('change', (e) => {
     settings.osKey = (e.target as HTMLInputElement).value.trim();
     applyLayers();
@@ -624,7 +633,6 @@ function openLayersPanel(): void {
     saveSettings(settings);
     $('profileHint').textContent = profileDesc(settings.profile);
   });
-  $('keyBtn').addEventListener('click', () => showPanel(legendHtml(settings.baseLayer)));
   $('speedInput').addEventListener('change', (e) => {
     const v = parseFloat((e.target as HTMLInputElement).value);
     if (Number.isFinite(v) && v > 0) {
@@ -634,7 +642,6 @@ function openLayersPanel(): void {
       updateElevPanel();
     }
   });
-  $('importBtn').addEventListener('click', () => $('gpxFile').click());
 }
 
 function openRoutesPanel(): void {
@@ -659,10 +666,11 @@ function openRoutesPanel(): void {
     <h3>Saved routes</h3>
     ${items}
     <hr/>
+    <div class="row"><button id="importBtn" class="secondary" style="flex:1">Import GPX file</button></div>
     <div class="row"><button id="pasteRoute" style="flex:1">Paste shared route</button></div>
     <p class="hint">Copied a route link (e.g. from Safari after scanning a QR)? This imports it here.</p>
-    <div class="row"><button id="clearActive" class="secondary" style="flex:1">Hide active route</button></div>
   `);
+  $('importBtn').addEventListener('click', () => $('gpxFile').click());
   $('pasteRoute').addEventListener('click', async () => {
     let text = '';
     try {
@@ -702,10 +710,6 @@ function openRoutesPanel(): void {
       }
     });
   });
-  $('clearActive').addEventListener('click', () => {
-    setActiveRoute(null);
-    hidePanel();
-  });
 }
 
 function openSharePanel(r: SavedRoute): void {
@@ -736,7 +740,8 @@ function openSharePanel(r: SavedRoute): void {
   });
 }
 
-$('btnLayers').addEventListener('click', openLayersPanel);
+$('btnMap').addEventListener('click', openMapPanel);
+$('btnSettings').addEventListener('click', openSettingsPanel);
 $('btnRoutes').addEventListener('click', openRoutesPanel);
 map.on('click', hidePanel);
 
@@ -867,7 +872,7 @@ function tileUrls(def: BaseLayerDef, coords: LatLng[]): string[] {
   return [...urls];
 }
 
-$('btnOffline').addEventListener('click', async () => {
+$('rcOffline').addEventListener('click', async () => {
   if (!activeRoute) return toast('Load or plan a route first');
   if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
     return toast('Offline caching only works in the installed (built) app', 5000);

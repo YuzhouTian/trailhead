@@ -17,21 +17,25 @@
 
   <div id="statusBanner" class="hidden"></div>
 
-  <nav id="toolbar">
-    <button id="btnLayers" title="Map layers">&#9776;</button>
-    <button id="btnPlan" title="Plan a route">&#9998;</button>
-    <button id="btnRoutes" title="Saved routes">&#128193;</button>
-    <button id="btnLocate" title="My location">&#9678;</button>
-    <button id="btnElev" title="Elevation profile">&#9968;</button>
-    <button id="btnOffline" title="Download route tiles for offline">&#8681;</button>
+  <nav id="bottomBar">
+    <button id="btnMap"><span class="ico">&#128506;</span><span class="lbl">Map</span></button>
+    <button id="btnRoutes"><span class="ico">&#128193;</span><span class="lbl">Routes</span></button>
+    <button id="btnPlan"><span class="ico">&#9999;&#65039;</span><span class="lbl">Plan</span></button>
+    <button id="btnLocate"><span class="ico" id="locateIco">&#9678;</span><span class="lbl">Me</span></button>
+    <button id="btnSettings"><span class="ico">&#9881;&#65039;</span><span class="lbl">Settings</span></button>
   </nav>
 
-  <div id="elevPanel" class="hidden">
-    <div id="elevHeader">
-      <span id="elevStats"></span>
-      <button id="elevClose">&times;</button>
+  <div id="routeCard" class="hidden">
+    <div id="rcHeader">
+      <div id="rcInfo">
+        <div id="rcName"></div>
+        <div id="rcStats"></div>
+      </div>
+      <button id="rcChart" title="Elevation profile">&#9968;</button>
+      <button id="rcOffline" title="Download tiles for offline use">&#8681;</button>
+      <button id="rcClose" title="Hide route">&times;</button>
     </div>
-    <div id="elevChart"></div>
+    <div id="elevChart" class="hidden"></div>
   </div>
 
   <div id="panel" class="hidden">
