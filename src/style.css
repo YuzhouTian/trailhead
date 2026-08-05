@@ -35,10 +35,55 @@ body {
 #bottomBar button.active { color: #2d6a4f; }
 body.planning #bottomBar { display: none; }
 
+/* Search */
+#searchWrap {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: 10px; right: 10px;
+  max-width: 520px; margin: 0 auto;
+  display: flex; align-items: center;
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 1px 6px rgba(0,0,0,.3);
+  z-index: 1050;
+}
+#searchInput {
+  flex: 1; min-width: 0;
+  border: none; background: none; outline: none;
+  padding: 11px 6px 11px 16px;
+  font-size: 15px;
+  -webkit-appearance: none;
+}
+#searchInput::-webkit-search-cancel-button { display: none; }
+#searchClear {
+  border: none; background: none; color: #888;
+  font-size: 22px; padding: 4px 14px 6px; cursor: pointer;
+}
+#searchResults {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 54px);
+  left: 10px; right: 10px;
+  max-width: 520px; margin: 0 auto;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.3);
+  z-index: 1050;
+  max-height: 45vh; overflow-y: auto;
+}
+#searchResults .hit {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+}
+#searchResults .hit:last-child { border-bottom: none; }
+#searchResults .hit .n { font-size: 15px; font-weight: 600; }
+#searchResults .hit .d { font-size: 12px; color: #777; }
+body.planning #searchWrap, body.planning #searchResults { display: none; }
+
 /* Status banner (on/off route) */
 #statusBanner {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  top: calc(env(safe-area-inset-top, 0px) + 60px);
   left: 50%; transform: translateX(-50%);
   padding: 8px 14px;
   border-radius: 20px;
@@ -49,6 +94,20 @@ body.planning #bottomBar { display: none; }
   white-space: nowrap;
 }
 #statusBanner.off { background: #c1121f; }
+body.planning #statusBanner { display: none; }
+
+/* POI markers */
+.poiMarker {
+  display: flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #2d6a4f;
+  box-shadow: 0 1px 3px rgba(0,0,0,.4);
+  font-size: 13px; line-height: 1;
+}
+.poiMarker.viewpoint { border-color: #1a73e8; }
+.poiMarker.water { border-color: #3d9bd0; }
 
 /* Slide-in panel */
 #panel {
@@ -137,6 +196,7 @@ body.planning #bottomBar { display: none; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 #rcStats { font-size: 12.5px; color: #444; }
+#rcRemaining { font-size: 12.5px; font-weight: 600; color: #2d6a4f; }
 #rcHeader button {
   border: none; background: #f0f0f0; border-radius: 8px;
   width: 36px; height: 36px; font-size: 17px; cursor: pointer;

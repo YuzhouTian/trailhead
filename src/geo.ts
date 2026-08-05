@@ -12,14 +12,21 @@ export function haversine(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+export interface RouteProgress {
+  /** Perpendicular distance from the point to the route, metres. */
+  offRouteM: number;
+  /** Distance from the route start to the projected position, metres. */
+  alongM: number;
+  /** Index of the route point at or just before the projection. */
+  index: number;
+}
+
 /**
- * Minimum distance in metres from point p to the polyline.
- * Uses a local equirectangular projection per segment — accurate to well
- * under a metre at hiking scales.
+ * Project a position onto the route: how far off it is, and how far along.
+ * Walks every segment, so it is exact rather than a nearest-vertex guess.
  */
-export function distanceToPolyline(p: LatLng, line: LatLng[]): number {
-  if (line.length === 0) return Infinity;
-  if (line.length === 1) return haversine(p, line[0]);
+export function projectOnPolyline(p: LatLng, line: LatLng[]): RouteProgress | null {
+  if (line.length < 2) return null;
 
   const cosLat = Math.cos((p[0] * Math.PI) / 180);
   const toXY = (q: LatLng): [number, number] => [
@@ -28,13 +35,37 @@ export function distanceToPolyline(p: LatLng, line: LatLng[]): number {
   ];
 
   let best = Infinity;
+  let bestAlong = 0;
+  let bestIndex = 0;
+  let travelled = 0;
   let prev = toXY(line[0]);
+
   for (let i = 1; i < line.length; i++) {
     const cur = toXY(line[i]);
-    best = Math.min(best, distToSegment(prev, cur));
+    const abx = cur[0] - prev[0];
+    const aby = cur[1] - prev[1];
+    const len = Math.hypot(abx, aby);
+    let t = 0;
+    if (len > 0) {
+      t = Math.max(0, Math.min(1, (-prev[0] * abx - prev[1] * aby) / (len * len)));
+    }
+    const d = Math.hypot(prev[0] + t * abx, prev[1] + t * aby);
+    if (d < best) {
+      best = d;
+      bestAlong = travelled + t * len;
+      bestIndex = i - 1;
+    }
+    travelled += len;
     prev = cur;
   }
-  return best;
+  return { offRouteM: best, alongM: bestAlong, index: bestIndex };
+}
+
+/** Cumulative distance to each point of a route, metres. */
+export function cumulativeDistances(line: LatLng[]): number[] {
+  const out = [0];
+  for (let i = 1; i < line.length; i++) out.push(out[i - 1] + haversine(line[i - 1], line[i]));
+  return out;
 }
 
 /** Distance from origin (0,0) to segment a-b in the projected plane. */

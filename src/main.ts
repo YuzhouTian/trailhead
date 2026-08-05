@@ -16,16 +16,20 @@ import { renderProfile } from './elevation';
 import { legendHtml } from './legend';
 import {
   computeClimbs,
-  distanceToPolyline,
+  cumulativeDistances,
   formatDistance,
   formatDuration,
   haversine,
   latLngToTile,
   naismithHours,
+  projectOnPolyline,
   type LatLng
 } from './geo';
 import { parseGpx, toGpx } from './gpx';
+import { formatGridRef } from './osgb';
+import { fetchPois, POI_STYLE, type Poi } from './poi';
 import { routeMixed, type RouteResult } from './routing';
+import { search, type SearchHit } from './search';
 import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
   loadRoutes,
@@ -192,6 +196,9 @@ function updateElevPanel(): void {
   const est = naismithHours(src.distanceM, src.ascentM, settings.speedKmh);
   $('rcStats').textContent =
     `${formatDistance(src.distanceM)} · ${climbText(src.ascentM, src.descentM)} · ~${formatDuration(est)}`;
+  const remaining = planning ? null : remainingText();
+  $('rcRemaining').textContent = remaining ?? '';
+  $('rcRemaining').classList.toggle('hidden', !remaining);
   $('rcOffline').classList.toggle('hidden', planning);
   $('rcClose').classList.toggle('hidden', planning);
   $('rcChart').classList.toggle('active', chartOpen);
@@ -425,24 +432,49 @@ function updateBanner(): void {
   const banner = $('statusBanner');
   if (!lastFix || !activeRoute) {
     banner.classList.add('hidden');
+    updateElevPanel();
     return;
   }
-  const d = distanceToPolyline(lastFix, activeRoute.coords);
+  const prog = projectOnPolyline(lastFix, activeRoute.coords);
   banner.classList.remove('hidden');
-  if (d <= OFF_ROUTE_THRESHOLD_M) {
+  if (prog && prog.offRouteM <= OFF_ROUTE_THRESHOLD_M) {
     banner.className = '';
-    banner.textContent = `On route · ${formatDistance(d)} from line`;
+    banner.textContent = `On route · ${Math.round(prog.offRouteM)} m from line`;
   } else {
     banner.className = 'off';
-    banner.textContent = `OFF ROUTE · ${formatDistance(d)} away`;
+    banner.textContent = `OFF ROUTE · ${formatDistance(prog?.offRouteM ?? Infinity)} away`;
   }
+  updateElevPanel();
+}
+
+/**
+ * What's left of the active route from the current position: distance,
+ * remaining climb, and a time estimate at the user's pace.
+ */
+function remainingText(): string | null {
+  if (!lastFix || !activeRoute) return null;
+  const coords = activeRoute.coords;
+  const prog = projectOnPolyline(lastFix, coords);
+  if (!prog) return null;
+
+  const cum = cumulativeDistances(coords);
+  const total = cum[cum.length - 1];
+  const remainingM = Math.max(0, total - prog.alongM);
+
+  // Remaining climb: only the part of the profile still ahead.
+  const ahead = coords.slice(prog.index + 1);
+  const { ascentM } = computeClimbs(ahead);
+  const est = naismithHours(remainingM, ascentM, settings.speedKmh);
+
+  const pct = total > 0 ? Math.round((prog.alongM / total) * 100) : 0;
+  return `${formatDistance(remainingM)} to go · ↑ ${Math.round(ascentM)} m · ~${formatDuration(est)} · ${pct}% done`;
 }
 
 function onFix(pos: GeolocationPosition): void {
   const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
   lastFix = p;
   if (!gpsMarker) {
-    gpsMarker = L.marker(p, { icon: gpsIcon, interactive: false }).addTo(map);
+    gpsMarker = L.marker(p, { icon: gpsIcon }).addTo(map);
     accCircle = L.circle(p, {
       radius: pos.coords.accuracy,
       color: '#1a73e8',
@@ -454,7 +486,14 @@ function onFix(pos: GeolocationPosition): void {
     gpsMarker.setLatLng(p);
     accCircle!.setLatLng(p).setRadius(pos.coords.accuracy);
   }
-  if (follow) map.setView(p, Math.max(map.getZoom(), 15));
+  // Tap your own dot for the grid reference to read out to mountain rescue.
+  gpsMarker.bindPopup(
+    `<div style="font-size:13px;line-height:1.5">${positionText(p)}<br>
+     <span style="color:#777">±${Math.round(pos.coords.accuracy)} m</span></div>`
+  );
+  // Unanimated: with map rotation enabled the animated path intermittently
+  // does nothing, which would silently stop the map following you.
+  if (follow) map.setView(p, Math.max(map.getZoom(), 15), { animate: false });
   updateBanner();
 }
 
@@ -527,7 +566,7 @@ $('btnLocate').addEventListener('click', async () => {
     toast('Following you — tap again to rotate with your heading', 3000);
   } else if (!follow) {
     follow = true;
-    if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15));
+    if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
   } else if (!headingOn) {
     if (await startHeading()) {
       $('locateIco').innerHTML = '&#129517;';
@@ -544,6 +583,148 @@ $('btnLocate').addEventListener('click', async () => {
 map.on('dragstart', () => {
   follow = false;
 });
+
+// ---------------------------------------------------------------- grid references
+
+/** Human-readable position line: grid ref where we have one, plus lat/lng. */
+function positionText(p: LatLng): string {
+  const grid = formatGridRef(p[0], p[1], 4);
+  const ll = `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`;
+  return grid ? `<b>${grid}</b><br>${ll}` : ll;
+}
+
+// Long-press (or right-click) anywhere to identify that spot.
+map.on('contextmenu', (e: L.LeafletMouseEvent) => {
+  if (planning) return;
+  const p: LatLng = [e.latlng.lat, e.latlng.lng];
+  L.popup({ closeButton: true })
+    .setLatLng(e.latlng)
+    .setContent(`<div style="font-size:13px;line-height:1.5">${positionText(p)}</div>`)
+    .openOn(map);
+});
+
+// ---------------------------------------------------------------- search
+
+let searchAbort: AbortController | null = null;
+let searchTimer: number | undefined;
+let searchMarker: L.Marker | null = null;
+
+function hideSearchResults(): void {
+  $('searchResults').classList.add('hidden');
+}
+
+function showSearchHits(hits: SearchHit[]): void {
+  const box = $('searchResults');
+  if (!hits.length) {
+    box.innerHTML = '<div class="hit"><div class="d">No matches</div></div>';
+    box.classList.remove('hidden');
+    return;
+  }
+  box.innerHTML = hits
+    .map(
+      (h, i) => `<div class="hit" data-i="${i}">
+        <div class="n">${h.name.replace(/</g, '&lt;')}</div>
+        <div class="d">${h.detail.replace(/</g, '&lt;')}</div>
+      </div>`
+    )
+    .join('');
+  box.classList.remove('hidden');
+  box.querySelectorAll<HTMLElement>('.hit').forEach((el) => {
+    el.addEventListener('click', () => {
+      const hit = hits[Number(el.dataset.i)];
+      searchMarker?.remove();
+      searchMarker = L.marker(hit.pos).addTo(map);
+      // Centre first, unanimated: a popup's auto-pan would otherwise animate
+      // over the top of setView, and the animated path can silently no-op.
+      map.setView(hit.pos, Math.max(map.getZoom(), 15), { animate: false });
+      searchMarker
+        .bindPopup(
+          `<div style="font-size:13px;line-height:1.5"><b>${hit.name.replace(/</g, '&lt;')}</b><br>${positionText(hit.pos)}</div>`,
+          { autoPan: false }
+        )
+        .openPopup();
+      hideSearchResults();
+      ($('searchInput') as HTMLInputElement).blur();
+    });
+  });
+}
+
+$('searchInput').addEventListener('input', () => {
+  const q = ($('searchInput') as HTMLInputElement).value;
+  $('searchClear').classList.toggle('hidden', !q);
+  window.clearTimeout(searchTimer);
+  searchAbort?.abort();
+  if (q.trim().length < 2) return hideSearchResults();
+  searchTimer = window.setTimeout(async () => {
+    searchAbort = new AbortController();
+    const near: LatLng = lastFix ?? [map.getCenter().lat, map.getCenter().lng];
+    try {
+      showSearchHits(await search(q, settings.osKey, near, searchAbort.signal));
+    } catch (e) {
+      if ((e as Error).name !== 'AbortError') toast(`Search failed: ${(e as Error).message}`, 4000);
+    }
+  }, 400);
+});
+
+$('searchClear').addEventListener('click', () => {
+  ($('searchInput') as HTMLInputElement).value = '';
+  $('searchClear').classList.add('hidden');
+  hideSearchResults();
+  searchMarker?.remove();
+  searchMarker = null;
+});
+
+// ---------------------------------------------------------------- nearby POIs
+
+let poiLayer: L.LayerGroup | null = null;
+
+async function showNearbyPois(): Promise<void> {
+  if (poiLayer) {
+    poiLayer.remove();
+    poiLayer = null;
+    toast('Nearby points hidden');
+    return;
+  }
+  const centre: LatLng = lastFix ?? [map.getCenter().lat, map.getCenter().lng];
+  // Cover roughly the visible map, clamped to something Overpass answers quickly.
+  const bounds = map.getBounds();
+  const radius = Math.min(
+    Math.max(haversine([bounds.getNorth(), bounds.getWest()], [bounds.getSouth(), bounds.getEast()]) / 2, 800),
+    12000
+  );
+  toast('Looking for summits, viewpoints and water…', 0);
+  try {
+    const pois = await fetchPois(centre, radius);
+    hideToast();
+    if (!pois.length) return toast('Nothing mapped nearby', 3000);
+    poiLayer = L.layerGroup(pois.map(poiMarker)).addTo(map);
+    toast(`${pois.length} nearby — tap a marker for detail`, 3500);
+  } catch (e) {
+    hideToast();
+    toast(`Couldn't load nearby points: ${(e as Error).message}`, 5000);
+  }
+}
+
+function poiMarker(p: Poi): L.Marker {
+  const style = POI_STYLE[p.kind];
+  const marker = L.marker(p.pos, {
+    icon: L.divIcon({
+      className: '',
+      html: `<div class="poiMarker ${p.kind}">${style.icon}</div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    })
+  });
+  const height = p.ele !== undefined ? ` · ${Math.round(p.ele)} m` : '';
+  const away = lastFix ? ` · ${formatDistance(haversine(lastFix, p.pos))} away` : '';
+  marker.bindPopup(
+    `<div style="font-size:13px;line-height:1.5">
+      <b>${p.name.replace(/</g, '&lt;')}</b><br>
+      ${style.label}${height}${away}<br>${positionText(p.pos)}
+    </div>`
+  );
+  return marker;
+}
 
 // ---------------------------------------------------------------- panels
 
@@ -574,6 +755,10 @@ function openMapPanel(): void {
     ${baseRows}
     <div class="row"><button id="keyBtn" class="secondary" style="flex:1">Map key — what the symbols mean</button></div>
     <hr/>
+    <h3>Nearby</h3>
+    <p class="hint">Summits, viewpoints and water sources from OpenStreetMap, around what you can see. Tap again to hide them.</p>
+    <div class="row"><button id="poiBtn" style="flex:1">${poiLayer ? 'Hide nearby points' : "What's nearby"}</button></div>
+    <hr/>
     <h3>Overlay</h3>
     <div class="row"><select id="overlaySel" style="flex:1">${overlayOpts}</select></div>
     <div class="row"><label>Opacity</label>
@@ -597,6 +782,10 @@ function openMapPanel(): void {
     saveSettings(settings);
   });
   $('keyBtn').addEventListener('click', () => showPanel(legendHtml(settings.baseLayer)));
+  $('poiBtn').addEventListener('click', () => {
+    hidePanel();
+    showNearbyPois();
+  });
 }
 
 function openSettingsPanel(): void {
@@ -743,7 +932,10 @@ function openSharePanel(r: SavedRoute): void {
 $('btnMap').addEventListener('click', openMapPanel);
 $('btnSettings').addEventListener('click', openSettingsPanel);
 $('btnRoutes').addEventListener('click', openRoutesPanel);
-map.on('click', hidePanel);
+map.on('click', () => {
+  hidePanel();
+  hideSearchResults();
+});
 
 // ---------------------------------------------------------------- shared-link import
 

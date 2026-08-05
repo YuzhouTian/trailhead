@@ -15,6 +15,13 @@
 <body>
   <div id="map"></div>
 
+  <div id="searchWrap">
+    <input type="search" id="searchInput" placeholder="Place, grid ref (NY 215 072) or lat, lng"
+           autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" />
+    <button id="searchClear" class="hidden">&times;</button>
+  </div>
+  <div id="searchResults" class="hidden"></div>
+
   <div id="statusBanner" class="hidden"></div>
 
   <nav id="bottomBar">
@@ -30,6 +37,7 @@
       <div id="rcInfo">
         <div id="rcName"></div>
         <div id="rcStats"></div>
+        <div id="rcRemaining" class="hidden"></div>
       </div>
       <button id="rcChart" title="Elevation profile">&#9968;</button>
       <button id="rcOffline" title="Download tiles for offline use">&#8681;</button>
