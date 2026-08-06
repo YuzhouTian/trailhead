@@ -235,13 +235,28 @@ const OSM_GROUPS: Group[] = [
 
 const TF_GROUPS: Group[] = [
   {
-    title: 'Trails and paths',
+    title: 'Waymarked routes',
     entries: [
-      { swatch: line('#c04a3a', 2, '5 3'), name: 'Hiking route', note: 'Trails are the headline feature of this style and are drawn boldly.' },
-      { swatch: line('#d98f2a', 2, '4 3'), name: 'Path graded by difficulty', note: 'Colour follows the SAC mountaineering scale — the harder the ground, the hotter the colour.' },
+      {
+        swatch: sw(
+          `<g fill="#c0392b">${[6, 14, 22, 30, 38].map((x) => `<circle cx="${x}" cy="9" r="2.6"/>`).join('')}</g>`
+        ),
+        name: 'National trail',
+        note: 'Red dots — e.g. the Pennine Way. Signposted on the ground the whole way.'
+      },
+      {
+        swatch: sw(
+          `<g fill="#8e44ad">${[6, 14, 22, 30, 38].map((x) => `<circle cx="${x}" cy="9" r="2.6"/>`).join('')}</g>`
+        ),
+        name: 'Regional route',
+        note: 'Purple dots — e.g. the Capital Ring, the Dartmoor Way. Usually waymarked too.'
+      },
+      { swatch: symbol('<text x="23" y="13" text-anchor="middle" font-size="9" fill="#8e44ad" font-style="italic">Name</text>'), name: 'Route name', note: 'Written along the line of dots, so you can read which route you are on.' },
+      { swatch: line('#333', 2, '2 3'), name: 'Path', note: 'Plain dashes: a path with no waymarked route along it.' },
       { swatch: line('#a08048', 3, '8 5', '#e8d9b8'), name: 'Track' },
       { swatch: line('#ffffff', 5, '', '#c9c2b8'), name: 'Road' }
-    ]
+    ],
+    footnote: 'Cycle routes are not drawn as coloured dots on this layer — verified on a tile carrying three of them. Solid blue lines are water, not routes, which is easy to misread at a glance.'
   },
   {
     title: 'Relief',
