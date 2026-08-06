@@ -94,6 +94,12 @@ function layerDef(id: string): BaseLayerDef | undefined {
   return BASE_LAYERS.find((l) => l.id === id);
 }
 
+/** Fill in the API key and the retina suffix for a layer's tile URL. */
+function tileUrlFor(def: BaseLayerDef): string {
+  const scale = def.retina && window.devicePixelRatio > 1.3 ? '@2x' : '';
+  return def.url.replace('{tfKey}', settings.tfKey).replace('{r}', scale);
+}
+
 function makeTileLayer(def: BaseLayerDef): L.TileLayer {
   const opts: L.TileLayerOptions = {
     attribution: def.attribution,
@@ -113,25 +119,51 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
     keepBuffer: 4
   };
   if (def.minNativeZoom !== undefined) opts.minNativeZoom = def.minNativeZoom;
-  return L.tileLayer(def.url.replace('{osKey}', settings.osKey), opts);
+  return L.tileLayer(tileUrlFor(def), opts);
+}
+
+/** The layer we fall back to: always available, never needs a key. */
+const FALLBACK_LAYER = BASE_LAYERS.find((l) => !l.needsTfKey) ?? BASE_LAYERS[0];
+
+/** A layer is usable if it exists and any key it needs has been entered. */
+function usable(def: BaseLayerDef | undefined): def is BaseLayerDef {
+  return !!def && !(def.needsTfKey && !settings.tfKey);
 }
 
 function applyLayers(): void {
-  let base = layerDef(settings.baseLayer) ?? BASE_LAYERS[0];
-  if (base.needsOsKey && !settings.osKey) {
-    toast('Ordnance Survey layer needs an API key — add it in Settings');
-    base = BASE_LAYERS[0];
+  const requested = layerDef(settings.baseLayer);
+  // Read this before the type guard below narrows `requested` away.
+  const missingKey = !!requested?.needsTfKey && !settings.tfKey;
+  // Falls back for both a missing key and settings still naming a retired
+  // OS layer.
+  const base = usable(requested) ? requested : FALLBACK_LAYER;
+  if (base.id !== settings.baseLayer) {
+    if (missingKey) toast('Outdoors needs a Thunderforest key — add it in Settings', 4000);
     settings.baseLayer = base.id;
   }
   baseTiles?.remove();
   baseTiles = makeTileLayer(base).addTo(map);
 
+  // An empty key is caught above, but a *wrong* one just 401s and leaves a
+  // blank map. Bail out to the keyless layer rather than showing nothing.
+  if (base.needsTfKey) {
+    let failures = 0;
+    baseTiles.on('tileerror', () => {
+      if (++failures !== 4 || settings.baseLayer !== base.id) return;
+      toast(`${base.name} tiles are failing — check the key in Settings`, 6000);
+      settings.baseLayer = FALLBACK_LAYER.id;
+      applyLayers();
+    });
+  }
+
   overlayTiles?.remove();
   overlayTiles = null;
   const over = settings.overlayLayer ? layerDef(settings.overlayLayer) : undefined;
-  if (over && over.id !== base.id && !(over.needsOsKey && !settings.osKey)) {
+  if (usable(over) && over.id !== base.id) {
     overlayTiles = makeTileLayer(over).addTo(map);
     overlayTiles.setOpacity(settings.overlayOpacity);
+  } else if (settings.overlayLayer && !layerDef(settings.overlayLayer)) {
+    settings.overlayLayer = ''; // retired layer
   }
   saveSettings(settings);
 }
@@ -784,7 +816,9 @@ function openMapPanel(): void {
   const baseRows = BASE_LAYERS.map(
     (l) => `<div class="row">
       <input type="radio" name="base" id="base-${l.id}" value="${l.id}" ${settings.baseLayer === l.id ? 'checked' : ''}/>
-      <label for="base-${l.id}">${l.name}</label>
+      <label for="base-${l.id}">${l.name}${
+        l.needsTfKey && !settings.tfKey ? ' <span style="color:#c1121f">(needs key)</span>' : ''
+      }${l.blurb ? `<span class="keyNote">${l.blurb}</span>` : ''}</label>
     </div>`
   ).join('');
   const overlayOpts = ['<option value="">None</option>']
@@ -837,8 +871,14 @@ function openSettingsPanel(): void {
     BROUTER_PROFILES.find((p) => p.id === id)?.desc ?? '';
 
   showPanel(`
+    <h3>Thunderforest API key</h3>
+    <p class="hint">Powers the Outdoors base map. Free "Hobby Project" plan at
+    thunderforest.com — 150,000 tiles a month, far more than one walker uses.</p>
+    <div class="row"><input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/></div>
+    <hr/>
     <h3>Ordnance Survey API key</h3>
-    <p class="hint">Free from osdatahub.os.uk — needed only for the OS layers.</p>
+    <p class="hint">Optional, and only used for place-name search — OS knows British
+    hills and hamlets better than the free fallback. No longer used for map tiles.</p>
     <div class="row"><input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/></div>
     <hr/>
     <h3>Routing profile</h3>
@@ -856,10 +896,16 @@ function openSettingsPanel(): void {
     If this looks old after a deploy, fully close the app from the app switcher and reopen it.</p>
   `);
 
+  $('tfKeyInput').addEventListener('change', (e) => {
+    settings.tfKey = (e.target as HTMLInputElement).value.trim();
+    saveSettings(settings);
+    applyLayers();
+    toast(settings.tfKey ? 'Thunderforest key saved — pick Outdoors in Map' : 'Thunderforest key cleared');
+  });
   $('osKeyInput').addEventListener('change', (e) => {
     settings.osKey = (e.target as HTMLInputElement).value.trim();
-    applyLayers();
-    toast(settings.osKey ? 'OS key saved' : 'OS key cleared');
+    saveSettings(settings);
+    toast(settings.osKey ? 'OS key saved — used for search' : 'OS key cleared');
   });
   $('profileSel').addEventListener('change', (e) => {
     settings.profile = (e.target as HTMLSelectElement).value;
@@ -1096,12 +1142,11 @@ function tileUrls(def: BaseLayerDef, coords: LatLng[]): string[] {
       const n = 2 ** z;
       if (x < 0 || y < 0 || x >= n || y >= n) continue;
       urls.add(
-        def.url
+        tileUrlFor(def)
           .replace('{s}', 'a')
           .replace('{z}', String(z))
           .replace('{x}', String(x))
           .replace('{y}', String(y))
-          .replace('{osKey}', settings.osKey)
       );
     }
   }
@@ -1114,7 +1159,7 @@ $('rcOffline').addEventListener('click', async () => {
     return toast('Offline caching only works in the installed (built) app', 5000);
   }
   const defs = [layerDef(settings.baseLayer), settings.overlayLayer ? layerDef(settings.overlayLayer) : undefined]
-    .filter((d): d is BaseLayerDef => !!d && !(d.needsOsKey && !settings.osKey));
+    .filter(usable);
   let urls = defs.flatMap((d) => tileUrls(d, activeRoute!.coords));
   if (urls.length > OFFLINE_MAX_TILES) {
     toast(`Route too long — capping at ${OFFLINE_MAX_TILES} tiles`, 4000);

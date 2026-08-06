@@ -31,16 +31,17 @@ function isTileRequest(url) {
   return (
     url.hostname.endsWith('tile.openstreetmap.org') ||
     url.hostname.endsWith('tile.opentopomap.org') ||
-    (url.hostname === 'api.os.uk' && url.pathname.startsWith('/maps/'))
+    url.hostname.endsWith('tile.thunderforest.com')
   );
 }
 
 /* Normalise tile URLs so cache hits don't depend on the {s} subdomain
-   or on the OS API key. */
+   or on an API key that may be rotated. */
 function tileCacheKey(url) {
   const u = new URL(url.href);
   u.hostname = u.hostname.replace(/^[abc]\.tile\./, 'tile.');
-  if (u.hostname === 'api.os.uk') u.searchParams.delete('key');
+  u.searchParams.delete('apikey');
+  u.searchParams.delete('key');
   return u.href;
 }
 

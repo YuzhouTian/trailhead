@@ -17,6 +17,9 @@ export interface SavedRoute {
 }
 
 export interface Settings {
+  /** Thunderforest key — the Outdoors base layer. */
+  tfKey: string;
+  /** Ordnance Survey key — place-name search only; no longer used for map tiles. */
   osKey: string;
   baseLayer: string;
   overlayLayer: string; // '' = none
@@ -36,7 +39,8 @@ export function loadSettings(): Settings {
     overlayLayer: '',
     overlayOpacity: 0.5,
     profile: 'hiking-mountain',
-    speedKmh: 4
+    speedKmh: 4,
+    tfKey: ''
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };

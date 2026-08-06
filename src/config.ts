@@ -9,17 +9,35 @@ export interface BaseLayerDef {
   maxNativeZoom: number;
   /** Lowest zoom the tile server provides (tiles downscale below it). */
   minNativeZoom?: number;
-  needsOsKey?: boolean;
+  /** Needs the Thunderforest API key from Settings. */
+  needsTfKey?: boolean;
+  /** Server offers @2x tiles — much sharper on a phone's high-density screen. */
+  retina?: boolean;
+  /** Shown under the layer name in the Map panel. */
+  blurb?: string;
 }
 
 export const BASE_LAYERS: BaseLayerDef[] = [
+  {
+    id: 'tf-outdoors',
+    name: 'Outdoors (Thunderforest)',
+    // {r} becomes "@2x" on high-density screens.
+    url: 'https://tile.thunderforest.com/outdoors/{z}/{x}/{y}{r}.png?apikey={tfKey}',
+    attribution: '&copy; OpenStreetMap contributors | Maps &copy; Thunderforest',
+    maxZoom: 20,
+    maxNativeZoom: 20,
+    needsTfKey: true,
+    retina: true,
+    blurb: 'Hiking cartography over OpenStreetMap data: trails graded by difficulty, terrain shading, sharp retina tiles. Needs a free key in Settings.'
+  },
   {
     id: 'osm',
     name: 'OpenStreetMap',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19,
-    maxNativeZoom: 19
+    maxNativeZoom: 19,
+    blurb: 'The reference rendering, and the only layer that draws individual gates and stiles. No key needed, so it is also the fallback if Outdoors is unavailable.'
   },
   {
     id: 'otm',
@@ -27,27 +45,8 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap (CC-BY-SA)',
     maxZoom: 19,
-    maxNativeZoom: 17
-  },
-  {
-    id: 'os-outdoor',
-    name: 'OS Outdoor (Ordnance Survey)',
-    url: 'https://api.os.uk/maps/raster/v1/zxy/Outdoor_3857/{z}/{x}/{y}.png?key={osKey}',
-    attribution: 'Contains OS data &copy; Crown copyright',
-    maxZoom: 19,
-    maxNativeZoom: 16,
-    minNativeZoom: 7,
-    needsOsKey: true
-  },
-  {
-    id: 'os-light',
-    name: 'OS Light (Ordnance Survey)',
-    url: 'https://api.os.uk/maps/raster/v1/zxy/Light_3857/{z}/{x}/{y}.png?key={osKey}',
-    attribution: 'Contains OS data &copy; Crown copyright',
-    maxZoom: 19,
-    maxNativeZoom: 16,
-    minNativeZoom: 7,
-    needsOsKey: true
+    maxNativeZoom: 17,
+    blurb: 'Contours and hillshading over OpenStreetMap data. Slower to load and stops at zoom 17, but needs no key.'
   }
 ];
 

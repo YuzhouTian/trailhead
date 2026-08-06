@@ -233,38 +233,42 @@ const OSM_GROUPS: Group[] = [
 
 // ---------------------------------------------------------------- Ordnance Survey
 
-const OS_GROUPS: Group[] = [
+const TF_GROUPS: Group[] = [
   {
-    title: 'Relief — this layer\'s strength',
+    title: 'Trails and paths',
     entries: [
-      { swatch: contours('#c8bda8', '#a8977c'), name: 'Contours', note: 'Fine tan lines, labelled with their height. Close together means steep. Drawn well even where nothing else is.' },
-      { swatch: stipple('#b0a898'), name: 'Rock and crag', note: 'Stippled or hachured shading on tors and outcrops.' }
+      { swatch: line('#c04a3a', 2, '5 3'), name: 'Hiking route', note: 'Trails are the headline feature of this style and are drawn boldly.' },
+      { swatch: line('#d98f2a', 2, '4 3'), name: 'Path graded by difficulty', note: 'Colour follows the SAC mountaineering scale — the harder the ground, the hotter the colour.' },
+      { swatch: line('#a08048', 3, '8 5', '#e8d9b8'), name: 'Track' },
+      { swatch: line('#ffffff', 5, '', '#c9c2b8'), name: 'Road' }
     ]
   },
   {
-    title: 'Ways and roads',
+    title: 'Relief',
     entries: [
-      { swatch: line('#5aa06a', 5, '', '#3f7d50'), name: 'A road' },
-      { swatch: line('#ffffff', 4, '', '#b9b2a4'), name: 'Minor road or lane' },
-      { swatch: line('#b5ada0', 1.4), name: 'Track or path', note: 'A thin grey line, and only the more prominent ones. No indication of legal status, surface or difficulty.' }
+      { swatch: contours('#c4a882', '#a8875c'), name: 'Contours' },
+      { swatch: area('#e8e0d0'), name: 'Elevation shading', note: 'Ground colour shifts with height, and hillshading picks out the shape of the slopes.' },
+      { swatch: stipple('#9a9a9a'), name: 'Scree and bare rock' }
     ]
   },
   {
-    title: 'Water and ground cover',
+    title: 'Ground cover and water',
     entries: [
-      { swatch: line('#9ec9dd', 2), name: 'River or stream' },
-      { swatch: area('#aad3df'), name: 'Lake or reservoir' },
-      { swatch: area('#d5ecc9'), name: 'Woodland' },
-      { swatch: area('#efe9dc'), name: 'Open ground', note: 'Moor, fell and farmland all render much the same — this style does not distinguish them.' }
+      { swatch: conifers('#3f7d3f'), name: 'Forest' },
+      { swatch: marsh, name: 'Wetland' },
+      { swatch: line('#7fb8d4', 3), name: 'River or stream' },
+      { swatch: area('#aad3df'), name: 'Lake or tarn' }
     ]
   },
   {
-    title: 'Names and buildings',
+    title: 'Landmarks and facilities',
     entries: [
-      { swatch: area('#ddd2c0'), name: 'Buildings' },
-      { swatch: symbol('<text x="23" y="13" text-anchor="middle" font-size="10" fill="#6b5b45" font-style="italic">Tor</text>'), name: 'Place and feature names', note: 'Tors, farms, hills and hamlets are well labelled — often the quickest way to confirm where you are.' }
+      { swatch: peak('#8b5a2b'), name: 'Peak', note: 'With name and height.' },
+      { swatch: symbol('<path d="M17 14 L23 5 L29 14 Z" fill="#8b5a2b"/><rect x="21" y="10" width="4" height="4" fill="#fff"/>'), name: 'Hut, refuge or shelter' },
+      { swatch: letterChip('P', '#4a7ebb'), name: 'Car park' },
+      { swatch: letterChip('▲', '#7a9e3f'), name: 'Campsite' }
     ],
-    footnote: 'What this layer cannot tell you — and it is a lot. OS Outdoor draws no public rights of way, no open access land, no military danger areas, no gates or stiles, no trig points, and only a fraction of the paths. Verified by comparing tiles at Haytor, Okehampton Range, Grasmere and the Chilterns. The classic OS Explorer symbology you know from paper maps (green rights-of-way dashes, red danger areas) belongs to OS\'s premium "Leisure" style, which is not on the free plan and is only served in British National Grid, which this app cannot display. Treat OS here as a clean backdrop with excellent contours — and use OpenStreetMap or OpenTopoMap for paths, access and crossings.'
+    footnote: 'Same OpenStreetMap data as the OSM layer, drawn for walkers and served as sharp double-resolution tiles. It does not label legal rights of way, and small barrier symbols are less prominent than on the plain OSM layer — switch there to check a specific gate or stile.'
   }
 ];
 
@@ -324,8 +328,7 @@ const OTM_GROUPS: Group[] = [
 const KEYS: Record<string, { title: string; groups: Group[] }> = {
   osm: { title: 'OpenStreetMap', groups: OSM_GROUPS },
   otm: { title: 'OpenTopoMap', groups: OTM_GROUPS },
-  'os-outdoor': { title: 'OS Outdoor', groups: OS_GROUPS },
-  'os-light': { title: 'OS Light', groups: OS_GROUPS }
+  'tf-outdoors': { title: 'Outdoors', groups: TF_GROUPS }
 };
 
 export function legendHtml(layerId: string): string {
