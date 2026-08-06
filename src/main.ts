@@ -101,7 +101,16 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
     maxNativeZoom: def.maxNativeZoom,
     // CORS requests let the service worker distinguish real tiles from
     // errors, so failures are never cached as permanent grey squares.
-    crossOrigin: 'anonymous'
+    crossOrigin: 'anonymous',
+    // Leaflet defaults updateWhenIdle to true on touch devices, which holds
+    // every tile request until the pan stops — the map visibly fills in
+    // behind your finger. Load them as you go instead.
+    updateWhenIdle: false,
+    // Don't re-request at every intermediate zoom level mid-animation.
+    updateWhenZooming: false,
+    // Keep four rings of off-screen tiles alive instead of two, so short
+    // pans move into already-loaded map rather than blank squares.
+    keepBuffer: 4
   };
   if (def.minNativeZoom !== undefined) opts.minNativeZoom = def.minNativeZoom;
   return L.tileLayer(def.url.replace('{osKey}', settings.osKey), opts);
@@ -501,7 +510,37 @@ function onFix(pos: GeolocationPosition): void {
 
 let headingOn = false;
 let headingHandler: ((e: DeviceOrientationEvent) => void) | null = null;
-let lastBearingSet = 0;
+/** Newest compass reading, degrees clockwise from north. */
+let targetHeading: number | null = null;
+/** Smoothed heading currently drawn, chased towards the target each frame. */
+let shownHeading: number | null = null;
+let appliedHeading: number | null = null;
+let headingFrame: number | null = null;
+
+/** Shortest signed turn from a to b, in (-180, 180] — handles the 359°→0° wrap. */
+function angleDelta(a: number, b: number): number {
+  return ((b - a + 540) % 360) - 180;
+}
+
+/**
+ * Redraw the bearing once per animation frame rather than once per compass
+ * event, easing towards the latest reading. Following the raw sensor looks
+ * jittery (it is noisy and fires irregularly); easing at display rate looks
+ * like the map is simply turning with you.
+ */
+function headingTick(): void {
+  headingFrame = requestAnimationFrame(headingTick);
+  if (targetHeading === null) return;
+
+  if (shownHeading === null) shownHeading = targetHeading;
+  else shownHeading = (shownHeading + angleDelta(shownHeading, targetHeading) * 0.25 + 360) % 360;
+
+  // Skip the redraw when the change is imperceptible, so a still phone
+  // costs nothing.
+  if (appliedHeading !== null && Math.abs(angleDelta(appliedHeading, shownHeading)) < 0.25) return;
+  appliedHeading = shownHeading;
+  map.setBearing(-shownHeading);
+}
 
 async function startHeading(): Promise<boolean> {
   type DOEStatic = { requestPermission?: () => Promise<string> };
@@ -513,26 +552,25 @@ async function startHeading(): Promise<boolean> {
   } catch {
     return false;
   }
+  // Record every reading; headingTick decides how often to redraw.
   headingHandler = (e: DeviceOrientationEvent) => {
     const webkit = (e as DeviceOrientationEvent & { webkitCompassHeading?: number })
       .webkitCompassHeading;
-    let hdg: number | null = null;
-    if (typeof webkit === 'number' && !Number.isNaN(webkit)) hdg = webkit;
-    else if (e.absolute && typeof e.alpha === 'number') hdg = 360 - e.alpha;
-    if (hdg === null) return;
-    const now = Date.now();
-    if (now - lastBearingSet < 100) return; // throttle to 10 Hz
-    lastBearingSet = now;
-    map.setBearing(-hdg);
+    if (typeof webkit === 'number' && !Number.isNaN(webkit)) targetHeading = webkit;
+    else if (e.absolute && typeof e.alpha === 'number') targetHeading = 360 - e.alpha;
   };
   window.addEventListener('deviceorientation', headingHandler);
+  headingFrame = requestAnimationFrame(headingTick);
   headingOn = true;
   return true;
 }
 
 function stopHeading(): void {
   if (headingHandler) window.removeEventListener('deviceorientation', headingHandler);
+  if (headingFrame !== null) cancelAnimationFrame(headingFrame);
   headingHandler = null;
+  headingFrame = null;
+  targetHeading = shownHeading = appliedHeading = null;
   headingOn = false;
   map.setBearing(0);
 }

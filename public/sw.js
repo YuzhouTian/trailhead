@@ -44,6 +44,11 @@ function tileCacheKey(url) {
   return u.href;
 }
 
+/* Hold the tile cache open: every visible tile hits this path, and reopening
+   it per request adds latency to the one thing that must feel instant. */
+let tileCachePromise = null;
+const tileCache = () => (tileCachePromise ??= caches.open(TILE_CACHE));
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -53,7 +58,7 @@ self.addEventListener('fetch', (event) => {
   if (isTileRequest(url)) {
     const key = tileCacheKey(url);
     event.respondWith(
-      caches.open(TILE_CACHE).then(async (cache) => {
+      tileCache().then(async (cache) => {
         const hit = await cache.match(key);
         if (hit) return hit;
         // Tiles are requested with CORS, so status is visible: only cache
