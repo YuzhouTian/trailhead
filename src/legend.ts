@@ -235,52 +235,36 @@ const OSM_GROUPS: Group[] = [
 
 const OS_GROUPS: Group[] = [
   {
-    title: 'Rights of way',
+    title: 'Relief — this layer\'s strength',
     entries: [
-      { swatch: line('#2e8b57', 2, '4 3'), name: 'Public footpath', note: 'A legal right to walk, whatever the ground looks like.' },
-      { swatch: line('#2e8b57', 2, '9 4'), name: 'Public bridleway', note: 'Walkers, horses, cyclists.' },
-      { swatch: line('#2e8b57', 2, '10 4 2 4'), name: 'Restricted byway', note: 'Walkers, horses, carriages — no motor vehicles.' },
-      { swatch: rungs('#2e8b57', 2, '#2e8b57'), name: 'Byway open to all traffic', note: 'Vehicles may use it, so expect ruts.' },
-      { swatch: symbol('<g fill="#2e8b57">' + [8, 18, 28, 38].map((x) => `<path d="M${x} 5 l3 4 l-3 4 l-3 -4 Z"/>`).join('') + '</g>'), name: 'National Trail', note: 'Long-distance route, generally well signed on the ground.' }
+      { swatch: contours('#c8bda8', '#a8977c'), name: 'Contours', note: 'Fine tan lines, labelled with their height. Close together means steep. Drawn well even where nothing else is.' },
+      { swatch: stipple('#b0a898'), name: 'Rock and crag', note: 'Stippled or hachured shading on tors and outcrops.' }
     ]
   },
   {
-    title: 'Access and boundaries',
+    title: 'Ways and roads',
     entries: [
-      { swatch: hatch('#f7f0d8', '#d4a017'), name: 'Open access land', note: 'Roam freely on foot (CRoW). May close for a few days a year.' },
-      { swatch: hatch('#fbe4e4', '#c1121f'), name: 'Danger area', note: 'Military firing range — Dartmoor has several. Check the firing times before you walk.' },
-      { swatch: line('#9b7cc4', 2, '8 4'), name: 'National park boundary' }
+      { swatch: line('#5aa06a', 5, '', '#3f7d50'), name: 'A road' },
+      { swatch: line('#ffffff', 4, '', '#b9b2a4'), name: 'Minor road or lane' },
+      { swatch: line('#b5ada0', 1.4), name: 'Track or path', note: 'A thin grey line, and only the more prominent ones. No indication of legal status, surface or difficulty.' }
     ]
   },
   {
-    title: 'Ground and relief',
+    title: 'Water and ground cover',
     entries: [
-      { swatch: contours('#c98f5c', '#b06f3c'), name: 'Contours', note: 'Usually 10 m apart, every fifth line heavier and labelled. Lines close together mean steep.' },
-      { swatch: cliff('#7a7a7a'), name: 'Cliff or outcrop' },
-      { swatch: stipple('#9a9a9a'), name: 'Scree' },
-      { swatch: marsh, name: 'Marsh' },
-      { swatch: area('#d5ecc9'), name: 'Woodland' },
-      { swatch: line('#e8b600', 4, '', '#b99400'), name: 'Minor road' }
-    ]
-  },
-  {
-    title: 'Water',
-    entries: [
-      { swatch: line('#7fb8d4', 3), name: 'River or stream' },
+      { swatch: line('#9ec9dd', 2), name: 'River or stream' },
       { swatch: area('#aad3df'), name: 'Lake or reservoir' },
-      { swatch: ford, name: 'Ford' }
+      { swatch: area('#d5ecc9'), name: 'Woodland' },
+      { swatch: area('#efe9dc'), name: 'Open ground', note: 'Moor, fell and farmland all render much the same — this style does not distinguish them.' }
     ]
   },
   {
-    title: 'Landmarks and facilities',
+    title: 'Names and buildings',
     entries: [
-      { swatch: trig('#2b5fa8'), name: 'Triangulation pillar', note: 'Concrete pillar on a summit — an unambiguous fix in poor visibility.' },
-      { swatch: peak('#7a5c3a'), name: 'Spot height / summit' },
-      { swatch: letterChip('P', '#4a7ebb'), name: 'Car park' },
-      { swatch: letterChip('▲', '#7a9e3f'), name: 'Campsite' },
-      { swatch: symbol('<path d="M23 3 v12 M18 7 h10" stroke="#555" stroke-width="1.6" fill="none"/>'), name: 'Church', note: 'Towers and spires are excellent long-range navigation marks.' }
+      { swatch: area('#ddd2c0'), name: 'Buildings' },
+      { swatch: symbol('<text x="23" y="13" text-anchor="middle" font-size="10" fill="#6b5b45" font-style="italic">Tor</text>'), name: 'Place and feature names', note: 'Tors, farms, hills and hamlets are well labelled — often the quickest way to confirm where you are.' }
     ],
-    footnote: 'What this layer cannot tell you: OS does not mark individual gates or stiles at these scales, and rights of way are the legal record rather than what is walkable on the day. Switch to OpenStreetMap to check a specific crossing.'
+    footnote: 'What this layer cannot tell you — and it is a lot. OS Outdoor draws no public rights of way, no open access land, no military danger areas, no gates or stiles, no trig points, and only a fraction of the paths. Verified by comparing tiles at Haytor, Okehampton Range, Grasmere and the Chilterns. The classic OS Explorer symbology you know from paper maps (green rights-of-way dashes, red danger areas) belongs to OS\'s premium "Leisure" style, which is not on the free plan and is only served in British National Grid, which this app cannot display. Treat OS here as a clean backdrop with excellent contours — and use OpenStreetMap or OpenTopoMap for paths, access and crossings.'
   }
 ];
 
