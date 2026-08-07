@@ -32,8 +32,10 @@ import { routeMixed, type RouteResult } from './routing';
 import { search, type SearchHit } from './search';
 import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
+  loadLastView,
   loadRoutes,
   loadSettings,
+  saveLastView,
   saveRoutes,
   saveSettings,
   type SavedRoute
@@ -70,12 +72,52 @@ function downloadFile(name: string, content: string, mime: string): void {
 const settings = loadSettings();
 let routes = loadRoutes();
 
+// Where the map opens on a first-ever load, before geolocation resolves (or if
+// it's denied): a whole-UK view. Once we know roughly where you are, we drop to
+// a regional zoom so the right tiles load — not GPS-tight, just "your area".
+const UK_FALLBACK_VIEW = { center: [54.5, -3.0] as LatLng, zoom: 6 };
+const DEFAULT_LOCATION_ZOOM = 12;
+
+// A returning visitor reopens where they left off; only a genuine first load
+// falls back to the UK view and then geolocates.
+const lastView = loadLastView();
+const startView = lastView ?? UK_FALLBACK_VIEW;
+
 const map = L.map('map', {
   zoomControl: true,
   rotate: true,
   touchRotate: false,
   rotateControl: false
-}).setView([54.5, -3.0], 6);
+}).setView(startView.center, startView.zoom);
+
+// Remember the map position across sessions. (If this ends up dropping you
+// somewhere stale — you panned off to look at something and reopened there —
+// removing this one listener reverts to always geolocating on load.)
+map.on('moveend', () => {
+  const c = map.getCenter();
+  saveLastView([c.lat, c.lng], map.getZoom());
+});
+
+// First-ever load only: nudge the map to your actual area for the initial
+// tiles. This is deliberately separate from the "me"/follow control below —
+// no marker, no accuracy circle, no follow, and it bows out the moment you
+// touch the map so it can't yank you away mid-interaction.
+if (!lastView && 'geolocation' in navigator) {
+  let userTouchedMap = false;
+  map.getContainer().addEventListener(
+    'pointerdown',
+    () => { userTouchedMap = true; },
+    { once: true }
+  );
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      if (userTouchedMap) return;
+      map.setView([pos.coords.latitude, pos.coords.longitude], DEFAULT_LOCATION_ZOOM);
+    },
+    () => { /* denied or unavailable — the UK fallback view stays put */ },
+    { enableHighAccuracy: false, maximumAge: 600_000, timeout: 10_000 }
+  );
+}
 
 // iOS standalone mode settles its viewport after load, leaving Leaflet with a
 // stale (shorter) size and a blank strip at the bottom — re-measure whenever

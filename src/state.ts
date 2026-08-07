@@ -29,8 +29,15 @@ export interface Settings {
   speedKmh: number;
 }
 
+/** A remembered map position, so a returning visitor reopens where they left off. */
+export interface MapView {
+  center: LatLng;
+  zoom: number;
+}
+
 const SETTINGS_KEY = 'trailhead.settings';
 const ROUTES_KEY = 'trailhead.routes';
+const LAST_VIEW_KEY = 'trailhead.lastView';
 
 export function loadSettings(): Settings {
   const defaults: Settings = {
@@ -63,4 +70,28 @@ export function loadRoutes(): SavedRoute[] {
 
 export function saveRoutes(routes: SavedRoute[]): void {
   localStorage.setItem(ROUTES_KEY, JSON.stringify(routes));
+}
+
+/** The map position from last time, or null on a first-ever load / bad data. */
+export function loadLastView(): MapView | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_VIEW_KEY) ?? 'null');
+    if (
+      v &&
+      Array.isArray(v.center) &&
+      v.center.length === 2 &&
+      Number.isFinite(v.center[0]) &&
+      Number.isFinite(v.center[1]) &&
+      Number.isFinite(v.zoom)
+    ) {
+      return v as MapView;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastView(center: LatLng, zoom: number): void {
+  localStorage.setItem(LAST_VIEW_KEY, JSON.stringify({ center, zoom }));
 }
