@@ -32,10 +32,8 @@ import { routeMixed, type RouteResult } from './routing';
 import { search, type SearchHit } from './search';
 import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
-  loadLastView,
   loadRoutes,
   loadSettings,
-  saveLastView,
   saveRoutes,
   saveSettings,
   type SavedRoute
@@ -72,37 +70,26 @@ function downloadFile(name: string, content: string, mime: string): void {
 const settings = loadSettings();
 let routes = loadRoutes();
 
-// Where the map opens on a first-ever load, before geolocation resolves (or if
-// it's denied): a whole-UK view. Once we know roughly where you are, we drop to
-// a regional zoom so the right tiles load — not GPS-tight, just "your area".
+// The map opens on a whole-UK view, then recentres on your actual area on
+// every startup once geolocation resolves. If location is denied, unavailable,
+// or times out, the UK view stays put.
 const UK_FALLBACK_VIEW = { center: [54.5, -3.0] as LatLng, zoom: 6 };
-const DEFAULT_LOCATION_ZOOM = 12;
-
-// A returning visitor reopens where they left off; only a genuine first load
-// falls back to the UK view and then geolocates.
-const lastView = loadLastView();
-const startView = lastView ?? UK_FALLBACK_VIEW;
+// Match the "me"/follow zoom (see btnLocate below) so the startup view and
+// locating yourself land at the same scale.
+const STARTUP_LOCATION_ZOOM = 15;
 
 const map = L.map('map', {
   zoomControl: true,
   rotate: true,
   touchRotate: false,
   rotateControl: false
-}).setView(startView.center, startView.zoom);
+}).setView(UK_FALLBACK_VIEW.center, UK_FALLBACK_VIEW.zoom);
 
-// Remember the map position across sessions. (If this ends up dropping you
-// somewhere stale — you panned off to look at something and reopened there —
-// removing this one listener reverts to always geolocating on load.)
-map.on('moveend', () => {
-  const c = map.getCenter();
-  saveLastView([c.lat, c.lng], map.getZoom());
-});
-
-// First-ever load only: nudge the map to your actual area for the initial
-// tiles. This is deliberately separate from the "me"/follow control below —
-// no marker, no accuracy circle, no follow, and it bows out the moment you
-// touch the map so it can't yank you away mid-interaction.
-if (!lastView && 'geolocation' in navigator) {
+// Recentre on your current location at startup, for the initial tiles. This is
+// deliberately separate from the "me"/follow control below — no marker, no
+// accuracy circle, no follow, and it bows out the moment you touch the map so
+// it can't yank you away mid-interaction.
+if ('geolocation' in navigator) {
   let userTouchedMap = false;
   map.getContainer().addEventListener(
     'pointerdown',
@@ -112,7 +99,7 @@ if (!lastView && 'geolocation' in navigator) {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       if (userTouchedMap) return;
-      map.setView([pos.coords.latitude, pos.coords.longitude], DEFAULT_LOCATION_ZOOM);
+      map.setView([pos.coords.latitude, pos.coords.longitude], STARTUP_LOCATION_ZOOM);
     },
     () => { /* denied or unavailable — the UK fallback view stays put */ },
     { enableHighAccuracy: false, maximumAge: 600_000, timeout: 10_000 }
