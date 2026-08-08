@@ -1,5 +1,5 @@
 import { haversine, type LatLng } from './geo';
-import { eastingNorthingToLatLng, parseGridRef } from './osgb';
+import { parseGridRef } from './osgb';
 
 export interface SearchHit {
   name: string;
@@ -53,42 +53,6 @@ function rankHits(hits: (SearchHit & { type: string })[], near: LatLng | undefin
     }));
 }
 
-interface OsNamesResult {
-  GAZETTEER_ENTRY?: {
-    NAME1?: string;
-    LOCAL_TYPE?: string;
-    COUNTY_UNITARY?: string;
-    DISTRICT_BOROUGH?: string;
-    GEOMETRY_X?: number;
-    GEOMETRY_Y?: number;
-  };
-}
-
-/** OS Names API — needs the user's OS key; British place names only. */
-async function searchOsNames(
-  query: string,
-  osKey: string,
-  near: LatLng | undefined,
-  signal?: AbortSignal
-): Promise<SearchHit[]> {
-  const url = `https://api.os.uk/search/names/v1/find?query=${encodeURIComponent(query)}&maxresults=40&key=${osKey}`;
-  const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`OS Names ${res.status}`);
-  const data = (await res.json()) as { results?: OsNamesResult[] };
-
-  const hits = (data.results ?? []).flatMap((r) => {
-    const g = r.GAZETTEER_ENTRY;
-    if (!g?.NAME1 || g.GEOMETRY_X === undefined || g.GEOMETRY_Y === undefined) return [];
-    return [{
-      name: g.NAME1,
-      detail: [g.LOCAL_TYPE, g.COUNTY_UNITARY ?? g.DISTRICT_BOROUGH].filter(Boolean).join(' · '),
-      pos: eastingNorthingToLatLng(g.GEOMETRY_X, g.GEOMETRY_Y),
-      type: g.LOCAL_TYPE ?? ''
-    }];
-  });
-  return rankHits(hits, near);
-}
-
 interface PhotonFeature {
   geometry?: { coordinates?: [number, number] };
   properties?: {
@@ -139,12 +103,11 @@ async function searchPhoton(
 
 /**
  * Resolve a search box entry. Grid references and coordinates are handled
- * offline; anything else goes to a place-name gazetteer, ranked with `near`
- * (normally the map centre) as a tie-breaker.
+ * offline; anything else goes to the Photon place-name search, ranked with
+ * `near` (normally the map centre) as a tie-breaker.
  */
 export async function search(
   query: string,
-  osKey: string,
   near?: LatLng,
   signal?: AbortSignal
 ): Promise<SearchHit[]> {
@@ -161,5 +124,5 @@ export async function search(
     return [{ name: `${ll[0].toFixed(5)}, ${ll[1].toFixed(5)}`, detail: 'Coordinates', pos: ll }];
   }
 
-  return osKey ? searchOsNames(q, osKey, near, signal) : searchPhoton(q, near, signal);
+  return searchPhoton(q, near, signal);
 }

@@ -19,8 +19,6 @@ export interface SavedRoute {
 export interface Settings {
   /** Thunderforest key — the Outdoors base layer. */
   tfKey: string;
-  /** Ordnance Survey key — place-name search only; no longer used for map tiles. */
-  osKey: string;
   baseLayer: string;
   overlayLayer: string; // '' = none
   overlayOpacity: number;
@@ -52,7 +50,6 @@ const ACTIVE_ROUTE_KEY = 'trailhead.activeRoute';
 
 export function loadSettings(): Settings {
   const defaults: Settings = {
-    osKey: '',
     baseLayer: 'osm',
     overlayLayer: '',
     overlayOpacity: 0.5,

@@ -1070,7 +1070,7 @@ $('searchInput').addEventListener('input', () => {
     searchAbort = new AbortController();
     const near: LatLng = lastFix ?? [map.getCenter().lat, map.getCenter().lng];
     try {
-      showSearchHits(await search(q, settings.osKey, near, searchAbort.signal));
+      showSearchHits(await search(q, near, searchAbort.signal));
     } catch (e) {
       if ((e as Error).name !== 'AbortError') toast(`Search failed: ${(e as Error).message}`, 4000);
     }
@@ -1226,11 +1226,6 @@ function openSettingsPanel(): void {
     thunderforest.com — 150,000 tiles a month, far more than one walker uses.</p>
     <div class="row"><input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/></div>
     <hr/>
-    <h3>Ordnance Survey API key</h3>
-    <p class="hint">Optional, and only used for place-name search — OS knows British
-    hills and hamlets better than the free fallback. No longer used for map tiles.</p>
-    <div class="row"><input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/></div>
-    <hr/>
     <h3>Routing profile</h3>
     <div class="row"><select id="profileSel" style="flex:1">${profileOpts}</select></div>
     <p class="hint" id="profileHint">${profileDesc(settings.profile)}</p>
@@ -1265,11 +1260,6 @@ function openSettingsPanel(): void {
     saveSettings(settings);
     applyLayers();
     toast(settings.tfKey ? 'Thunderforest key saved — pick Outdoors in Map' : 'Thunderforest key cleared');
-  });
-  $('osKeyInput').addEventListener('change', (e) => {
-    settings.osKey = (e.target as HTMLInputElement).value.trim();
-    saveSettings(settings);
-    toast(settings.osKey ? 'OS key saved — used for search' : 'OS key cleared');
   });
   $('profileSel').addEventListener('change', (e) => {
     settings.profile = (e.target as HTMLSelectElement).value;

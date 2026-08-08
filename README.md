@@ -10,7 +10,7 @@ routes that follow real paths, and a dot showing where you are.
 - **Route planner** — tap points on the map; the route snaps to actual paths/trails via the
   free [BRouter](https://brouter.de) public server (hiking profiles, distance + ascent shown).
 - **GPX import/export** — load routes from any other app, export what you plan here.
-- **Map layers** — OpenStreetMap, OpenTopoMap, and Ordnance Survey (Outdoor/Light), switchable
+- **Map layers** — OpenStreetMap, OpenTopoMap, and Thunderforest Outdoors, switchable
   or overlaid with an opacity slider.
 - **On/off route** — live GPS position with a banner telling you how far you are from the
   planned line (red warning beyond 50 m).
@@ -24,13 +24,15 @@ npm install
 npm run dev
 ```
 
-## Ordnance Survey layer (optional)
+## Outdoors layer (optional)
 
-1. Sign up free at https://osdatahub.os.uk (OpenData plan).
-2. Add a project with the **OS Maps API**.
-3. Paste the project API key into ☰ → "Ordnance Survey API key".
+The **Outdoors** base map (Thunderforest) needs a free key:
 
-OSM and OpenTopoMap layers work with no key at all.
+1. Sign up for a free "Hobby Project" plan at https://www.thunderforest.com.
+2. Paste the key into ☰ → Settings → "Thunderforest API key".
+
+OpenStreetMap and OpenTopoMap need no key, and place-name search (Photon) is
+keyless too — so the app is fully usable with nothing to configure.
 
 ## Deploy
 
