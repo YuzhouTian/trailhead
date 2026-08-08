@@ -573,13 +573,13 @@ function remainingText(): string | null {
   const total = cum[cum.length - 1];
   const remainingM = Math.max(0, total - prog.alongM);
 
-  // Remaining climb: only the part of the profile still ahead.
+  // Remaining climb and descent: only the part of the profile still ahead.
   const ahead = coords.slice(prog.index + 1);
-  const { ascentM } = computeClimbs(ahead);
+  const { ascentM, descentM } = computeClimbs(ahead);
   const est = naismithHours(remainingM, ascentM, settings.speedKmh);
 
   const pct = total > 0 ? Math.round((prog.alongM / total) * 100) : 0;
-  return `${formatDistance(remainingM)} to go · ↑ ${Math.round(ascentM)} m · ~${formatDuration(est)} · ${pct}% done`;
+  return `${formatDistance(remainingM)} to go · ${climbText(ascentM, descentM)} · ~${formatDuration(est)} · ${pct}% done`;
 }
 
 function onFix(pos: GeolocationPosition): void {
