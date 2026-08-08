@@ -509,7 +509,7 @@ body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 
 }
 
 /* Dark theme dims the map itself as well as the chrome — a CSS dim over the
-   light tiles (OSM/OpenTopo/Thunderforest are all light), tuned to keep
+   light tiles (OSM and Thunderforest are both light), tuned to keep
    contour and path lines readable. Only the tile pane is touched, so the red
    route line, GPS dot and POI pins stay bright on top. Adjust brightness to
    taste. Applies to both OS-dark (unless light is forced) and forced dark. */

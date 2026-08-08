@@ -38,15 +38,6 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     maxZoom: 19,
     maxNativeZoom: 19,
     blurb: 'The reference rendering, and the only layer that draws individual gates and stiles. No key needed, so it is also the fallback if Outdoors is unavailable.'
-  },
-  {
-    id: 'otm',
-    name: 'OpenTopoMap',
-    url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; OpenStreetMap contributors, SRTM | &copy; OpenTopoMap (CC-BY-SA)',
-    maxZoom: 19,
-    maxNativeZoom: 17,
-    blurb: 'Contours and hillshading over OpenStreetMap data. Slower to load and stops at zoom 17, but needs no key.'
   }
 ];
 

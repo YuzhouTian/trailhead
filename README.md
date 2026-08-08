@@ -10,7 +10,7 @@ routes that follow real paths, and a dot showing where you are.
 - **Route planner** — tap points on the map; the route snaps to actual paths/trails via the
   free [BRouter](https://brouter.de) public server (hiking profiles, distance + ascent shown).
 - **GPX import/export** — load routes from any other app, export what you plan here.
-- **Map layers** — OpenStreetMap, OpenTopoMap, and Thunderforest Outdoors, switchable
+- **Map layers** — OpenStreetMap and Thunderforest Outdoors, switchable
   or overlaid with an opacity slider.
 - **On/off route** — live GPS position with a banner telling you how far you are from the
   planned line (red warning beyond 50 m).
@@ -31,8 +31,8 @@ The **Outdoors** base map (Thunderforest) needs a free key:
 1. Sign up for a free "Hobby Project" plan at https://www.thunderforest.com.
 2. Paste the key into ☰ → Settings → "Thunderforest API key".
 
-OpenStreetMap and OpenTopoMap need no key, and place-name search (Photon) is
-keyless too — so the app is fully usable with nothing to configure.
+OpenStreetMap needs no key, and place-name search (Photon) is keyless too — so
+the app is fully usable with nothing to configure.
 
 ## Deploy
 

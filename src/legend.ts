@@ -287,62 +287,10 @@ const TF_GROUPS: Group[] = [
   }
 ];
 
-// ---------------------------------------------------------------- OpenTopoMap
-
-const OTM_GROUPS: Group[] = [
-  {
-    title: 'Ways you can walk',
-    entries: [
-      { swatch: line('#333', 2, '2 3'), name: 'Path', note: 'Fine dashes. OpenTopoMap does not distinguish legal status.' },
-      { swatch: line('#333', 2, '7 3'), name: 'Track' },
-      { swatch: rungs('#555', 5), name: 'Steps' },
-      { swatch: line('#f5f0e6', 5, '', '#b9b2a4'), name: 'Road' }
-    ]
-  },
-  {
-    title: 'Relief — this layer\'s strength',
-    entries: [
-      { swatch: contours('#b98b5e', '#8b5e34'), name: 'Contours', note: '10 m apart, every fifth heavier and labelled with its height.' },
-      { swatch: cliff('#777'), name: 'Cliff or rock face' },
-      { swatch: stipple('#8d8d8d'), name: 'Scree or bare rock' },
-      { swatch: area('#efefef'), name: 'Hillshading', note: 'The grey relief shading showing the shape of the ground.' }
-    ]
-  },
-  {
-    title: 'Ground cover',
-    entries: [
-      { swatch: conifers('#2f6b2f'), name: 'Forest' },
-      { swatch: area('#e6e0c8'), name: 'Heath or moor' },
-      { swatch: marsh, name: 'Marsh or bog' }
-    ]
-  },
-  {
-    title: 'Water',
-    entries: [
-      { swatch: line('#5aa0c8', 3), name: 'River' },
-      { swatch: line('#9ec9dd', 1.5), name: 'Stream' },
-      { swatch: area('#aad3df'), name: 'Lake or tarn' },
-      { swatch: dot('#3d6fd0'), name: 'Spring' }
-    ]
-  },
-  {
-    title: 'Landmarks',
-    entries: [
-      { swatch: peak('#555'), name: 'Summit', note: 'Drawn with name and height.' },
-      { swatch: symbol('<path d="M16 12 q7 -8 14 0" fill="none" stroke="#555" stroke-width="1.8"/>'), name: 'Saddle or col', note: 'The low point between two summits — often the sheltered crossing.' },
-      { swatch: symbol('<path d="M17 14 L23 5 L29 14 Z" fill="#8b5a2b"/><rect x="21" y="10" width="4" height="4" fill="#fff"/>'), name: 'Mountain hut or shelter' },
-      { swatch: trig('#555'), name: 'Trig point or tower' },
-      { swatch: letterChip('P', '#4a7ebb'), name: 'Car park' }
-    ],
-    footnote: 'OpenTopoMap builds on the same OpenStreetMap data but draws fewer small features — gates and stiles are usually missing. It is the layer to pick when you care about the shape of the ground.'
-  }
-];
-
 // ---------------------------------------------------------------- entry point
 
 const KEYS: Record<string, { title: string; groups: Group[] }> = {
   osm: { title: 'OpenStreetMap', groups: OSM_GROUPS },
-  otm: { title: 'OpenTopoMap', groups: OTM_GROUPS },
   'tf-outdoors': { title: 'Outdoors', groups: TF_GROUPS }
 };
 

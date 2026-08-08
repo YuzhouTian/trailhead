@@ -30,7 +30,6 @@ self.addEventListener('activate', (event) => {
 function isTileRequest(url) {
   return (
     url.hostname.endsWith('tile.openstreetmap.org') ||
-    url.hostname.endsWith('tile.opentopomap.org') ||
     url.hostname.endsWith('tile.thunderforest.com')
   );
 }
