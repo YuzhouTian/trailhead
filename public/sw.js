@@ -75,20 +75,30 @@ self.addEventListener('fetch', (event) => {
   // Never cache routing calls.
   if (url.hostname.includes('brouter')) return;
 
-  // Page loads: network-first so a new deploy shows up immediately;
-  // cached shell only when offline.
+  // Page loads: stale-while-revalidate. Serve the cached shell instantly so the
+  // map paints without waiting on the network, and refresh it in the background
+  // for next launch. A new deploy therefore appears on the next open, not this
+  // one. Falls back to the network on a cold cache, and errors only when both
+  // are unavailable (truly offline first run).
   if (req.mode === 'navigate' && url.origin === self.location.origin) {
+    const update = caches.open(STATIC_CACHE).then(async (cache) => {
+      try {
+        const res = await fetch(req);
+        if (res.ok) await cache.put('./index.html', res.clone());
+        return res;
+      } catch {
+        return null;
+      }
+    });
+    // Keep the worker alive until the background refresh finishes.
+    event.waitUntil(update);
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
-        try {
-          const res = await fetch(req);
-          if (res.ok) cache.put('./index.html', res.clone());
-          return res;
-        } catch {
-          const shell = (await cache.match(req)) || (await cache.match('./index.html'));
-          if (shell) return shell;
-          throw new Error('offline');
-        }
+        const cached = (await cache.match('./index.html')) || (await cache.match('./'));
+        if (cached) return cached;
+        const res = await update;
+        if (res) return res;
+        throw new Error('offline');
       })
     );
     return;
