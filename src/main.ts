@@ -1277,6 +1277,72 @@ function openSettingsPanel(): void {
   });
 }
 
+// ---------------------------------------------------------------- QR import (camera)
+
+let qrStream: MediaStream | null = null;
+let qrRAF: number | null = null;
+
+function stopQrScan(): void {
+  if (qrRAF !== null) cancelAnimationFrame(qrRAF);
+  qrRAF = null;
+  qrStream?.getTracks().forEach((t) => t.stop());
+  qrStream = null;
+  ($('qrVideo') as HTMLVideoElement).srcObject = null;
+  $('qrScan').classList.add('hidden');
+}
+
+/** Open the camera and watch for a Trailhead route QR, importing the first one
+ *  seen. Other QR codes are ignored so it keeps looking. */
+async function startQrScan(): Promise<void> {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    return toast('No camera access in this app', 4000);
+  }
+  const video = $('qrVideo') as HTMLVideoElement;
+  // The decoder is a chunk of its own, fetched only the first time you scan, so
+  // it never weighs down the app for people who don't. Cached after first use.
+  let jsQR: typeof import('jsqr').default;
+  try {
+    jsQR = (await import('jsqr')).default;
+  } catch {
+    return toast('Could not load the scanner — connect to the internet once and retry', 5000);
+  }
+  try {
+    qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  } catch {
+    return toast('Camera blocked — allow it for this site in Settings', 5000);
+  }
+  hidePanel();
+  video.srcObject = qrStream;
+  await video.play().catch(() => {});
+  $('qrScan').classList.remove('hidden');
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return stopQrScan();
+
+  const tick = () => {
+    qrRAF = requestAnimationFrame(tick);
+    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+    if (!code) return;
+    const m = code.data.match(/#r=[A-Za-z0-9_-]+/);
+    let parsed: ParsedShare | null = null;
+    try {
+      parsed = m && parseShareHash(m[0]);
+    } catch { /* not a valid route link — keep scanning */ }
+    if (!parsed) return; // some other QR, ignore and keep looking
+    stopQrScan();
+    void importParsed(parsed);
+  };
+  qrRAF = requestAnimationFrame(tick);
+}
+
+$('qrCancel').addEventListener('click', stopQrScan);
+
 function openRoutesPanel(): void {
   const items = routes.length
     ? routes
@@ -1318,10 +1384,12 @@ function openRoutesPanel(): void {
     <h3>Pins</h3>
     ${pinItems}
     <hr/>
+    <div class="row"><button id="scanQr" style="flex:1">Scan route QR</button></div>
+    <div class="row"><button id="pasteRoute" class="secondary" style="flex:1">Paste shared route</button></div>
     <div class="row"><button id="importBtn" class="secondary" style="flex:1">Import GPX file</button></div>
-    <div class="row"><button id="pasteRoute" style="flex:1">Paste shared route</button></div>
-    <p class="hint">Copied a route link (e.g. from Safari after scanning a QR)? This imports it here.</p>
+    <p class="hint">Scan a route's QR straight off another screen, or paste a copied route link.</p>
   `);
+  $('scanQr').addEventListener('click', startQrScan);
 
   content.querySelectorAll<HTMLButtonElement>('.routeItem[data-pin] button').forEach((btn) => {
     btn.addEventListener('click', () => {

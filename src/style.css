@@ -403,6 +403,31 @@ body.planning #pinCard { display: none; }
 .qrBox { text-align: center; padding: 8px 0; }
 .qrBox svg { max-width: 100%; height: auto; }
 
+/* QR scanner (import a route by camera) */
+#qrScan {
+  position: fixed; inset: 0; z-index: 3000; background: #000;
+  display: flex; align-items: center; justify-content: center; overflow: hidden;
+}
+#qrVideo { width: 100%; height: 100%; object-fit: cover; }
+/* The bright square, with the rest of the frame dimmed around it. */
+#qrFrame {
+  position: absolute; width: min(72vw, 300px); aspect-ratio: 1;
+  border: 3px solid #fff; border-radius: 18px;
+  box-shadow: 0 0 0 100vmax rgba(0,0,0,.5);
+}
+#qrHint {
+  position: absolute; left: 0; right: 0;
+  top: calc(env(safe-area-inset-top, 0px) + 26px);
+  text-align: center; color: #fff; font-size: 15px; font-weight: 600;
+  padding: 0 24px; text-shadow: 0 1px 4px rgba(0,0,0,.6);
+}
+#qrCancel {
+  position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
+  padding: 12px 28px; border: none; border-radius: 24px;
+  background: rgba(255,255,255,.92); color: #1a2420;
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+
 /* Toast */
 #toast {
   position: fixed;
