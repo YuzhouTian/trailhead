@@ -479,23 +479,25 @@ $('planUndo').addEventListener('click', () => {
 });
 $('planClear').addEventListener('click', clearPlan);
 $('planDone').addEventListener('click', () => {
-  const r = planToRoute('Unsaved route');
+  // Nothing drawn yet — just leave planning.
+  if (!planResult || planWaypoints.length < 2) {
+    setPlanning(false);
+    clearPlan();
+    return;
+  }
+  // Offer to keep it: naming the route saves it to your list; cancelling still
+  // finishes with the route shown (but unsaved), so a plan is never lost by an
+  // accidental tap. Either way, planning ends here.
+  const name = prompt('Name this route to save it — or cancel to finish without saving:', 'My route');
+  const r = planToRoute(name || 'Unsaved route')!;
+  if (name) {
+    routes.push(r);
+    saveRoutes(routes);
+    toast(`Saved “${name}”`);
+  }
   setPlanning(false);
   clearPlan();
-  if (r) setActiveRoute(r, false);
-});
-$('planSave').addEventListener('click', () => {
-  if (!planResult) return toast('Nothing to save yet');
-  const name = prompt('Route name:', 'My route');
-  if (!name) return;
-  const r = planToRoute(name)!;
-  routes.push(r);
-  saveRoutes(routes);
-  toast(`Saved “${name}”`);
-});
-$('planExport').addEventListener('click', () => {
-  if (!planResult) return toast('Nothing to export yet');
-  downloadFile('route.gpx', toGpx('Trailhead route', planResult.coords), 'application/gpx+xml');
+  setActiveRoute(r, false);
 });
 
 // ---------------------------------------------------------------- GPX import
