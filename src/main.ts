@@ -182,9 +182,10 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
     updateWhenIdle: false,
     // Don't re-request at every intermediate zoom level mid-animation.
     updateWhenZooming: false,
-    // Keep four rings of off-screen tiles alive instead of two, so short
-    // pans move into already-loaded map rather than blank squares.
-    keepBuffer: 4
+    // Keep several rings of off-screen tiles alive instead of the default two,
+    // so panning moves into already-loaded map rather than blank squares, and
+    // a zoom keeps parent tiles visible under the ones still loading.
+    keepBuffer: 6
   };
   if (def.minNativeZoom !== undefined) opts.minNativeZoom = def.minNativeZoom;
   return L.tileLayer(tileUrlFor(def), opts);
