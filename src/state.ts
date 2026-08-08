@@ -48,6 +48,7 @@ export interface Pin {
 const SETTINGS_KEY = 'trailhead.settings';
 const ROUTES_KEY = 'trailhead.routes';
 const PINS_KEY = 'trailhead.pins';
+const ACTIVE_ROUTE_KEY = 'trailhead.activeRoute';
 
 export function loadSettings(): Settings {
   const defaults: Settings = {
@@ -94,4 +95,20 @@ export function loadPins(): Pin[] {
 
 export function savePins(pins: Pin[]): void {
   localStorage.setItem(PINS_KEY, JSON.stringify(pins));
+}
+
+/** The route being followed, kept so a hike survives an app reload. Stores the
+ *  whole route (not just an id) so unsaved or shared routes restore too. */
+export function loadActiveRoute(): SavedRoute | null {
+  try {
+    const r = JSON.parse(localStorage.getItem(ACTIVE_ROUTE_KEY) ?? 'null');
+    return r && Array.isArray(r.coords) && r.coords.length >= 2 ? (r as SavedRoute) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveActiveRoute(r: SavedRoute | null): void {
+  if (r) localStorage.setItem(ACTIVE_ROUTE_KEY, JSON.stringify(r));
+  else localStorage.removeItem(ACTIVE_ROUTE_KEY);
 }

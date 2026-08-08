@@ -34,9 +34,11 @@ import { routeMixed, type RouteResult } from './routing';
 import { search, type SearchHit } from './search';
 import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
+  loadActiveRoute,
   loadPins,
   loadRoutes,
   loadSettings,
+  saveActiveRoute,
   savePins,
   saveRoutes,
   saveSettings,
@@ -263,6 +265,7 @@ function setActiveRoute(r: SavedRoute | null, fit = true): void {
     }).addTo(map);
     if (fit) map.fitBounds(activeLine.getBounds(), { padding: [40, 40] });
   }
+  saveActiveRoute(r); // remember it so a hike survives an app reload
   updateElevPanel();
   updateBanner();
 }
@@ -318,6 +321,8 @@ function updateElevPanel(): void {
   $('rcRemaining').classList.toggle('hidden', !remaining);
   $('rcOffline').classList.toggle('hidden', planning);
   $('rcClose').classList.toggle('hidden', planning);
+  $('rcStart').classList.toggle('hidden', planning);
+  updateRouteStart();
   $('rcChart').classList.toggle('active', chartOpen);
   const chart = $('elevChart');
   if (chartOpen) {
@@ -701,22 +706,44 @@ function stopWatch(): void {
   lastFix = null;
   $('btnLocate').classList.remove('active');
   $('locateIco').innerHTML = LOCATE_ICON.off;
+  updateRouteStart();
   updateBanner();
+}
+
+/** The route card's Start button: a play glyph until following, then a live
+ *  locate glyph with a ring (tap to re-centre). Hidden while planning. */
+function updateRouteStart(): void {
+  const btn = $('rcStart');
+  const live = watchId !== null;
+  btn.innerHTML = live
+    ? '<svg viewBox="0 0 24 24"><use href="#i-locate-on"/></svg>'
+    : '<svg viewBox="0 0 24 24"><use href="#i-start"/></svg>';
+  btn.classList.toggle('live', live);
+  btn.title = live ? 'Re-centre on you' : 'Start following this route';
+}
+
+/** Start GPS following (north-up). Shared by the Me button and the card Start. */
+function beginFollow(): boolean {
+  if (!('geolocation' in navigator)) {
+    toast('No geolocation on this device');
+    return false;
+  }
+  follow = true;
+  $('btnLocate').classList.add('active');
+  $('locateIco').innerHTML = LOCATE_ICON.follow;
+  watchId = navigator.geolocation.watchPosition(onFix, (err) => {
+    toast(`GPS error: ${err.message}`, 5000);
+    stopWatch();
+  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+  updateRouteStart();
+  return true;
 }
 
 // Tap cycle: off → follow north-up → follow heading-up → off.
 // A map drag pauses following; the next tap just re-centres.
 $('btnLocate').addEventListener('click', async () => {
   if (watchId === null) {
-    if (!('geolocation' in navigator)) return toast('No geolocation on this device');
-    follow = true;
-    $('btnLocate').classList.add('active');
-    $('locateIco').innerHTML = LOCATE_ICON.follow;
-    watchId = navigator.geolocation.watchPosition(onFix, (err) => {
-      toast(`GPS error: ${err.message}`, 5000);
-      stopWatch();
-    }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
-    toast('Following you — tap again to rotate with your heading', 3000);
+    if (beginFollow()) toast('Following you — tap again to rotate with your heading', 3000);
   } else if (!follow) {
     follow = true;
     $('locateIco').innerHTML = LOCATE_ICON.follow;
@@ -736,6 +763,17 @@ $('btnLocate').addEventListener('click', async () => {
 
 map.on('dragstart', () => {
   follow = false;
+});
+
+// Route card's Start: begin following this route, or re-centre if already live.
+$('rcStart').addEventListener('click', () => {
+  if (watchId === null) {
+    beginFollow();
+  } else {
+    follow = true;
+    $('locateIco').innerHTML = headingOn ? LOCATE_ICON.heading : LOCATE_ICON.follow;
+    if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
+  }
 });
 
 // ---------------------------------------------------------------- grid references
@@ -1474,6 +1512,11 @@ async function importSharedRoute(): Promise<void> {
     openHandoffPanel(originalUrl, parsed.name);
   }
 }
+
+// Bring back the route we were on before a reload (drawn, not re-zoomed — the
+// startup geolocation centres you near it). A shared link below overrides it.
+const restoredRoute = loadActiveRoute();
+if (restoredRoute) setActiveRoute(restoredRoute, false);
 
 importSharedRoute();
 openSharedPin();
