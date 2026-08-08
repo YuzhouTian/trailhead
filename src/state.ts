@@ -31,8 +31,23 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark';
 }
 
+/** A saved place the user dropped and named. */
+export type PinCategory = 'summit' | 'viewpoint' | 'water' | 'camp' | 'parking' | 'other';
+
+export interface Pin {
+  id: string;
+  name: string;
+  category: PinCategory;
+  lat: number;
+  lng: number;
+  /** Cached elevation in metres; null once fetched and found unavailable. */
+  ele?: number | null;
+  createdAt: number;
+}
+
 const SETTINGS_KEY = 'trailhead.settings';
 const ROUTES_KEY = 'trailhead.routes';
+const PINS_KEY = 'trailhead.pins';
 
 export function loadSettings(): Settings {
   const defaults: Settings = {
@@ -66,4 +81,17 @@ export function loadRoutes(): SavedRoute[] {
 
 export function saveRoutes(routes: SavedRoute[]): void {
   localStorage.setItem(ROUTES_KEY, JSON.stringify(routes));
+}
+
+export function loadPins(): Pin[] {
+  try {
+    const pins = JSON.parse(localStorage.getItem(PINS_KEY) ?? '[]');
+    return Array.isArray(pins) ? pins : [];
+  } catch {
+    return [];
+  }
+}
+
+export function savePins(pins: Pin[]): void {
+  localStorage.setItem(PINS_KEY, JSON.stringify(pins));
 }

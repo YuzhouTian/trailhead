@@ -1,6 +1,30 @@
 import { formatDistance, haversine, type LatLng } from './geo';
 
 /**
+ * Look up the ground elevation (metres) at a point via Open-Meteo's free,
+ * keyless elevation API. Returns null on any failure — offline, rate-limited,
+ * or a malformed response — so callers can quietly drop the figure.
+ */
+export async function fetchElevation(
+  lat: number,
+  lng: number,
+  signal?: AbortSignal
+): Promise<number | null> {
+  try {
+    const r = await fetch(
+      `https://api.open-meteo.com/v1/elevation?latitude=${lat}&longitude=${lng}`,
+      { signal }
+    );
+    if (!r.ok) return null;
+    const j = (await r.json()) as { elevation?: number[] };
+    const e = j.elevation?.[0];
+    return typeof e === 'number' && Number.isFinite(e) ? e : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Render a distance-vs-elevation profile into the container as SVG,
  * with a touch/mouse scrubber. `onScrub` fires with the map position
  * under the scrubber (null when scrubbing ends). Returns false if the

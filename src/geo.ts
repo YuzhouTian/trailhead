@@ -12,6 +12,17 @@ export function haversine(a: LatLng, b: LatLng): number {
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+/** Eight-point compass label for the direction from `a` to `b`, e.g. "NE". */
+export function compassDir(a: LatLng, b: LatLng): string {
+  const la1 = (a[0] * Math.PI) / 180;
+  const la2 = (b[0] * Math.PI) / 180;
+  const dLng = ((b[1] - a[1]) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(la2);
+  const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLng);
+  const deg = ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+  return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+}
+
 export interface RouteProgress {
   /** Perpendicular distance from the point to the route, metres. */
   offRouteM: number;
