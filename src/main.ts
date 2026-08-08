@@ -24,7 +24,8 @@ import {
   latLngToTile,
   naismithHours,
   projectOnPolyline,
-  type LatLng
+  type LatLng,
+  type RouteProgress
 } from './geo';
 import { parseGpx, toGpx } from './gpx';
 import { formatGridRef } from './osgb';
@@ -243,9 +244,15 @@ L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addT
 
 let activeRoute: SavedRoute | null = null;
 let activeLine: L.Polyline | null = null;
+// How far along the active route we last were, and the latest projection —
+// used to keep progress continuous where the line passes close to itself.
+let routeHint: number | null = null;
+let lastProg: RouteProgress | null = null;
 
 function setActiveRoute(r: SavedRoute | null, fit = true): void {
   activeRoute = r;
+  routeHint = null; // a freshly loaded route reads from its start
+  lastProg = null;
   activeLine?.remove();
   activeLine = null;
   if (r) {
@@ -543,11 +550,16 @@ let follow = false;
 function updateBanner(): void {
   const banner = $('statusBanner');
   if (!lastFix || !activeRoute) {
+    lastProg = null;
     banner.classList.add('hidden');
     updateElevPanel();
     return;
   }
-  const prog = projectOnPolyline(lastFix, activeRoute.coords);
+  // One projection per fix, seeded with where we were, then shared with the
+  // remaining-distance readout so both stay consistent and continuous.
+  const prog = projectOnPolyline(lastFix, activeRoute.coords, routeHint);
+  lastProg = prog;
+  if (prog) routeHint = prog.alongM;
   banner.classList.remove('hidden');
   if (prog && prog.offRouteM <= OFF_ROUTE_THRESHOLD_M) {
     banner.className = '';
@@ -564,10 +576,9 @@ function updateBanner(): void {
  * remaining climb, and a time estimate at the user's pace.
  */
 function remainingText(): string | null {
-  if (!lastFix || !activeRoute) return null;
+  if (!lastFix || !activeRoute || !lastProg) return null;
   const coords = activeRoute.coords;
-  const prog = projectOnPolyline(lastFix, coords);
-  if (!prog) return null;
+  const prog = lastProg;
 
   const cum = cumulativeDistances(coords);
   const total = cum[cum.length - 1];

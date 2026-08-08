@@ -32,11 +32,26 @@ export interface RouteProgress {
   index: number;
 }
 
+/** Two nearest points that count as equally near — a loop's start vs finish. */
+const TIE_M = 25;
+
 /**
  * Project a position onto the route: how far off it is, and how far along.
  * Walks every segment, so it is exact rather than a nearest-vertex guess.
+ *
+ * `hintAlongM` is roughly how far along the route we already were. Where the
+ * line passes close to itself — a loop returning to its start, an out-and-back
+ * retracing the same path — several points are near-equally close, and the
+ * bare nearest can snap to the wrong one (standing at a loop's start reads as
+ * 100% done, because the finish is the same spot). Among the near-tied points
+ * we pick the one closest to the hint, so progress stays continuous. With no
+ * hint the target is 0, so a freshly loaded route reads from its start.
  */
-export function projectOnPolyline(p: LatLng, line: LatLng[]): RouteProgress | null {
+export function projectOnPolyline(
+  p: LatLng,
+  line: LatLng[],
+  hintAlongM: number | null = null
+): RouteProgress | null {
   if (line.length < 2) return null;
 
   const cosLat = Math.cos((p[0] * Math.PI) / 180);
@@ -45,9 +60,8 @@ export function projectOnPolyline(p: LatLng, line: LatLng[]): RouteProgress | nu
     ((q[0] - p[0]) * Math.PI * R) / 180
   ];
 
-  let best = Infinity;
-  let bestAlong = 0;
-  let bestIndex = 0;
+  const cand: { d: number; along: number; index: number }[] = [];
+  let minD = Infinity;
   let travelled = 0;
   let prev = toXY(line[0]);
 
@@ -61,15 +75,25 @@ export function projectOnPolyline(p: LatLng, line: LatLng[]): RouteProgress | nu
       t = Math.max(0, Math.min(1, (-prev[0] * abx - prev[1] * aby) / (len * len)));
     }
     const d = Math.hypot(prev[0] + t * abx, prev[1] + t * aby);
-    if (d < best) {
-      best = d;
-      bestAlong = travelled + t * len;
-      bestIndex = i - 1;
-    }
+    cand.push({ d, along: travelled + t * len, index: i - 1 });
+    if (d < minD) minD = d;
     travelled += len;
     prev = cur;
   }
-  return { offRouteM: best, alongM: bestAlong, index: bestIndex };
+
+  // Among points within TIE_M of the nearest, take the one nearest the hint.
+  const target = hintAlongM ?? 0;
+  let best = cand[0];
+  let bestScore = Infinity;
+  for (const c of cand) {
+    if (c.d > minD + TIE_M) continue;
+    const score = Math.abs(c.along - target);
+    if (score < bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return { offRouteM: best.d, alongM: best.along, index: best.index };
 }
 
 /** Cumulative distance to each point of a route, metres. */
