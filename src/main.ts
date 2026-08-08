@@ -1307,7 +1307,16 @@ async function startQrScan(): Promise<void> {
     return toast('Could not load the scanner — connect to the internet once and retry', 5000);
   }
   try {
-    qrStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    // Ask for a high-resolution rear stream — the default is often 640×480,
+    // too coarse to resolve a QR across the room on a monitor. `ideal` degrades
+    // gracefully on cameras that can't hit it.
+    qrStream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      }
+    });
   } catch {
     return toast('Camera blocked — allow it for this site in Settings', 5000);
   }
@@ -1320,14 +1329,23 @@ async function startQrScan(): Promise<void> {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) return stopQrScan();
 
+  // Decode a centred square crop at full resolution (the QR sits in the middle
+  // reticle), capped so a big frame doesn't stall the decode loop. This spends
+  // the sensor's pixels where the code actually is.
+  const DECODE_MAX = 1024;
   const tick = () => {
     qrRAF = requestAnimationFrame(tick);
     if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    if (!vw || !vh) return;
+    const side = Math.min(vw, vh);
+    const dim = Math.min(side, DECODE_MAX);
+    canvas.width = dim;
+    canvas.height = dim;
+    ctx.drawImage(video, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, dim, dim);
+    const img = ctx.getImageData(0, 0, dim, dim);
+    const code = jsQR(img.data, dim, dim, { inversionAttempts: 'dontInvert' });
     if (!code) return;
     const m = code.data.match(/#r=[A-Za-z0-9_-]+/);
     let parsed: ParsedShare | null = null;
