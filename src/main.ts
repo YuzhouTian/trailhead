@@ -308,11 +308,13 @@ function updateElevPanel(): void {
   const card = $('routeCard');
   if (!src) {
     card.classList.add('hidden');
+    $('btnLocate').classList.remove('aboveCard');
     onProfileScrub(null);
     return;
   }
   card.classList.remove('hidden');
   card.classList.toggle('abovePlan', planning);
+  $('btnLocate').classList.add('aboveCard'); // lift the locate button above the card
   $('rcName').textContent = planning ? 'New route' : activeRoute?.name ?? '';
   const est = naismithHours(src.distanceM, src.ascentM, settings.speedKmh);
   $('rcStats').textContent =

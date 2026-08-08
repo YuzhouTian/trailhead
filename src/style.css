@@ -98,6 +98,26 @@ body {
 #bottomBar button.active { color: var(--brand); }
 body.planning #bottomBar { display: none; }
 
+/* Locate ("Me") — a floating control over the map, not a nav destination.
+   Sits above the bottom bar, and rides up above the route card when one shows. */
+#btnLocate {
+  position: fixed;
+  right: 14px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  width: 48px; height: 48px;
+  border: none; border-radius: 50%;
+  background: var(--surface); color: var(--muted);
+  box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; cursor: pointer;
+  transition: bottom .2s ease;
+}
+#btnLocate .ico { line-height: 0; }
+#btnLocate .ico svg { width: 24px; height: 24px; display: block; }
+#btnLocate.active { color: var(--brand); }
+#btnLocate.aboveCard { bottom: calc(env(safe-area-inset-bottom, 0px) + 132px); }
+body.planning #btnLocate { display: none; }
+
 /* Belt and braces: paint the bar's own colour from its bottom edge down past
    the foot of the screen, so nothing can show through beneath it whatever
    iOS decides the viewport bottom is. */
