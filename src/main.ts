@@ -553,6 +553,7 @@ let watchId: number | null = null;
 let gpsMarker: L.Marker | null = null;
 let accCircle: L.Circle | null = null;
 let lastFix: LatLng | null = null;
+let lastAccuracy = 0;
 let follow = false;
 
 function updateBanner(): void {
@@ -604,8 +605,16 @@ function remainingText(): string | null {
 function onFix(pos: GeolocationPosition): void {
   const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
   lastFix = p;
+  lastAccuracy = pos.coords.accuracy;
   if (!gpsMarker) {
     gpsMarker = L.marker(p, { icon: gpsIcon }).addTo(map);
+    // Tap your own dot for the grid reference to read out to mountain rescue.
+    // Built lazily on open (from the latest fix) rather than rebuilt every
+    // second, which is wasted work you never see unless the popup is showing.
+    gpsMarker.bindPopup(() =>
+      `<div style="font-size:13px;line-height:1.5">${lastFix ? positionText(lastFix) : ''}<br>
+       <span style="color:var(--muted)">±${Math.round(lastAccuracy)} m</span></div>`
+    );
     accCircle = L.circle(p, {
       radius: pos.coords.accuracy,
       color: '#1a73e8',
@@ -617,11 +626,6 @@ function onFix(pos: GeolocationPosition): void {
     gpsMarker.setLatLng(p);
     accCircle!.setLatLng(p).setRadius(pos.coords.accuracy);
   }
-  // Tap your own dot for the grid reference to read out to mountain rescue.
-  gpsMarker.bindPopup(
-    `<div style="font-size:13px;line-height:1.5">${positionText(p)}<br>
-     <span style="color:var(--muted)">±${Math.round(pos.coords.accuracy)} m</span></div>`
-  );
   // Recentre instantly: fixes arrive every second or so, and queueing a pan
   // animation per fix looks jittery and stalls entirely while backgrounded.
   if (follow) map.setView(p, Math.max(map.getZoom(), 15), { animate: false });
@@ -651,17 +655,28 @@ function angleDelta(a: number, b: number): number {
  * like the map is simply turning with you.
  */
 function headingTick(): void {
-  headingFrame = requestAnimationFrame(headingTick);
-  if (targetHeading === null) return;
+  if (targetHeading === null) {
+    headingFrame = null;
+    return;
+  }
 
   if (shownHeading === null) shownHeading = targetHeading;
   else shownHeading = (shownHeading + angleDelta(shownHeading, targetHeading) * 0.25 + 360) % 360;
 
-  // Skip the redraw when the change is imperceptible, so a still phone
-  // costs nothing.
-  if (appliedHeading !== null && Math.abs(angleDelta(appliedHeading, shownHeading)) < 0.25) return;
-  appliedHeading = shownHeading;
-  map.setBearing(-shownHeading);
+  if (appliedHeading === null || Math.abs(angleDelta(appliedHeading, shownHeading)) >= 0.25) {
+    appliedHeading = shownHeading;
+    map.setBearing(-shownHeading);
+  }
+
+  // Keep animating only while the shown heading is still catching up. Once it
+  // has settled, stop the loop entirely so a still phone wakes nothing — the
+  // compass handler restarts it when you actually turn.
+  if (Math.abs(angleDelta(shownHeading, targetHeading)) >= 0.25) {
+    headingFrame = requestAnimationFrame(headingTick);
+  } else {
+    shownHeading = targetHeading;
+    headingFrame = null;
+  }
 }
 
 async function startHeading(): Promise<boolean> {
@@ -674,12 +689,24 @@ async function startHeading(): Promise<boolean> {
   } catch {
     return false;
   }
-  // Record every reading; headingTick decides how often to redraw.
+  // Record every reading; headingTick decides how often to redraw. Restart the
+  // animation loop only when it's asleep and the reading actually moved, so a
+  // motionless phone keeps it idle.
   headingHandler = (e: DeviceOrientationEvent) => {
     const webkit = (e as DeviceOrientationEvent & { webkitCompassHeading?: number })
       .webkitCompassHeading;
-    if (typeof webkit === 'number' && !Number.isNaN(webkit)) targetHeading = webkit;
-    else if (e.absolute && typeof e.alpha === 'number') targetHeading = 360 - e.alpha;
+    let reading: number | null = null;
+    if (typeof webkit === 'number' && !Number.isNaN(webkit)) reading = webkit;
+    else if (e.absolute && typeof e.alpha === 'number') reading = 360 - e.alpha;
+    if (reading === null) return;
+    targetHeading = reading;
+    if (
+      headingOn &&
+      headingFrame === null &&
+      (shownHeading === null || Math.abs(angleDelta(shownHeading, reading)) >= 0.25)
+    ) {
+      headingFrame = requestAnimationFrame(headingTick);
+    }
   };
   window.addEventListener('deviceorientation', headingHandler);
   headingFrame = requestAnimationFrame(headingTick);
