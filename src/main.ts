@@ -230,6 +230,10 @@ function applyLayers(): void {
 
 applyLayers();
 
+// Metric scale bar (bottom-left, above the nav bar) so distance is readable at
+// a glance. Attribution stays bottom-right, so the two don't collide.
+L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(map);
+
 // ---------------------------------------------------------------- active route
 
 let activeRoute: SavedRoute | null = null;

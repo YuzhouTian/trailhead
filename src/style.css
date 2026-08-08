@@ -368,6 +368,15 @@ body.planning #statusBanner { display: none; }
 }
 .leaflet-bar a:hover { background: var(--chip); }
 
+/* Scale bar — themed to match the chrome, legible over any tiles */
+.leaflet-control-scale-line {
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  color: var(--ink);
+  border: 2px solid var(--muted); border-top: none;
+  font-size: 11px; font-weight: 600; line-height: 1.2;
+  padding: 1px 6px 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+}
+
 /* Keep Leaflet attribution visible above the bottom bar */
 .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 50px); }
 body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); }
