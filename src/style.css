@@ -290,9 +290,11 @@ body.planning #statusBanner { display: none; }
 #planSnap {
   flex: 0 0 46px; color: var(--muted);
   display: flex; align-items: center; justify-content: center;
+  transition: background .15s, color .15s;
 }
 #planSnap svg { width: 21px; height: 21px; }
-#planSnap.active { color: var(--brand); background: var(--accent-soft); }
+/* Snap on = solid green fill; off = plain grey chip — an unmistakable toggle. */
+#planSnap.active { color: var(--on-accent); background: var(--brand); }
 
 /* Active route card (sits above the bottom bar / plan bar) */
 #routeCard {

@@ -95,6 +95,12 @@ function applyTheme(): void {
 darkQuery.addEventListener('change', () => { if (settings.theme === 'system') applyTheme(); });
 applyTheme();
 
+// The "Me" button shows its state through the glyph as well as the colour:
+// a hollow crosshair when off, a filled one while following you north-up, and
+// a compass arrow in heading-up mode.
+const svgUse = (id: string) => `<svg viewBox="0 0 24 24"><use href="#${id}"/></svg>`;
+const LOCATE_ICON = { off: svgUse('i-locate'), follow: svgUse('i-locate-on'), heading: svgUse('i-compass') };
+
 // The map opens on a whole-UK view, then recentres on your actual area on
 // every startup once geolocation resolves. If location is denied, unavailable,
 // or times out, the UK view stays put.
@@ -672,7 +678,7 @@ function stopWatch(): void {
   accCircle = null;
   lastFix = null;
   $('btnLocate').classList.remove('active');
-  $('locateIco').innerHTML = '<svg viewBox="0 0 24 24"><use href="#i-locate"/></svg>';
+  $('locateIco').innerHTML = LOCATE_ICON.off;
   updateBanner();
 }
 
@@ -683,6 +689,7 @@ $('btnLocate').addEventListener('click', async () => {
     if (!('geolocation' in navigator)) return toast('No geolocation on this device');
     follow = true;
     $('btnLocate').classList.add('active');
+    $('locateIco').innerHTML = LOCATE_ICON.follow;
     watchId = navigator.geolocation.watchPosition(onFix, (err) => {
       toast(`GPS error: ${err.message}`, 5000);
       stopWatch();
@@ -690,10 +697,11 @@ $('btnLocate').addEventListener('click', async () => {
     toast('Following you — tap again to rotate with your heading', 3000);
   } else if (!follow) {
     follow = true;
+    $('locateIco').innerHTML = LOCATE_ICON.follow;
     if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
   } else if (!headingOn) {
     if (await startHeading()) {
-      $('locateIco').innerHTML = '<svg viewBox="0 0 24 24"><use href="#i-compass"/></svg>';
+      $('locateIco').innerHTML = LOCATE_ICON.heading;
       toast('Heading-up — the map turns with you. Tap again to stop.', 3000);
     } else {
       toast('Compass not available — staying north-up. Tap again to stop.', 3500);
