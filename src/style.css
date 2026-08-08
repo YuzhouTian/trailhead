@@ -1,3 +1,46 @@
+/* ---------------------------------------------------------------- theme tokens
+   Every chrome colour lives here as a token. The light palette is the base
+   (bare :root); dark redefines only the tokens. Components below reference the
+   tokens, never a raw hex — so dark mode is this one block, not a rewrite. */
+:root {
+  --surface: #ffffff;   /* bars, panels, cards, search */
+  --ink:     #1a2420;   /* primary text */
+  --muted:   #5f6b64;   /* secondary text, inactive icons */
+  --line:    #e2e8e3;   /* hairlines, borders, dividers */
+  --brand:   #2d6a4f;   /* the identity green: active tab, primary buttons */
+  --on-accent:#ffffff;  /* text/icons sitting on brand or danger fills */
+  --danger:  #c1121f;   /* off-route, delete, route line */
+  --chip:    #e9ede9;   /* secondary/neutral button fills */
+  --accent-soft:#eaf1ec;/* tinted toggle-on background */
+  --map-gap: #c8d1c9;   /* the colour behind map tiles as they load */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --surface: #161d19;
+    --ink:     #e7ece8;
+    --muted:   #8b968f;
+    --line:    #25302a;
+    --brand:   #57b98a;   /* lifted so it stays legible on the dark ground */
+    --on-accent:#08110c;
+    --danger:  #f2545b;
+    --chip:    #222b25;
+    --accent-soft:#18251e;
+    --map-gap: #202824;
+  }
+}
+:root[data-theme="dark"] {
+  --surface: #161d19;
+  --ink:     #e7ece8;
+  --muted:   #8b968f;
+  --line:    #25302a;
+  --brand:   #57b98a;
+  --on-accent:#08110c;
+  --danger:  #f2545b;
+  --chip:    #222b25;
+  --accent-soft:#18251e;
+  --map-gap: #202824;
+}
+
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overscroll-behavior: none; }
 /* iOS keeps a strip below the layout viewport for the home indicator even
@@ -5,9 +48,10 @@ html, body { margin: 0; height: 100%; overscroll-behavior: none; }
    bottom bar so that strip reads as part of the bar rather than a band of
    stray colour. Tile gaps inside the map use .leaflet-container's own
    background instead. */
-html, body { background: #fff; }
+html, body { background: var(--surface); }
 body {
   font-family: -apple-system, system-ui, sans-serif;
+  color: var(--ink);
   -webkit-tap-highlight-color: transparent;
 }
 /* No explicit height: with top and bottom both pinned, the map fills the
@@ -18,28 +62,40 @@ body {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
 }
-.leaflet-container { background: #c8d1c9; }
+.leaflet-container { background: var(--map-gap); }
 .hidden { display: none !important; }
+
+/* Monochrome icon glyphs (see the sprite in index.html). Stroke-drawn and
+   inheriting currentColor, so one icon recolours for the active tab, a pressed
+   button, and either theme. */
+.gico {
+  fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+/* An icon sitting inline in a line of text (e.g. pointing at a nav button). */
+.inlineIco { width: 1.05em; height: 1.05em; vertical-align: -0.18em; }
 
 /* Bottom navigation bar (lives in the strip iOS reserves anyway) */
 #bottomBar {
   position: fixed;
   left: 0; right: 0; bottom: 0;
   display: flex;
-  background: #fff;
-  box-shadow: 0 -2px 8px rgba(0,0,0,.2);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -2px 8px rgba(0,0,0,.14);
   padding: 6px 4px calc(env(safe-area-inset-bottom, 0px) + 4px);
   z-index: 1000;
 }
 #bottomBar button {
   flex: 1;
   border: none; background: none;
-  display: flex; flex-direction: column; align-items: center; gap: 1px;
-  color: #444; cursor: pointer; padding: 2px 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  color: var(--muted); cursor: pointer; padding: 2px 0;
 }
-#bottomBar button .ico { font-size: 21px; line-height: 1.15; }
+#bottomBar button .ico { line-height: 0; }
+#bottomBar button .ico svg { width: 23px; height: 23px; display: block; }
 #bottomBar button .lbl { font-size: 10px; font-weight: 600; }
-#bottomBar button.active { color: #2d6a4f; }
+#bottomBar button.active { color: var(--brand); }
 body.planning #bottomBar { display: none; }
 
 /* Belt and braces: paint the bar's own colour from its bottom edge down past
@@ -61,21 +117,25 @@ body.planning #bottomBar { display: none; }
   left: 10px; right: 10px;
   max-width: 520px; margin: 0 auto;
   display: flex; align-items: center;
-  background: #fff;
+  background: var(--surface);
   border-radius: 22px;
-  box-shadow: 0 1px 6px rgba(0,0,0,.3);
+  box-shadow: 0 1px 6px rgba(0,0,0,.25);
   z-index: 1050;
 }
+.searchIco { display: flex; align-items: center; padding-left: 13px; color: var(--muted); }
+.searchIco svg { width: 18px; height: 18px; }
 #searchInput {
   flex: 1; min-width: 0;
   border: none; background: none; outline: none;
-  padding: 11px 6px 11px 16px;
+  color: var(--ink);
+  padding: 11px 6px 11px 10px;
   font-size: 15px;
   -webkit-appearance: none;
 }
+#searchInput::placeholder { color: var(--muted); }
 #searchInput::-webkit-search-cancel-button { display: none; }
 #searchClear {
-  border: none; background: none; color: #888;
+  border: none; background: none; color: var(--muted);
   font-size: 22px; padding: 4px 14px 6px; cursor: pointer;
 }
 #searchResults {
@@ -83,20 +143,20 @@ body.planning #bottomBar { display: none; }
   top: calc(env(safe-area-inset-top, 0px) + 54px);
   left: 10px; right: 10px;
   max-width: 520px; margin: 0 auto;
-  background: #fff;
+  background: var(--surface);
   border-radius: 12px;
-  box-shadow: 0 2px 10px rgba(0,0,0,.3);
+  box-shadow: 0 2px 10px rgba(0,0,0,.28);
   z-index: 1050;
   max-height: 45vh; overflow-y: auto;
 }
 #searchResults .hit {
   padding: 10px 14px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--line);
   cursor: pointer;
 }
 #searchResults .hit:last-child { border-bottom: none; }
 #searchResults .hit .n { font-size: 15px; font-weight: 600; }
-#searchResults .hit .d { font-size: 12px; color: #777; }
+#searchResults .hit .d { font-size: 12px; color: var(--muted); }
 body.planning #searchWrap, body.planning #searchResults { display: none; }
 
 /* Status banner (on/off route) */
@@ -107,15 +167,16 @@ body.planning #searchWrap, body.planning #searchResults { display: none; }
   padding: 8px 14px;
   border-radius: 20px;
   font-size: 14px; font-weight: 600;
-  color: #fff; background: #2d6a4f;
+  color: var(--on-accent); background: var(--brand);
   box-shadow: 0 1px 4px rgba(0,0,0,.3);
   z-index: 1000;
   white-space: nowrap;
 }
-#statusBanner.off { background: #c1121f; }
+#statusBanner.off { background: var(--danger); }
 body.planning #statusBanner { display: none; }
 
-/* POI markers */
+/* POI markers — map symbology, deliberately theme-independent so a pin reads
+   the same over any tiles. */
 .poiMarker {
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px;
@@ -133,7 +194,7 @@ body.planning #statusBanner { display: none; }
   position: fixed;
   top: 0; left: 0; bottom: 0;
   width: min(320px, 85vw);
-  background: #fff;
+  background: var(--surface);
   box-shadow: 2px 0 12px rgba(0,0,0,.3);
   z-index: 1100;
   overflow-y: auto;
@@ -145,45 +206,66 @@ body.planning #statusBanner { display: none; }
   padding: 9px 4px; font-size: 15px;
 }
 #panel .row label { flex: 1; }
-#panel hr { border: none; border-top: 1px solid #e5e5e5; margin: 10px 0; }
-#panel input[type="text"], #panel input[type="password"] {
+#panel hr { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
+#panel input[type="text"], #panel input[type="password"], #panel input[type="number"] {
   width: 100%; padding: 8px; font-size: 14px;
-  border: 1px solid #ccc; border-radius: 6px;
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px;
+}
+#panel select {
+  background: var(--surface); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px;
+  font-size: 14px;
 }
 #panel button {
   padding: 8px 12px; border: none; border-radius: 8px;
-  background: #2d6a4f; color: #fff; font-size: 14px; cursor: pointer;
+  background: var(--brand); color: var(--on-accent); font-size: 14px; cursor: pointer;
 }
-#panel button.secondary { background: #e5e5e5; color: #1b1b1b; }
-#panel button.danger { background: #c1121f; }
+#panel button.secondary { background: var(--chip); color: var(--ink); }
+#panel button.danger { background: var(--danger); color: #fff; }
 #panel .closeX {
   position: absolute; top: calc(env(safe-area-inset-top, 0px) + 8px); right: 8px;
-  background: none; color: #888; font-size: 22px; padding: 4px 8px;
+  background: none; color: var(--muted); font-size: 22px; padding: 4px 8px;
 }
 #panel .routeItem {
   display: flex; align-items: center; gap: 6px;
-  padding: 8px 4px; border-bottom: 1px solid #f0f0f0;
+  padding: 8px 4px; border-bottom: 1px solid var(--line);
 }
 #panel .routeItem .meta { flex: 1; min-width: 0; }
 #panel .routeItem .meta .name {
   font-weight: 600; font-size: 15px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#panel .routeItem .meta .sub { font-size: 12px; color: #777; }
-#panel .hint { font-size: 12px; color: #777; margin: 6px 0; }
+#panel .routeItem .meta .sub { font-size: 12px; color: var(--muted); }
+#panel .hint { font-size: 12px; color: var(--muted); margin: 6px 0; }
 #panel .keyRow {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 6px 2px; font-size: 13px; line-height: 1.35;
 }
 #panel .keyRow svg { margin-top: 1px; }
 #panel .keyRow b { font-weight: 600; }
-#panel .keyNote { display: block; font-size: 12px; color: #777; }
+#panel .keyNote { display: block; font-size: 12px; color: var(--muted); }
 #panel .keyGroup {
   margin: 14px 0 4px;
   font-size: 12px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .04em; color: #2d6a4f;
-  border-bottom: 1px solid #e5e5e5; padding-bottom: 3px;
+  letter-spacing: .04em; color: var(--brand);
+  border-bottom: 1px solid var(--line); padding-bottom: 3px;
 }
+
+/* Appearance switch (Settings). Selectors are scoped under #panel so they
+   beat the generic `#panel button` fill on the unselected segments. */
+#panel .themeSeg {
+  display: flex; gap: 6px;
+  background: var(--chip); border-radius: 11px; padding: 4px;
+}
+#panel .themeSeg button {
+  flex: 1; padding: 9px 0; border: none; border-radius: 8px;
+  background: none; color: var(--muted);
+  font-size: 13px; font-weight: 650; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+#panel .themeSeg button svg { width: 16px; height: 16px; }
+#panel .themeSeg button.sel { background: var(--brand); color: var(--on-accent); }
 
 /* Plan bar */
 #planBar {
@@ -192,28 +274,33 @@ body.planning #statusBanner { display: none; }
   /* Sit flush with the screen edge; the inset is handled by padding below,
      so the bar's background covers the home-indicator strip. */
   bottom: 0;
-  background: #fff;
-  box-shadow: 0 -2px 8px rgba(0,0,0,.2);
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -2px 8px rgba(0,0,0,.14);
   padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
   z-index: 1000;
 }
 #planStats { font-size: 14px; font-weight: 600; display: block; margin-bottom: 8px; }
-.planBtns { display: flex; gap: 8px; }
+.planBtns { display: flex; gap: 8px; align-items: stretch; }
 .planBtns button {
   flex: 1; padding: 9px 0; border: none; border-radius: 8px;
-  background: #e5e5e5; font-size: 14px; font-weight: 600; cursor: pointer;
+  background: var(--chip); color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer;
 }
-#planDone { background: #2d6a4f; color: #fff; }
-#planSnap { flex: 0 0 46px; opacity: 0.45; }
-#planSnap.active { opacity: 1; background: #d7e8ff; }
+#planDone { background: var(--brand); color: var(--on-accent); }
+#planSnap {
+  flex: 0 0 46px; color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+}
+#planSnap svg { width: 21px; height: 21px; }
+#planSnap.active { color: var(--brand); background: var(--accent-soft); }
 
 /* Active route card (sits above the bottom bar / plan bar) */
 #routeCard {
   position: fixed;
   left: 0; right: 0;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
-  background: #fff;
-  border-top: 1px solid #e5e5e5;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
   padding: 6px 10px;
   z-index: 950;
 }
@@ -224,14 +311,16 @@ body.planning #statusBanner { display: none; }
   font-size: 13px; font-weight: 700;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#rcStats { font-size: 12.5px; color: #444; }
-#rcRemaining { font-size: 12.5px; font-weight: 600; color: #2d6a4f; }
+#rcStats { font-size: 12.5px; color: var(--muted); }
+#rcRemaining { font-size: 12.5px; font-weight: 600; color: var(--brand); }
 #rcHeader button {
-  border: none; background: #f0f0f0; border-radius: 8px;
+  border: none; background: var(--chip); color: var(--ink); border-radius: 8px;
   width: 36px; height: 36px; font-size: 17px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
 }
-#rcHeader button.active { background: #2d6a4f; color: #fff; }
-#rcClose { font-size: 20px; color: #888; background: none !important; }
+#rcHeader button svg { width: 18px; height: 18px; }
+#rcHeader button.active { background: var(--brand); color: var(--on-accent); }
+#rcClose { font-size: 20px; color: var(--muted); background: none !important; }
 #elevChart { touch-action: none; padding-top: 4px; }
 
 /* QR share */
@@ -243,13 +332,13 @@ body.planning #statusBanner { display: none; }
   position: fixed;
   bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
   left: 50%; transform: translateX(-50%);
-  background: rgba(20,20,20,.88); color: #fff;
+  background: rgba(20,20,20,.9); color: #fff;
   padding: 9px 16px; border-radius: 20px;
   font-size: 14px; z-index: 2000;
   max-width: 85vw; text-align: center;
 }
 
-/* GPS marker */
+/* GPS + waypoint markers — map symbology, kept literal across themes. */
 .gpsDot {
   width: 16px; height: 16px; border-radius: 50%;
   background: #1a73e8; border: 3px solid #fff;
@@ -261,6 +350,22 @@ body.planning #statusBanner { display: none; }
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
 
+/* Leaflet popups + attribution follow the theme */
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: var(--surface); color: var(--ink);
+}
+.leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 82%, transparent) !important;
+  color: var(--muted) !important;
+}
+.leaflet-control-attribution a { color: var(--brand) !important; }
+.leaflet-bar a {
+  background: var(--surface); color: var(--ink);
+  border-bottom-color: var(--line);
+}
+.leaflet-bar a:hover { background: var(--chip); }
+
 /* Keep Leaflet attribution visible above the bottom bar */
 .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 50px); }
 body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); }
@@ -268,4 +373,18 @@ body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 
 .leaflet-control-zoom { display: none; }
 @media (min-width: 700px) {
   .leaflet-control-zoom { display: block; }
+}
+
+/* Dark theme dims the map itself as well as the chrome — a CSS dim over the
+   light tiles (OSM/OpenTopo/Thunderforest are all light), tuned to keep
+   contour and path lines readable. Only the tile pane is touched, so the red
+   route line, GPS dot and POI pins stay bright on top. Adjust brightness to
+   taste. Applies to both OS-dark (unless light is forced) and forced dark. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .leaflet-tile-pane {
+    filter: brightness(0.63) contrast(1.06) saturate(0.9);
+  }
+}
+:root[data-theme="dark"] .leaflet-tile-pane {
+  filter: brightness(0.63) contrast(1.06) saturate(0.9);
 }

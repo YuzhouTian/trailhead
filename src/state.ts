@@ -27,6 +27,8 @@ export interface Settings {
   profile: string;
   /** Average walking speed on the flat, km/h (Naismith time estimate). */
   speedKmh: number;
+  /** UI theme: follow the OS, or force light/dark. */
+  theme: 'system' | 'light' | 'dark';
 }
 
 const SETTINGS_KEY = 'trailhead.settings';
@@ -40,7 +42,8 @@ export function loadSettings(): Settings {
     overlayOpacity: 0.5,
     profile: 'hiking-mountain',
     speedKmh: 4,
-    tfKey: ''
+    tfKey: '',
+    theme: 'system'
   };
   try {
     return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };

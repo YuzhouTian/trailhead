@@ -36,7 +36,8 @@ import {
   loadSettings,
   saveRoutes,
   saveSettings,
-  type SavedRoute
+  type SavedRoute,
+  type Settings
 } from './state';
 
 // ---------------------------------------------------------------- helpers
@@ -69,6 +70,30 @@ function downloadFile(name: string, content: string, mime: string): void {
 
 const settings = loadSettings();
 let routes = loadRoutes();
+
+// ---------------------------------------------------------------- theme
+// A pre-paint script in index.html already set data-theme from the saved
+// choice; this keeps it in sync when the setting changes, and drives the
+// browser-chrome colour and live OS-theme following.
+const darkQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+/** Whether the effective theme resolves to dark (setting + OS preference). */
+function themeIsDark(): boolean {
+  return settings.theme === 'dark' || (settings.theme === 'system' && darkQuery.matches);
+}
+
+function applyTheme(): void {
+  const root = document.documentElement;
+  if (settings.theme === 'system') root.removeAttribute('data-theme');
+  else root.setAttribute('data-theme', settings.theme);
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute('content', themeIsDark() ? '#0e1310' : '#ffffff');
+}
+
+// Following the OS: react live when it flips between light and dark.
+darkQuery.addEventListener('change', () => { if (settings.theme === 'system') applyTheme(); });
+applyTheme();
 
 // The map opens on a whole-UK view, then recentres on your actual area on
 // every startup once geolocation resolves. If location is denied, unavailable,
@@ -559,7 +584,7 @@ function onFix(pos: GeolocationPosition): void {
   // Tap your own dot for the grid reference to read out to mountain rescue.
   gpsMarker.bindPopup(
     `<div style="font-size:13px;line-height:1.5">${positionText(p)}<br>
-     <span style="color:#777">±${Math.round(pos.coords.accuracy)} m</span></div>`
+     <span style="color:var(--muted)">±${Math.round(pos.coords.accuracy)} m</span></div>`
   );
   // Recentre instantly: fixes arrive every second or so, and queueing a pan
   // animation per fix looks jittery and stalls entirely while backgrounded.
@@ -647,7 +672,7 @@ function stopWatch(): void {
   accCircle = null;
   lastFix = null;
   $('btnLocate').classList.remove('active');
-  $('locateIco').innerHTML = '&#9678;';
+  $('locateIco').innerHTML = '<svg viewBox="0 0 24 24"><use href="#i-locate"/></svg>';
   updateBanner();
 }
 
@@ -668,7 +693,7 @@ $('btnLocate').addEventListener('click', async () => {
     if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
   } else if (!headingOn) {
     if (await startHeading()) {
-      $('locateIco').innerHTML = '&#129517;';
+      $('locateIco').innerHTML = '<svg viewBox="0 0 24 24"><use href="#i-compass"/></svg>';
       toast('Heading-up — the map turns with you. Tap again to stop.', 3000);
     } else {
       toast('Compass not available — staying north-up. Tap again to stop.', 3500);
@@ -846,7 +871,7 @@ function openMapPanel(): void {
     (l) => `<div class="row">
       <input type="radio" name="base" id="base-${l.id}" value="${l.id}" ${settings.baseLayer === l.id ? 'checked' : ''}/>
       <label for="base-${l.id}">${l.name}${
-        l.needsTfKey && !settings.tfKey ? ' <span style="color:#c1121f">(needs key)</span>' : ''
+        l.needsTfKey && !settings.tfKey ? ' <span style="color:var(--danger)">(needs key)</span>' : ''
       }${l.blurb ? `<span class="keyNote">${l.blurb}</span>` : ''}</label>
     </div>`
   ).join('');
@@ -900,6 +925,14 @@ function openSettingsPanel(): void {
     BROUTER_PROFILES.find((p) => p.id === id)?.desc ?? '';
 
   showPanel(`
+    <h3>Appearance</h3>
+    <div class="themeSeg" id="themeSeg">
+      <button data-theme="light"><svg viewBox="0 0 24 24"><use href="#i-sun"/></svg>Light</button>
+      <button data-theme="dark"><svg viewBox="0 0 24 24"><use href="#i-moon"/></svg>Dark</button>
+      <button data-theme="system"><svg viewBox="0 0 24 24"><use href="#i-auto"/></svg>System</button>
+    </div>
+    <p class="hint">Dark dims the map as well as the app. System follows your phone.</p>
+    <hr/>
     <h3>Thunderforest API key</h3>
     <p class="hint">Powers the Outdoors base map. Free "Hobby Project" plan at
     thunderforest.com — 150,000 tiles a month, far more than one walker uses.</p>
@@ -924,6 +957,20 @@ function openSettingsPanel(): void {
     <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'} (UTC).
     If this looks old after a deploy, fully close the app from the app switcher and reopen it.</p>
   `);
+
+  const themeSeg = $('themeSeg');
+  const themeBtns = Array.from(themeSeg.querySelectorAll('button')) as HTMLButtonElement[];
+  const markTheme = () =>
+    themeBtns.forEach((b) => b.classList.toggle('sel', b.dataset.theme === settings.theme));
+  markTheme();
+  themeBtns.forEach((b) =>
+    b.addEventListener('click', () => {
+      settings.theme = b.dataset.theme as Settings['theme'];
+      saveSettings(settings);
+      applyTheme();
+      markTheme();
+    })
+  );
 
   $('tfKeyInput').addEventListener('change', (e) => {
     settings.tfKey = (e.target as HTMLInputElement).value.trim();
@@ -1119,7 +1166,7 @@ function openHandoffPanel(url: string, name: string): void {
     <ol style="font-size:14px; padding-left:20px; line-height:1.5">
       <li>Tap <b>Copy route link</b> below</li>
       <li>Open <b>Trailhead</b> from your home screen</li>
-      <li>Tap &#128193; → <b>Paste shared route</b></li>
+      <li>Tap <svg class="inlineIco" viewBox="0 0 24 24"><use href="#i-routes"/></svg> <b>Routes</b> → <b>Paste shared route</b></li>
     </ol>
     <div class="row"><button id="handoffCopy" style="flex:1">Copy route link</button></div>
   `);
