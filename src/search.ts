@@ -89,37 +89,51 @@ async function searchOsNames(
   return rankHits(hits, near);
 }
 
-interface NominatimResult {
-  display_name?: string;
-  lat?: string;
-  lon?: string;
-  type?: string;
-  class?: string;
+interface PhotonFeature {
+  geometry?: { coordinates?: [number, number] };
+  properties?: {
+    name?: string;
+    osm_key?: string;
+    osm_value?: string;
+    housenumber?: string;
+    street?: string;
+    city?: string;
+    county?: string;
+    state?: string;
+  };
 }
 
-/** Nominatim fallback when there's no OS key. */
-async function searchNominatim(
+/**
+ * Photon fallback when there's no OS key. It's OpenStreetMap data like
+ * Nominatim, but purpose-built for type-ahead (and gentler on the shared
+ * Nominatim service we'd otherwise lean on). The `near` bias asks Photon to
+ * favour nearby results; our own ranking then does the hiking-specific sort.
+ */
+async function searchPhoton(
   query: string,
   near: LatLng | undefined,
   signal?: AbortSignal
 ): Promise<SearchHit[]> {
-  const url =
-    `https://nominatim.openstreetmap.org/search?format=json&limit=20&q=${encodeURIComponent(query)}`;
+  const bias = near ? `&lat=${near[0]}&lon=${near[1]}` : '';
+  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=20&lang=en${bias}`;
   const res = await fetch(url, { signal });
-  if (!res.ok) throw new Error(`Nominatim ${res.status}`);
-  const data = (await res.json()) as NominatimResult[];
+  if (!res.ok) throw new Error(`Photon ${res.status}`);
+  const data = (await res.json()) as { features?: PhotonFeature[] };
 
-  const hits = data
-    .filter((r) => r.lat && r.lon)
-    .map((r) => {
-      const parts = (r.display_name ?? '').split(',').map((s) => s.trim());
-      return {
-        name: parts[0] || 'Result',
-        detail: parts.slice(1, 3).join(', '),
-        pos: [Number(r.lat), Number(r.lon)] as LatLng,
-        type: `${r.class ?? ''} ${r.type ?? ''}`
-      };
-    });
+  const hits = (data.features ?? []).flatMap((f) => {
+    const c = f.geometry?.coordinates;
+    const p = f.properties;
+    if (!c || !p) return [];
+    const name = p.name || [p.housenumber, p.street].filter(Boolean).join(' ') || p.city || '';
+    if (!name) return [];
+    const locality = p.city ?? p.county ?? p.state;
+    return [{
+      name,
+      detail: [p.osm_value, locality].filter(Boolean).join(' · '),
+      pos: [c[1], c[0]] as LatLng, // GeoJSON is [lon, lat]
+      type: `${p.osm_key ?? ''} ${p.osm_value ?? ''}`
+    }];
+  });
   return rankHits(hits, near);
 }
 
@@ -147,5 +161,5 @@ export async function search(
     return [{ name: `${ll[0].toFixed(5)}, ${ll[1].toFixed(5)}`, detail: 'Coordinates', pos: ll }];
   }
 
-  return osKey ? searchOsNames(q, osKey, near, signal) : searchNominatim(q, near, signal);
+  return osKey ? searchOsNames(q, osKey, near, signal) : searchPhoton(q, near, signal);
 }
