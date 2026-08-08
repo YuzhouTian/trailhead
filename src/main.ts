@@ -1034,7 +1034,16 @@ function showSearchHits(hits: SearchHit[]): void {
     el.addEventListener('click', () => {
       const hit = hits[Number(el.dataset.i)];
       searchMarker?.remove();
-      searchMarker = L.marker(hit.pos).addTo(map);
+      // A divIcon, like every other marker here — Leaflet's default icon needs
+      // PNG assets that don't survive bundling and render as a broken box.
+      searchMarker = L.marker(hit.pos, {
+        icon: L.divIcon({
+          className: '',
+          html: `<div class="searchPin">${svgIcon('i-pin')}</div>`,
+          iconSize: [32, 32],
+          iconAnchor: [16, 32]
+        })
+      }).addTo(map);
       // Centre first and without animation, so the popup's auto-pan can't
       // animate over the top of it and leave the map where it started.
       map.setView(hit.pos, Math.max(map.getZoom(), 15), { animate: false });

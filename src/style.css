@@ -398,6 +398,9 @@ body.planning #pinCard { display: none; }
 .savedPin svg { width: 15px; height: 15px; }
 .dropPin { color: var(--danger); filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
 .dropPin svg { width: 32px; height: 32px; display: block; }
+/* Search-result pin — green, to read as "the place you looked up". */
+.searchPin { color: var(--brand); filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
+.searchPin svg { width: 32px; height: 32px; display: block; }
 
 /* QR share */
 .qrBox { text-align: center; padding: 8px 0; }
