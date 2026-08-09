@@ -29,11 +29,17 @@ export async function fetchElevation(
  * with a touch/mouse scrubber. `onScrub` fires with the map position
  * under the scrubber (null when scrubbing ends). Returns false if the
  * route has no elevation data to draw.
+ *
+ * `positionM` is how far along the route the walker currently is, in metres —
+ * drawn as a "you are here" marker so the profile answers what is still to
+ * climb, not just the shape of the whole walk. Pass null when the position
+ * isn't known or isn't trusted.
  */
 export function renderProfile(
   container: HTMLElement,
   coords: LatLng[],
-  onScrub?: (pos: LatLng | null) => void
+  onScrub?: (pos: LatLng | null) => void,
+  positionM?: number | null
 ): boolean {
   const pts: { d: number; e: number; lat: number; lng: number }[] = [];
   let dist = 0;
@@ -68,6 +74,20 @@ export function renderProfile(
   const linePts = pts.map((p) => `${x(p.d).toFixed(1)},${y(p.e).toFixed(1)}`).join(' ');
   const midE = Math.round((minE + maxE) / 2);
 
+  // "You are here" — blue to match the GPS dot on the map, so the two read as
+  // the same thing shown two ways. Sits under the scrubber, which is red.
+  let hereMarkup = '';
+  if (typeof positionM === 'number' && positionM >= 0 && positionM <= dist) {
+    let here = pts[0];
+    for (const p of pts) {
+      if (Math.abs(p.d - positionM) < Math.abs(here.d - positionM)) here = p;
+    }
+    const hx = x(here.d).toFixed(1);
+    hereMarkup =
+      `<line x1="${hx}" y1="${padT}" x2="${hx}" y2="${H - padB}" stroke="#1a73e8" stroke-width="1" stroke-dasharray="3 3"/>` +
+      `<circle cx="${hx}" cy="${y(here.e).toFixed(1)}" r="5" fill="#1a73e8" stroke="#fff" stroke-width="2"/>`;
+  }
+
   container.innerHTML = `
     <svg width="${W}" height="${H}" style="display:block">
       <line x1="${padL}" y1="${y(maxE)}" x2="${W - padR}" y2="${y(maxE)}" stroke="#eee"/>
@@ -79,6 +99,7 @@ export function renderProfile(
       <text x="${W - padR}" y="${H - 4}" text-anchor="end" font-size="10" fill="#888">${formatDistance(dist)}</text>
       <polygon points="${padL},${y(minE)} ${linePts} ${x(dist).toFixed(1)},${y(minE)}" fill="#2d6a4f22"/>
       <polyline points="${linePts}" fill="none" stroke="#2d6a4f" stroke-width="2"/>
+      ${hereMarkup}
       <g class="scrub" style="display:none">
         <line y1="${padT}" y2="${H - padB}" stroke="#c1121f" stroke-width="1"/>
         <circle r="4" fill="#c1121f"/>

@@ -138,6 +138,9 @@ if ('geolocation' in navigator) {
   );
   navigator.geolocation.getCurrentPosition(
     (pos) => {
+      // Keep the position even when we decline to move the map: a pin dropped
+      // before Me is ever switched on can still say how far away it is.
+      lastKnownPos = [pos.coords.latitude, pos.coords.longitude];
       if (userTouchedMap) return;
       map.setView([pos.coords.latitude, pos.coords.longitude], STARTUP_LOCATION_ZOOM);
     },
@@ -357,7 +360,10 @@ function updateElevPanel(): void {
   const chart = $('elevChart');
   if (chartOpen) {
     chart.classList.remove('hidden');
-    if (!renderProfile(chart, src.coords, onProfileScrub)) {
+    // Only mark a position we actually believe: lastOnRouteProg is null until a
+    // fix lands near the line, so the dot never appears at a guessed place.
+    const hereM = planning ? null : lastOnRouteProg?.alongM ?? null;
+    if (!renderProfile(chart, src.coords, onProfileScrub, hereM)) {
       chart.innerHTML = '<p class="hint">No elevation data for this route.</p>';
     }
   } else {
@@ -585,6 +591,13 @@ let accCircle: L.Circle | null = null;
 let lastFix: LatLng | null = null;
 let lastAccuracy = 0;
 let follow = false;
+/**
+ * Best position we know of, whether or not Me is following. Deliberately
+ * separate from lastFix: route progress and the on/off-route banner should only
+ * speak while GPS is genuinely live, but "how far away is that pin" is still
+ * worth answering from the last position we had. Survives stopWatch().
+ */
+let lastKnownPos: LatLng | null = null;
 
 function updateBanner(): void {
   const banner = $('statusBanner');
@@ -647,6 +660,7 @@ function remainingText(): string | null {
 function onFix(pos: GeolocationPosition): void {
   const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
   lastFix = p;
+  lastKnownPos = p;
   lastAccuracy = pos.coords.accuracy;
   if (!gpsMarker) {
     gpsMarker = L.marker(p, { icon: gpsIcon }).addTo(map);
@@ -776,6 +790,8 @@ function stopWatch(): void {
   gpsMarker = null;
   accCircle = null;
   lastFix = null;
+  // lastKnownPos deliberately kept: switching following off shouldn't erase
+  // where you last were, or pin distances vanish with it.
   $('btnLocate').classList.remove('active');
   $('locateIco').innerHTML = LOCATE_ICON.off;
   updateRouteStart();
@@ -901,11 +917,44 @@ function gridText(lat: number, lng: number): string {
   return formatGridRef(lat, lng, 4) || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 }
 
-/** Distance + compass bearing from the user, when their position is known. */
+function distFactInner(lat: number, lng: number, from: LatLng): string {
+  const d = formatDistance(haversine(from, [lat, lng]));
+  return `${svgUse('i-compass')}${d} ${compassDir(from, [lat, lng])}`;
+}
+
+/** Distance + compass bearing from the user. Renders a placeholder when we
+ *  don't know where we are yet; hydrateDistance fills it or removes it. */
 function distFactHtml(lat: number, lng: number): string {
-  if (!lastFix) return '';
-  const d = formatDistance(haversine(lastFix, [lat, lng]));
-  return `<span class="pc-fact">${svgUse('i-compass')}${d} ${compassDir(lastFix, [lat, lng])}</span>`;
+  const known = lastKnownPos;
+  return known
+    ? `<span class="pc-fact" id="pcDist">${distFactInner(lat, lng, known)}</span>`
+    : `<span class="pc-fact loading" id="pcDist">${svgUse('i-compass')}…</span>`;
+}
+
+/**
+ * Fill in the distance for a card that opened before we had a position, asking
+ * for a one-shot fix. Drops the row if the fix never arrives, so a card that
+ * can't answer doesn't sit there loading forever. The element is captured by
+ * reference and checked with isConnected, so a late answer can't reach into
+ * whatever card replaced this one.
+ */
+function hydrateDistance(card: HTMLElement, lat: number, lng: number): void {
+  const el = card.querySelector<HTMLElement>('#pcDist');
+  if (!el || !el.classList.contains('loading')) return;
+  if (!('geolocation' in navigator)) {
+    el.remove();
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      lastKnownPos = [pos.coords.latitude, pos.coords.longitude];
+      if (!el.isConnected) return;
+      el.classList.remove('loading');
+      el.innerHTML = distFactInner(lat, lng, lastKnownPos);
+    },
+    () => { if (el.isConnected) el.remove(); },
+    { enableHighAccuracy: false, maximumAge: 600_000, timeout: 10_000 }
+  );
 }
 
 async function copyPin(p: { name?: string; lat: number; lng: number; ele?: number | null }): Promise<void> {
@@ -1008,6 +1057,8 @@ function openNewPin(lat: number, lng: number): void {
   // Elevation arrives a moment later; fill it in, or drop the line if it fails.
   // Captured by reference (not re-queried by id) so a stale, aborted lookup
   // can't reach into whatever card replaced this one in the meantime.
+  hydrateDistance(card, lat, lng);
+
   const eleEl = card.querySelector<HTMLElement>('#pcEle');
   eleAbort = new AbortController();
   fetchElevation(lat, lng, eleAbort.signal).then((m) => {
@@ -1044,6 +1095,8 @@ function openSavedPin(id: string): void {
       <button class="pc-danger" id="pcDel" aria-label="Delete pin">${svgUse('i-trash')}</button>
     </div>`;
   card.classList.remove('hidden');
+
+  hydrateDistance(card, pin.lat, pin.lng);
 
   card.querySelector('.pc-close')!.addEventListener('click', hidePinCard);
   $('pcCopy').addEventListener('click', () => copyPin(pin));
@@ -1205,7 +1258,7 @@ function poiMarker(p: Poi): L.Marker {
     })
   });
   const height = p.ele !== undefined ? ` · ${Math.round(p.ele)} m` : '';
-  const away = lastFix ? ` · ${formatDistance(haversine(lastFix, p.pos))} away` : '';
+  const away = lastKnownPos ? ` · ${formatDistance(haversine(lastKnownPos, p.pos))} away` : '';
   marker.bindPopup(
     `<div style="font-size:13px;line-height:1.5">
       <b>${p.name.replace(/</g, '&lt;')}</b><br>

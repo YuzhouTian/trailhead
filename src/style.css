@@ -540,16 +540,7 @@ body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 
   .leaflet-control-zoom { display: block; }
 }
 
-/* Dark theme dims the map itself as well as the chrome — a CSS dim over the
-   light tiles (OSM and Thunderforest are both light), tuned to keep
-   contour and path lines readable. Only the tile pane is touched, so the red
-   route line, GPS dot and POI pins stay bright on top. Adjust brightness to
-   taste. Applies to both OS-dark (unless light is forced) and forced dark. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .leaflet-tile-pane {
-    filter: brightness(0.63) contrast(1.06) saturate(0.9);
-  }
-}
-:root[data-theme="dark"] .leaflet-tile-pane {
-  filter: brightness(0.63) contrast(1.06) saturate(0.9);
-}
+/* Dark theme styles the chrome only — the map keeps full brightness. Dark mode
+   follows the phone's system setting, which is commonly on during the day, and
+   a dimmed map in sunlight is exactly the wrong trade on a hill. If dimming is
+   ever wanted after dark it belongs behind its own setting, not the theme. */
