@@ -252,7 +252,7 @@ let activeLine: L.Polyline | null = null;
 let routeHint: number | null = null;
 let lastProg: RouteProgress | null = null;
 
-function setActiveRoute(r: SavedRoute | null, fit = true): void {
+function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void {
   activeRoute = r;
   routeHint = null; // a freshly loaded route reads from its start
   lastProg = null;
@@ -266,7 +266,7 @@ function setActiveRoute(r: SavedRoute | null, fit = true): void {
     }).addTo(map);
     if (fit) map.fitBounds(activeLine.getBounds(), { padding: [40, 40] });
   }
-  saveActiveRoute(r); // remember it so a hike survives an app reload
+  if (persist) saveActiveRoute(r); // remember it so a hike survives an app reload
   updateElevPanel();
   updateBanner();
 }
@@ -367,7 +367,9 @@ function setPlanning(on: boolean): void {
   $('planBar').classList.toggle('hidden', !on);
   map.getContainer().style.cursor = on ? 'crosshair' : '';
   if (on) {
-    setActiveRoute(null);
+    // Hides the active route line/stats while sketching, but doesn't touch
+    // localStorage: entering Plan shouldn't erase a hike that's still live.
+    setActiveRoute(null, true, false);
     updatePlanStats();
   }
   updateElevPanel();
@@ -964,16 +966,18 @@ function openNewPin(lat: number, lng: number): void {
   });
 
   // Elevation arrives a moment later; fill it in, or drop the line if it fails.
+  // Captured by reference (not re-queried by id) so a stale, aborted lookup
+  // can't reach into whatever card replaced this one in the meantime.
+  const eleEl = card.querySelector<HTMLElement>('#pcEle');
   eleAbort = new AbortController();
   fetchElevation(lat, lng, eleAbort.signal).then((m) => {
     ele = m;
-    const el = document.getElementById('pcEle');
-    if (!el) return;
+    if (!eleEl || !eleEl.isConnected) return;
     if (typeof m === 'number') {
-      el.classList.remove('loading');
-      el.innerHTML = `${svgUse('i-ele')}${Math.round(m)} m`;
+      eleEl.classList.remove('loading');
+      eleEl.innerHTML = `${svgUse('i-ele')}${Math.round(m)} m`;
     } else {
-      el.remove();
+      eleEl.remove();
     }
   });
 }
@@ -1365,8 +1369,15 @@ async function startQrScan(): Promise<void> {
   // reticle), capped so a big frame doesn't stall the decode loop. This spends
   // the sensor's pixels where the code actually is.
   const DECODE_MAX = 1024;
+  // A QR code doesn't change between frames, so decoding at the full 60fps
+  // rAF rate is wasted CPU/battery for a getImageData readback this size.
+  const DECODE_INTERVAL_MS = 120;
+  let lastDecode = 0;
   const tick = () => {
     qrRAF = requestAnimationFrame(tick);
+    const now = performance.now();
+    if (now - lastDecode < DECODE_INTERVAL_MS) return;
+    lastDecode = now;
     if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
     const vw = video.videoWidth;
     const vh = video.videoHeight;
