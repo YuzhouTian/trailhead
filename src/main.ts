@@ -1366,8 +1366,15 @@ async function startQrScan(): Promise<void> {
   // reticle), capped so a big frame doesn't stall the decode loop. This spends
   // the sensor's pixels where the code actually is.
   const DECODE_MAX = 1024;
+  // A QR code doesn't change between frames, so decoding at the full 60fps
+  // rAF rate is wasted CPU/battery for a getImageData readback this size.
+  const DECODE_INTERVAL_MS = 120;
+  let lastDecode = 0;
   const tick = () => {
     qrRAF = requestAnimationFrame(tick);
+    const now = performance.now();
+    if (now - lastDecode < DECODE_INTERVAL_MS) return;
+    lastDecode = now;
     if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
     const vw = video.videoWidth;
     const vh = video.videoHeight;
