@@ -5,6 +5,7 @@ import './style.css';
 import {
   BASE_LAYERS,
   BROUTER_PROFILES,
+  EN_ROUTE_THRESHOLD_M,
   OFF_ROUTE_THRESHOLD_M,
   OFFLINE_MAX_TILES,
   OFFLINE_TILE_BUFFER,
@@ -251,11 +252,16 @@ let activeLine: L.Polyline | null = null;
 // used to keep progress continuous where the line passes close to itself.
 let routeHint: number | null = null;
 let lastProg: RouteProgress | null = null;
+// The newest projection near enough to the line to be believed as progress.
+// Stays put while you are away from the route, so the readout holds the last
+// real position instead of following a meaningless nearest-point guess.
+let lastOnRouteProg: RouteProgress | null = null;
 
 function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void {
   activeRoute = r;
   routeHint = null; // a freshly loaded route reads from its start
   lastProg = null;
+  lastOnRouteProg = null;
   activeLine?.remove();
   activeLine = null;
   if (r) {
@@ -265,6 +271,14 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
       opacity: 0.85
     }).addTo(map);
     if (fit) map.fitBounds(activeLine.getBounds(), { padding: [40, 40] });
+    // Opening a route means "show me this route". With Me following, the next
+    // fix — a second away — recentres on you and the route you just opened
+    // slides off the screen, which is what made loading one feel broken. Drop
+    // back to off and let them tap Me again once they have looked at it.
+    if (fit && watchId !== null) {
+      stopWatch();
+      toast('Location off so you can see the route — tap Me to follow', 3500);
+    }
   }
   if (persist) saveActiveRoute(r); // remember it so a hike survives an app reload
   updateElevPanel();
@@ -302,19 +316,32 @@ function onProfileScrub(pos: LatLng | null): void {
   }
 }
 
+/**
+ * Publish the active-route card's height so the bottom-anchored map furniture
+ * can clear it (see --card-lift in style.css). The card is not a fixed size —
+ * it grows with the elevation chart and the remaining line, and reflows on
+ * rotation — so a hard-coded offset left the scale bar and the locate button
+ * buried under a tall card. Measuring is the only thing that tracks all three.
+ */
+function publishCardLift(): void {
+  const card = $('routeCard');
+  const h = card.classList.contains('hidden') ? 0 : card.getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--card-lift', h ? `${Math.round(h) + 12}px` : '0px');
+}
+new ResizeObserver(publishCardLift).observe($('routeCard'));
+
 /** Refresh the active-route card from the plan in progress or the active route. */
 function updateElevPanel(): void {
   const src = planning ? planResult : activeRoute;
   const card = $('routeCard');
   if (!src) {
     card.classList.add('hidden');
-    $('btnLocate').classList.remove('aboveCard');
+    publishCardLift();
     onProfileScrub(null);
     return;
   }
   card.classList.remove('hidden');
   card.classList.toggle('abovePlan', planning);
-  $('btnLocate').classList.add('aboveCard'); // lift the locate button above the card
   $('rcName').textContent = planning ? 'New route' : activeRoute?.name ?? '';
   const est = naismithHours(src.distanceM, src.ascentM, settings.speedKmh);
   $('rcStats').textContent =
@@ -337,6 +364,7 @@ function updateElevPanel(): void {
     chart.classList.add('hidden');
     onProfileScrub(null);
   }
+  publishCardLift();
 }
 
 $('rcChart').addEventListener('click', () => {
@@ -562,6 +590,7 @@ function updateBanner(): void {
   const banner = $('statusBanner');
   if (!lastFix || !activeRoute) {
     lastProg = null;
+    lastOnRouteProg = null;
     banner.classList.add('hidden');
     updateElevPanel();
     return;
@@ -570,7 +599,13 @@ function updateBanner(): void {
   // remaining-distance readout so both stay consistent and continuous.
   const prog = projectOnPolyline(lastFix, activeRoute.coords, routeHint);
   lastProg = prog;
-  if (prog) routeHint = prog.alongM;
+  // Only let a fix near the line move the hint. From miles away the nearest
+  // point can be anywhere on the route, and seeding the hint with that would
+  // drag every later projection towards the wrong part of the walk.
+  if (prog && prog.offRouteM <= EN_ROUTE_THRESHOLD_M) {
+    routeHint = prog.alongM;
+    lastOnRouteProg = prog;
+  }
   banner.classList.remove('hidden');
   if (prog && prog.offRouteM <= OFF_ROUTE_THRESHOLD_M) {
     banner.className = '';
@@ -589,7 +624,12 @@ function updateBanner(): void {
 function remainingText(): string | null {
   if (!lastFix || !activeRoute || !lastProg) return null;
   const coords = activeRoute.coords;
-  const prog = lastProg;
+
+  // Away from the line, the projection is not progress. Before the walk has
+  // started there is nothing to report but how far off the route is; once it
+  // has, hold the last position we believed rather than jumping about.
+  const prog = lastProg.offRouteM <= EN_ROUTE_THRESHOLD_M ? lastProg : lastOnRouteProg;
+  if (!prog) return `Not started · ${formatDistance(lastProg.offRouteM)} to the route`;
 
   const cum = cumulativeDistances(coords);
   const total = cum[cum.length - 1];

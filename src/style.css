@@ -43,6 +43,10 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+/* iOS inflates the font of any block it decides is a column of text when the
+   layout reflows — rotating to landscape and back left the route card's text
+   permanently larger. Pin text at the size we asked for, in both orientations. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 /* iOS keeps a strip below the layout viewport for the home indicator even
    with viewport-fit=cover, and paints it with the page background. Match the
    bottom bar so that strip reads as part of the bar rather than a band of
@@ -61,6 +65,21 @@ body {
 #map {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
+}
+/* A long press on the map (drop a pin) and on the elevation chart (scrub) are
+   our own gestures. Left alone, iOS also treats them as a press on text and
+   raises its callout — Copy / Look Up / Translate — and the magnifier loupe. */
+#map, #elevChart {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* Except what exists to be read off the screen and copied: the grid reference
+   you might be reading out to mountain rescue, and anything in a popup. */
+.leaflet-popup-content, .pc-grid, .pc-ll {
+  -webkit-touch-callout: default;
+  -webkit-user-select: text;
+  user-select: text;
 }
 .leaflet-container { background: var(--map-gap); }
 .hidden { display: none !important; }
@@ -98,12 +117,19 @@ body {
 #bottomBar button.active { color: var(--brand); }
 body.planning #bottomBar { display: none; }
 
+/* How far the bottom-anchored map furniture — the locate button, the scale bar,
+   the attribution — has to lift to clear the active-route card. The card's
+   height changes with the chart, the remaining line and the screen orientation,
+   so main.ts measures it and publishes it here; each element adds it to its own
+   resting offset. 0 when no card is showing. */
+:root { --card-lift: 0px; }
+
 /* Locate ("Me") — a floating control over the map, not a nav destination.
    Sits above the bottom bar, and rides up above the route card when one shows. */
 #btnLocate {
   position: fixed;
   right: 14px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px + var(--card-lift));
   width: 48px; height: 48px;
   border: none; border-radius: 50%;
   background: var(--surface); color: var(--muted);
@@ -115,7 +141,6 @@ body.planning #bottomBar { display: none; }
 #btnLocate .ico { line-height: 0; }
 #btnLocate .ico svg { width: 24px; height: 24px; display: block; }
 #btnLocate.active { color: var(--brand); }
-#btnLocate.aboveCard { bottom: calc(env(safe-area-inset-bottom, 0px) + 132px); }
 body.planning #btnLocate { display: none; }
 
 /* Belt and braces: paint the bar's own colour from its bottom edge down past
@@ -490,18 +515,25 @@ body.planning #pinCard { display: none; }
 }
 .leaflet-bar a:hover { background: var(--chip); }
 
-/* Scale bar — themed to match the chrome, legible over any tiles */
+/* Scale bar — themed to match the chrome, legible over any tiles.
+   Leaflet's own rule paints a white text-shadow behind the label. That is a
+   highlight under dark text in the light theme, but in dark mode it puts a
+   white halo behind near-white text, which reads as badly out of focus — so
+   the shadow is cleared, not restyled. Opaque rather than translucent for the
+   same reason: over dimmed tiles the see-through fill muddied the digits. */
 .leaflet-control-scale-line {
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  background: var(--surface);
   color: var(--ink);
   border: 2px solid var(--muted); border-top: none;
   font-size: 11px; font-weight: 600; line-height: 1.2;
   padding: 1px 6px 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  text-shadow: none;
 }
 
-/* Keep Leaflet attribution visible above the bottom bar */
-.leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 50px); }
-body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 90px); }
+/* Keep the Leaflet attribution and scale bar visible above the bottom bar,
+   and above the route card when one is showing. */
+.leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 50px + var(--card-lift)); }
+body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 90px + var(--card-lift)); }
 
 .leaflet-control-zoom { display: none; }
 @media (min-width: 700px) {

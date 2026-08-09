@@ -75,6 +75,17 @@ export const BROUTER_PROFILES: ProfileDef[] = [
 /** Distance (m) from the route line beyond which you count as off-route. */
 export const OFF_ROUTE_THRESHOLD_M = 50;
 
+/**
+ * Distance (m) from the route line beyond which we stop believing the
+ * projection describes progress at all. Off-route means "you have wandered
+ * from the line"; past this you are simply not at this route — and the nearest
+ * point of a loop can then be anywhere on it, which is how a Coombe Hill route
+ * opened from Ealing reported 85% done. Set well clear of
+ * OFF_ROUTE_THRESHOLD_M so a poor fix or a parallel path still counts as being
+ * on the walk.
+ */
+export const EN_ROUTE_THRESHOLD_M = 300;
+
 /** Zoom levels pre-cached by the offline download. */
 export const OFFLINE_ZOOMS = [12, 13, 14, 15, 16];
 /** Corridor half-width in tiles around the route at each zoom. */
