@@ -93,17 +93,17 @@ export function renderProfile(
       <line x1="${padL}" y1="${y(maxE)}" x2="${W - padR}" y2="${y(maxE)}" stroke="#eee"/>
       <line x1="${padL}" y1="${y(midE)}" x2="${W - padR}" y2="${y(midE)}" stroke="#eee"/>
       <line x1="${padL}" y1="${y(minE)}" x2="${W - padR}" y2="${y(minE)}" stroke="#ddd"/>
-      <text x="${padL - 4}" y="${y(maxE) + 4}" text-anchor="end" font-size="10" fill="#888">${Math.round(maxE)}</text>
-      <text x="${padL - 4}" y="${y(midE) + 4}" text-anchor="end" font-size="10" fill="#888">${midE}</text>
-      <text x="${padL - 4}" y="${y(minE) + 4}" text-anchor="end" font-size="10" fill="#888">${Math.round(minE)}</text>
-      <text x="${W - padR}" y="${H - 4}" text-anchor="end" font-size="10" fill="#888">${formatDistance(dist)}</text>
+      <text x="${padL - 4}" y="${y(maxE) + 4}" text-anchor="end" font-size="11" fill="#888">${Math.round(maxE)}</text>
+      <text x="${padL - 4}" y="${y(midE) + 4}" text-anchor="end" font-size="11" fill="#888">${midE}</text>
+      <text x="${padL - 4}" y="${y(minE) + 4}" text-anchor="end" font-size="11" fill="#888">${Math.round(minE)}</text>
+      <text x="${W - padR}" y="${H - 4}" text-anchor="end" font-size="11" fill="#888">${formatDistance(dist)}</text>
       <polygon points="${padL},${y(minE)} ${linePts} ${x(dist).toFixed(1)},${y(minE)}" fill="#2d6a4f22"/>
       <polyline points="${linePts}" fill="none" stroke="#2d6a4f" stroke-width="2"/>
       ${hereMarkup}
       <g class="scrub" style="display:none">
         <line y1="${padT}" y2="${H - padB}" stroke="#c1121f" stroke-width="1"/>
         <circle r="4" fill="#c1121f"/>
-        <text y="${padT + 2}" font-size="11" font-weight="600" fill="#c1121f"></text>
+        <text y="${padT + 2}" font-size="13" font-weight="600" fill="#c1121f"></text>
       </g>
     </svg>`;
 

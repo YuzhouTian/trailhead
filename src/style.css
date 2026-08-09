@@ -14,6 +14,27 @@
   --accent-soft:#eaf1ec;/* tinted toggle-on background */
   --map-gap: #c8d1c9;   /* the colour behind map tiles as they load */
 }
+
+/* ------------------------------------------------------------------ type scale
+   Five steps, and every piece of text picks one — no one-off sizes. The rung a
+   thing sits on is decided by "do I read this while walking?", not by what kind
+   of component it happens to live in: the remaining-distance readout outranks
+   anything in Settings, because one is read one-handed on a climb and the other
+   is read sitting at home.
+
+   Deliberately px, not rem. text-size-adjust is pinned to stop iOS resizing the
+   UI mid-hike (see below), and rem would put that back on a moving base.
+
+   The × close glyphs are not on this scale — they are icons drawn as text and
+   are sized where they are used. */
+:root {
+  --fs-meta:  11px;   /* labels, captions, units, hints */
+  --fs-body:  13px;   /* secondary text and dense readouts */
+  --fs-ui:    15px;   /* anything you tap, or read at a glance on the move */
+  --fs-title: 17px;   /* card and section titles */
+  --fs-read:  20px;   /* the grid reference — the one thing read aloud */
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --surface: #161d19;
@@ -113,7 +134,7 @@ body {
 }
 #bottomBar button .ico { line-height: 0; }
 #bottomBar button .ico svg { width: 23px; height: 23px; display: block; }
-#bottomBar button .lbl { font-size: 10px; font-weight: 600; }
+#bottomBar button .lbl { font-size: var(--fs-meta); font-weight: 600; }
 #bottomBar button.active { color: var(--brand); }
 body.planning #bottomBar { display: none; }
 
@@ -174,7 +195,7 @@ body.planning #btnLocate { display: none; }
   border: none; background: none; outline: none;
   color: var(--ink);
   padding: 11px 6px 11px 10px;
-  font-size: 15px;
+  font-size: var(--fs-ui);
   -webkit-appearance: none;
 }
 #searchInput::placeholder { color: var(--muted); }
@@ -200,8 +221,8 @@ body.planning #btnLocate { display: none; }
   cursor: pointer;
 }
 #searchResults .hit:last-child { border-bottom: none; }
-#searchResults .hit .n { font-size: 15px; font-weight: 600; }
-#searchResults .hit .d { font-size: 12px; color: var(--muted); }
+#searchResults .hit .n { font-size: var(--fs-ui); font-weight: 600; }
+#searchResults .hit .d { font-size: var(--fs-meta); color: var(--muted); }
 body.planning #searchWrap, body.planning #searchResults { display: none; }
 
 /* Status banner (on/off route) */
@@ -211,7 +232,7 @@ body.planning #searchWrap, body.planning #searchResults { display: none; }
   left: 50%; transform: translateX(-50%);
   padding: 8px 14px;
   border-radius: 20px;
-  font-size: 14px; font-weight: 600;
+  font-size: var(--fs-ui); font-weight: 600;
   color: var(--on-accent); background: var(--brand);
   box-shadow: 0 1px 4px rgba(0,0,0,.3);
   z-index: 1000;
@@ -245,26 +266,26 @@ body.planning #statusBanner { display: none; }
   overflow-y: auto;
   padding: calc(env(safe-area-inset-top, 0px) + 14px) 14px 14px;
 }
-#panel h3 { margin: 4px 0 10px; font-size: 16px; }
+#panel h3 { margin: 4px 0 10px; font-size: var(--fs-title); }
 #panel .row {
   display: flex; align-items: center; gap: 8px;
-  padding: 9px 4px; font-size: 15px;
+  padding: 9px 4px; font-size: var(--fs-ui);
 }
 #panel .row label { flex: 1; }
 #panel hr { border: none; border-top: 1px solid var(--line); margin: 10px 0; }
 #panel input[type="text"], #panel input[type="password"], #panel input[type="number"] {
-  width: 100%; padding: 8px; font-size: 14px;
+  width: 100%; padding: 8px; font-size: var(--fs-ui);
   background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: 6px;
 }
 #panel select {
   background: var(--surface); color: var(--ink);
   border: 1px solid var(--line); border-radius: 6px; padding: 7px;
-  font-size: 14px;
+  font-size: var(--fs-ui);
 }
 #panel button {
   padding: 8px 12px; border: none; border-radius: 8px;
-  background: var(--brand); color: var(--on-accent); font-size: 14px; cursor: pointer;
+  background: var(--brand); color: var(--on-accent); font-size: var(--fs-ui); cursor: pointer;
 }
 #panel button.secondary { background: var(--chip); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: #fff; }
@@ -280,21 +301,21 @@ body.planning #statusBanner { display: none; }
 #panel .routeItem .pinCat svg { width: 20px; height: 20px; }
 #panel .routeItem .meta { flex: 1; min-width: 0; }
 #panel .routeItem .meta .name {
-  font-weight: 600; font-size: 15px;
+  font-weight: 600; font-size: var(--fs-ui);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#panel .routeItem .meta .sub { font-size: 12px; color: var(--muted); }
-#panel .hint { font-size: 12px; color: var(--muted); margin: 6px 0; }
+#panel .routeItem .meta .sub { font-size: var(--fs-meta); color: var(--muted); }
+#panel .hint { font-size: var(--fs-meta); color: var(--muted); margin: 6px 0; }
 #panel .keyRow {
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 6px 2px; font-size: 13px; line-height: 1.35;
+  padding: 6px 2px; font-size: var(--fs-body); line-height: 1.35;
 }
 #panel .keyRow svg { margin-top: 1px; }
 #panel .keyRow b { font-weight: 600; }
-#panel .keyNote { display: block; font-size: 12px; color: var(--muted); }
+#panel .keyNote { display: block; font-size: var(--fs-meta); color: var(--muted); }
 #panel .keyGroup {
   margin: 14px 0 4px;
-  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  font-size: var(--fs-meta); font-weight: 700; text-transform: uppercase;
   letter-spacing: .04em; color: var(--brand);
   border-bottom: 1px solid var(--line); padding-bottom: 3px;
 }
@@ -308,7 +329,7 @@ body.planning #statusBanner { display: none; }
 #panel .themeSeg button {
   flex: 1; padding: 9px 0; border: none; border-radius: 8px;
   background: none; color: var(--muted);
-  font-size: 13px; font-weight: 650; cursor: pointer;
+  font-size: var(--fs-body); font-weight: 650; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 #panel .themeSeg button svg { width: 16px; height: 16px; }
@@ -327,11 +348,11 @@ body.planning #statusBanner { display: none; }
   padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
   z-index: 1000;
 }
-#planStats { font-size: 14px; font-weight: 600; display: block; margin-bottom: 8px; }
+#planStats { font-size: var(--fs-ui); font-weight: 600; display: block; margin-bottom: 8px; }
 .planBtns { display: flex; gap: 8px; align-items: stretch; }
 .planBtns button {
   flex: 1; padding: 9px 0; border: none; border-radius: 8px;
-  background: var(--chip); color: var(--ink); font-size: 14px; font-weight: 600; cursor: pointer;
+  background: var(--chip); color: var(--ink); font-size: var(--fs-ui); font-weight: 600; cursor: pointer;
 }
 #planDone { background: var(--brand); color: var(--on-accent); }
 #planSnap {
@@ -365,14 +386,14 @@ body.planning #statusBanner { display: none; }
 #rcStart.live { box-shadow: 0 0 0 4px var(--accent-soft); }
 #rcInfo { flex: 1; min-width: 0; margin-left: 2px; }
 #rcName {
-  font-size: 13px; font-weight: 700;
+  font-size: var(--fs-ui); font-weight: 700;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-#rcStats { font-size: 12.5px; color: var(--muted); }
-#rcRemaining { font-size: 12.5px; font-weight: 600; color: var(--brand); }
+#rcStats { font-size: var(--fs-body); color: var(--muted); }
+#rcRemaining { font-size: var(--fs-ui); font-weight: 600; color: var(--brand); }
 #rcHeader button {
   border: none; background: var(--chip); color: var(--ink); border-radius: 8px;
-  width: 36px; height: 36px; font-size: 17px; cursor: pointer;
+  width: 36px; height: 36px; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
 #rcHeader button svg { width: 18px; height: 18px; }
@@ -397,27 +418,27 @@ body.planning #pinCard { display: none; }
   border: none; background: none; color: var(--muted);
   font-size: 22px; line-height: 1; padding: 4px 8px; cursor: pointer;
 }
-.pc-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
-.pc-title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 800; margin: 0 0 3px; padding-right: 26px; }
+.pc-eyebrow { font-size: var(--fs-meta); font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.pc-title { display: flex; align-items: center; gap: 8px; font-size: var(--fs-title); font-weight: 800; margin: 0 0 3px; padding-right: 26px; }
 .pc-title .ci { display: inline-flex; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--brand); align-items: center; justify-content: center; }
 .pc-title .ci svg { width: 15px; height: 15px; }
 .pc-title .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pc-grid { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 18px; font-weight: 700; letter-spacing: .02em; }
-.pc-ll { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); margin-top: 3px; }
+.pc-grid { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: var(--fs-read); font-weight: 700; letter-spacing: .02em; }
+.pc-ll { font-family: ui-monospace, Menlo, monospace; font-size: var(--fs-meta); color: var(--muted); margin-top: 3px; }
 .pc-facts { display: flex; gap: 16px; margin-top: 9px; min-height: 20px; }
-.pc-fact { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+.pc-fact { display: flex; align-items: center; gap: 6px; font-size: var(--fs-body); font-weight: 600; }
 .pc-fact svg { width: 15px; height: 15px; color: var(--brand); }
 .pc-fact.loading { color: var(--muted); font-weight: 500; font-style: italic; }
 .pc-sep { height: 1px; background: var(--line); margin: 12px 0; }
 .pc-name {
-  width: 100%; padding: 9px 11px; font-size: 15px;
+  width: 100%; padding: 9px 11px; font-size: var(--fs-ui);
   background: var(--chip); color: var(--ink);
   border: 1px solid var(--line); border-radius: 10px; outline: none;
 }
 .pc-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
 .pc-chip {
   display: flex; align-items: center; gap: 6px; padding: 7px 11px; border-radius: 20px;
-  font-size: 12.5px; font-weight: 650; cursor: pointer;
+  font-size: var(--fs-body); font-weight: 650; cursor: pointer;
   background: var(--chip); color: var(--muted); border: 1px solid var(--line);
 }
 .pc-chip svg { width: 14px; height: 14px; }
@@ -425,7 +446,7 @@ body.planning #pinCard { display: none; }
 .pc-actions { display: flex; gap: 8px; margin-top: 13px; }
 .pc-actions button {
   flex: 1; border: none; border-radius: 10px; padding: 11px 0;
-  font-size: 14px; font-weight: 700; cursor: pointer;
+  font-size: var(--fs-ui); font-weight: 700; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 .pc-actions button svg { width: 16px; height: 16px; }
@@ -466,14 +487,14 @@ body.planning #pinCard { display: none; }
 #qrHint {
   position: absolute; left: 0; right: 0;
   top: calc(env(safe-area-inset-top, 0px) + 26px);
-  text-align: center; color: #fff; font-size: 15px; font-weight: 600;
+  text-align: center; color: #fff; font-size: var(--fs-ui); font-weight: 600;
   padding: 0 24px; text-shadow: 0 1px 4px rgba(0,0,0,.6);
 }
 #qrCancel {
   position: absolute; bottom: calc(env(safe-area-inset-bottom, 0px) + 30px);
   padding: 12px 28px; border: none; border-radius: 24px;
   background: rgba(255,255,255,.92); color: #1a2420;
-  font-size: 15px; font-weight: 700; cursor: pointer;
+  font-size: var(--fs-ui); font-weight: 700; cursor: pointer;
 }
 
 /* Toast */
@@ -483,7 +504,7 @@ body.planning #pinCard { display: none; }
   left: 50%; transform: translateX(-50%);
   background: rgba(20,20,20,.9); color: #fff;
   padding: 9px 16px; border-radius: 20px;
-  font-size: 14px; z-index: 2000;
+  font-size: var(--fs-ui); z-index: 2000;
   max-width: 85vw; text-align: center;
 }
 
@@ -525,7 +546,7 @@ body.planning #pinCard { display: none; }
   background: var(--surface);
   color: var(--ink);
   border: 2px solid var(--muted); border-top: none;
-  font-size: 11px; font-weight: 600; line-height: 1.2;
+  font-size: var(--fs-meta); font-weight: 600; line-height: 1.2;
   padding: 1px 6px 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25);
   text-shadow: none;
 }
