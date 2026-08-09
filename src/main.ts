@@ -961,16 +961,18 @@ function openNewPin(lat: number, lng: number): void {
   });
 
   // Elevation arrives a moment later; fill it in, or drop the line if it fails.
+  // Captured by reference (not re-queried by id) so a stale, aborted lookup
+  // can't reach into whatever card replaced this one in the meantime.
+  const eleEl = card.querySelector<HTMLElement>('#pcEle');
   eleAbort = new AbortController();
   fetchElevation(lat, lng, eleAbort.signal).then((m) => {
     ele = m;
-    const el = document.getElementById('pcEle');
-    if (!el) return;
+    if (!eleEl || !eleEl.isConnected) return;
     if (typeof m === 'number') {
-      el.classList.remove('loading');
-      el.innerHTML = `${svgIcon('i-ele')}${Math.round(m)} m`;
+      eleEl.classList.remove('loading');
+      eleEl.innerHTML = `${svgIcon('i-ele')}${Math.round(m)} m`;
     } else {
-      el.remove();
+      eleEl.remove();
     }
   });
 }
