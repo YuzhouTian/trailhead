@@ -293,10 +293,21 @@ body.planning #statusBanner { display: none; }
   position: absolute; top: calc(env(safe-area-inset-top, 0px) + 8px); right: 8px;
   background: none; color: var(--muted); font-size: 22px; padding: 4px 8px;
 }
+/* Saved routes and pins. The actions sit on their own row beneath the name:
+   sharing one row with four buttons left the name about 45px of 291px — four
+   characters — and the panel is capped at min(320px, 85vw), so there was no
+   width to find. Stacking gives the name the full row. */
 #panel .routeItem {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 4px; border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 7px;
+  padding: 10px 4px; border-bottom: 1px solid var(--line);
 }
+#panel .routeItem .rowMain {
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+}
+#panel .routeItem .rowActs { display: flex; gap: 6px; }
+/* Share the width evenly, except the delete ✕, which stays a square. */
+#panel .routeItem .rowActs button { flex: 1; padding: 8px 4px; }
+#panel .routeItem .rowActs button.danger { flex: 0 0 44px; }
 #panel .routeItem .pinCat { flex: none; display: flex; width: 24px; height: 24px; color: var(--brand); }
 #panel .routeItem .pinCat svg { width: 20px; height: 20px; }
 #panel .routeItem .meta { flex: 1; min-width: 0; }
@@ -528,6 +539,8 @@ body.planning #pinCard { display: none; }
 .leaflet-control-attribution {
   background: color-mix(in srgb, var(--surface) 82%, transparent) !important;
   color: var(--muted) !important;
+  /* Leaflet ships this at 12px, the one size left off the type scale. */
+  font-size: var(--fs-meta);
 }
 .leaflet-control-attribution a { color: var(--brand) !important; }
 .leaflet-bar a {
@@ -554,6 +567,12 @@ body.planning #pinCard { display: none; }
 /* Keep the Leaflet attribution and scale bar visible above the bottom bar,
    and above the route card when one is showing. */
 .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 50px + var(--card-lift)); }
+/* The scale (bottom-left) sits one line higher than the attribution
+   (bottom-right), so they can never share a row. Trimming the credit line was
+   not enough on its own: the bar's width is chosen from the zoom, up to its
+   120px maximum, so at some zooms it reached under a long attribution however
+   short that line was. Stacking makes the collision structurally impossible. */
+.leaflet-bottom.leaflet-left { bottom: calc(env(safe-area-inset-bottom, 0px) + 70px + var(--card-lift)); }
 body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 90px + var(--card-lift)); }
 
 .leaflet-control-zoom { display: none; }

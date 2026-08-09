@@ -244,8 +244,15 @@ function applyLayers(): void {
 applyLayers();
 
 // Metric scale bar (bottom-left, above the nav bar) so distance is readable at
-// a glance. Attribution stays bottom-right, so the two don't collide.
+// a glance. The attribution is bottom-right, and on the Thunderforest layer it
+// grew wide enough to reach across and sit on top of the scale — see the
+// stacking in style.css, which puts the scale on its own line above it.
 L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(map);
+
+// Drop Leaflet's own "Leaflet | " prefix. It is BSD-licensed and asks for no
+// in-UI credit, so it is the one part of that line we can reclaim — the
+// OpenStreetMap and Thunderforest credits are required and stay verbatim.
+map.attributionControl.setPrefix(false);
 
 // ---------------------------------------------------------------- active route
 
@@ -1502,14 +1509,18 @@ function openRoutesPanel(): void {
     ? routes
         .map(
           (r) => `<div class="routeItem" data-id="${r.id}">
-        <div class="meta">
-          <div class="name">${r.name.replace(/</g, '&lt;')}</div>
-          <div class="sub">${formatDistance(r.distanceM)}${r.ascentM ? ` · ${climbText(r.ascentM, r.descentM)}` : ''}</div>
+        <div class="rowMain">
+          <div class="meta">
+            <div class="name">${r.name.replace(/</g, '&lt;')}</div>
+            <div class="sub">${formatDistance(r.distanceM)}${r.ascentM ? ` · ${climbText(r.ascentM, r.descentM)}` : ''}</div>
+          </div>
         </div>
-        <button data-act="load">Load</button>
-        <button data-act="share" class="secondary">Share</button>
-        <button data-act="gpx" class="secondary">GPX</button>
-        <button data-act="del" class="danger">✕</button>
+        <div class="rowActs">
+          <button data-act="load">Load</button>
+          <button data-act="share" class="secondary">Share</button>
+          <button data-act="gpx" class="secondary">GPX</button>
+          <button data-act="del" class="danger">✕</button>
+        </div>
       </div>`
         )
         .join('')
@@ -1519,13 +1530,17 @@ function openRoutesPanel(): void {
     ? pins
         .map(
           (p) => `<div class="routeItem" data-pin="${p.id}">
-        <span class="pinCat">${svgUse(catMeta(p.category).icon)}</span>
-        <div class="meta">
-          <div class="name">${p.name.replace(/</g, '&lt;')}</div>
-          <div class="sub">${gridText(p.lat, p.lng)}${typeof p.ele === 'number' ? ` · ${Math.round(p.ele)} m` : ''}</div>
+        <div class="rowMain">
+          <span class="pinCat">${svgUse(catMeta(p.category).icon)}</span>
+          <div class="meta">
+            <div class="name">${p.name.replace(/</g, '&lt;')}</div>
+            <div class="sub">${gridText(p.lat, p.lng)}${typeof p.ele === 'number' ? ` · ${Math.round(p.ele)} m` : ''}</div>
+          </div>
         </div>
-        <button data-pact="go">Go</button>
-        <button data-pact="del" class="danger">✕</button>
+        <div class="rowActs">
+          <button data-pact="go">Go</button>
+          <button data-pact="del" class="danger">✕</button>
+        </div>
       </div>`
         )
         .join('')
