@@ -60,13 +60,9 @@ export function projectOnPolyline(
     ((q[0] - p[0]) * Math.PI * R) / 180
   ];
 
-  const cand: { d: number; along: number; index: number }[] = [];
-  let minD = Infinity;
-  let travelled = 0;
-  let prev = toXY(line[0]);
-
-  for (let i = 1; i < line.length; i++) {
-    const cur = toXY(line[i]);
+  // Projects `p` onto segment prev-cur; `travelled` is the distance walked
+  // to reach `prev`. Returns the segment's closest distance/along-route/length.
+  const project = (prev: [number, number], cur: [number, number], travelled: number) => {
     const abx = cur[0] - prev[0];
     const aby = cur[1] - prev[1];
     const len = Math.hypot(abx, aby);
@@ -75,25 +71,43 @@ export function projectOnPolyline(
       t = Math.max(0, Math.min(1, (-prev[0] * abx - prev[1] * aby) / (len * len)));
     }
     const d = Math.hypot(prev[0] + t * abx, prev[1] + t * aby);
-    cand.push({ d, along: travelled + t * len, index: i - 1 });
+    return { d, along: travelled + t * len, len };
+  };
+
+  // Pass 1: walk every segment once to find the overall nearest distance.
+  // Two passes over cheap arithmetic beats retaining an object per segment
+  // (this runs on every GPS fix, so a route-length array would churn the GC).
+  let minD = Infinity;
+  let travelled = 0;
+  let prev = toXY(line[0]);
+  for (let i = 1; i < line.length; i++) {
+    const cur = toXY(line[i]);
+    const { d, len } = project(prev, cur, travelled);
     if (d < minD) minD = d;
     travelled += len;
     prev = cur;
   }
 
-  // Among points within TIE_M of the nearest, take the one nearest the hint.
+  // Pass 2: among points within TIE_M of the nearest, take the one nearest the hint.
   const target = hintAlongM ?? 0;
-  let best = cand[0];
+  let best: RouteProgress | null = null;
   let bestScore = Infinity;
-  for (const c of cand) {
-    if (c.d > minD + TIE_M) continue;
-    const score = Math.abs(c.along - target);
-    if (score < bestScore) {
-      bestScore = score;
-      best = c;
+  travelled = 0;
+  prev = toXY(line[0]);
+  for (let i = 1; i < line.length; i++) {
+    const cur = toXY(line[i]);
+    const { d, along, len } = project(prev, cur, travelled);
+    if (d <= minD + TIE_M) {
+      const score = Math.abs(along - target);
+      if (score < bestScore) {
+        bestScore = score;
+        best = { offRouteM: d, alongM: along, index: i - 1 };
+      }
     }
+    travelled += len;
+    prev = cur;
   }
-  return { offRouteM: best.d, alongM: best.along, index: best.index };
+  return best;
 }
 
 /** Cumulative distance to each point of a route, metres. */
