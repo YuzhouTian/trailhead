@@ -567,12 +567,29 @@ body.planning #pinCard { display: none; }
 /* Keep the Leaflet attribution and scale bar visible above the bottom bar,
    and above the route card when one is showing. */
 .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 50px + var(--card-lift)); }
-/* The scale (bottom-left) sits one line higher than the attribution
-   (bottom-right), so they can never share a row. Trimming the credit line was
-   not enough on its own: the bar's width is chosen from the zoom, up to its
-   120px maximum, so at some zooms it reached under a long attribution however
-   short that line was. Stacking makes the collision structurally impossible. */
-.leaflet-bottom.leaflet-left { bottom: calc(env(safe-area-inset-bottom, 0px) + 70px + var(--card-lift)); }
+
+/* The scale is a Leaflet "bottomleft" control, but alone in that corner it read
+   as a stray floating object. Move it over to ride beside the Me button: same
+   row, right edge stopping short of the circle, with the attribution keeping
+   the line below to itself.
+     right  = 14 (button inset) + 48 (button) + 10 (gap)
+     bottom = the button's own offset + (48 - 18) / 2, to centre on it
+   Keeping it out of the attribution's row also means the two can never collide,
+   whatever width the zoom gives the bar — trimming the credit line alone did
+   not achieve that, since the bar can reach its 120px maximum. */
+.leaflet-bottom.leaflet-left {
+  left: auto;
+  right: 72px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 87px + var(--card-lift));
+}
+/* Leaflet's own 10px control margins would throw those sums out. */
+.leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
+/* Planning hides the Me button, so the scale reclaims the full right inset and
+   clears the taller plan bar instead. */
+body.planning .leaflet-bottom.leaflet-left {
+  right: 14px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 110px + var(--card-lift));
+}
 body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 90px + var(--card-lift)); }
 
 .leaflet-control-zoom { display: none; }
