@@ -252,7 +252,7 @@ let activeLine: L.Polyline | null = null;
 let routeHint: number | null = null;
 let lastProg: RouteProgress | null = null;
 
-function setActiveRoute(r: SavedRoute | null, fit = true): void {
+function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void {
   activeRoute = r;
   routeHint = null; // a freshly loaded route reads from its start
   lastProg = null;
@@ -266,7 +266,7 @@ function setActiveRoute(r: SavedRoute | null, fit = true): void {
     }).addTo(map);
     if (fit) map.fitBounds(activeLine.getBounds(), { padding: [40, 40] });
   }
-  saveActiveRoute(r); // remember it so a hike survives an app reload
+  if (persist) saveActiveRoute(r); // remember it so a hike survives an app reload
   updateElevPanel();
   updateBanner();
 }
@@ -367,7 +367,9 @@ function setPlanning(on: boolean): void {
   $('planBar').classList.toggle('hidden', !on);
   map.getContainer().style.cursor = on ? 'crosshair' : '';
   if (on) {
-    setActiveRoute(null);
+    // Hides the active route line/stats while sketching, but doesn't touch
+    // localStorage: entering Plan shouldn't erase a hike that's still live.
+    setActiveRoute(null, true, false);
     updatePlanStats();
   }
   updateElevPanel();
