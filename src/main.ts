@@ -771,15 +771,21 @@ function beginFollow(): boolean {
   return true;
 }
 
+// Re-centre on the last fix and resume following, keeping the heading-up/
+// north-up icon in sync with whether heading mode is currently on.
+function resumeFollow(): void {
+  follow = true;
+  $('locateIco').innerHTML = headingOn ? LOCATE_ICON.heading : LOCATE_ICON.follow;
+  if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
+}
+
 // Tap cycle: off → follow north-up → follow heading-up → off.
 // A map drag pauses following; the next tap just re-centres.
 $('btnLocate').addEventListener('click', async () => {
   if (watchId === null) {
     if (beginFollow()) toast('Following you — tap again to rotate with your heading', 3000);
   } else if (!follow) {
-    follow = true;
-    $('locateIco').innerHTML = LOCATE_ICON.follow;
-    if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
+    resumeFollow();
   } else if (!headingOn) {
     if (await startHeading()) {
       $('locateIco').innerHTML = LOCATE_ICON.heading;
@@ -802,9 +808,7 @@ $('rcStart').addEventListener('click', () => {
   if (watchId === null) {
     beginFollow();
   } else {
-    follow = true;
-    $('locateIco').innerHTML = headingOn ? LOCATE_ICON.heading : LOCATE_ICON.follow;
-    if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
+    resumeFollow();
   }
 });
 
@@ -828,7 +832,6 @@ const PIN_CATS: { id: PinCategory; label: string; icon: string }[] = [
   { id: 'other', label: 'Other', icon: 'c-other' }
 ];
 const catMeta = (id: PinCategory) => PIN_CATS.find((c) => c.id === id) ?? PIN_CATS[5];
-const svgIcon = (id: string) => `<svg viewBox="0 0 24 24"><use href="#${id}"/></svg>`;
 
 let pins = loadPins();
 const pinMarkers = new Map<string, L.Marker>();
@@ -843,7 +846,7 @@ function renderPinMarkers(): void {
     const m = L.marker([pin.lat, pin.lng], {
       icon: L.divIcon({
         className: '',
-        html: `<div class="savedPin">${svgIcon(catMeta(pin.category).icon)}</div>`,
+        html: `<div class="savedPin">${svgUse(catMeta(pin.category).icon)}</div>`,
         iconSize: [28, 28],
         iconAnchor: [14, 14]
       })
@@ -862,7 +865,7 @@ function gridText(lat: number, lng: number): string {
 function distFactHtml(lat: number, lng: number): string {
   if (!lastFix) return '';
   const d = formatDistance(haversine(lastFix, [lat, lng]));
-  return `<span class="pc-fact">${svgIcon('i-compass')}${d} ${compassDir(lastFix, [lat, lng])}</span>`;
+  return `<span class="pc-fact">${svgUse('i-compass')}${d} ${compassDir(lastFix, [lat, lng])}</span>`;
 }
 
 async function copyPin(p: { name?: string; lat: number; lng: number; ele?: number | null }): Promise<void> {
@@ -913,7 +916,7 @@ function openNewPin(lat: number, lng: number): void {
   dropMarker = L.marker([lat, lng], {
     icon: L.divIcon({
       className: '',
-      html: `<div class="dropPin">${svgIcon('i-pin')}</div>`,
+      html: `<div class="dropPin">${svgUse('i-pin')}</div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 32]
     })
@@ -923,7 +926,7 @@ function openNewPin(lat: number, lng: number): void {
   let ele: number | null | undefined; // undefined = still loading
 
   const chips = PIN_CATS.map(
-    (c) => `<button class="pc-chip${c.id === category ? ' on' : ''}" data-cat="${c.id}">${svgIcon(c.icon)}${c.label}</button>`
+    (c) => `<button class="pc-chip${c.id === category ? ' on' : ''}" data-cat="${c.id}">${svgUse(c.icon)}${c.label}</button>`
   ).join('');
   const card = $('pinCard');
   card.innerHTML = `
@@ -931,13 +934,13 @@ function openNewPin(lat: number, lng: number): void {
     <p class="pc-eyebrow">What's here</p>
     <div class="pc-grid">${gridText(lat, lng)}</div>
     <div class="pc-ll">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
-    <div class="pc-facts"><span class="pc-fact loading" id="pcEle">${svgIcon('i-ele')}…</span>${distFactHtml(lat, lng)}</div>
+    <div class="pc-facts"><span class="pc-fact loading" id="pcEle">${svgUse('i-ele')}…</span>${distFactHtml(lat, lng)}</div>
     <div class="pc-sep"></div>
     <input class="pc-name" id="pcName" placeholder="Name this spot" autocomplete="off" />
     <div class="pc-chips">${chips}</div>
     <div class="pc-actions">
-      <button class="pc-primary" id="pcSave">${svgIcon('i-save')}Save pin</button>
-      <button class="pc-neutral" id="pcCopy">${svgIcon('i-copy')}Copy</button>
+      <button class="pc-primary" id="pcSave">${svgUse('i-save')}Save pin</button>
+      <button class="pc-neutral" id="pcCopy">${svgUse('i-copy')}Copy</button>
     </div>`;
   card.classList.remove('hidden');
 
@@ -972,7 +975,7 @@ function openNewPin(lat: number, lng: number): void {
     if (!eleEl || !eleEl.isConnected) return;
     if (typeof m === 'number') {
       eleEl.classList.remove('loading');
-      eleEl.innerHTML = `${svgIcon('i-ele')}${Math.round(m)} m`;
+      eleEl.innerHTML = `${svgUse('i-ele')}${Math.round(m)} m`;
     } else {
       eleEl.remove();
     }
@@ -986,19 +989,19 @@ function openSavedPin(id: string): void {
   hidePinCard();
   flagOpened();
   const eleHtml =
-    typeof pin.ele === 'number' ? `<span class="pc-fact">${svgIcon('i-ele')}${Math.round(pin.ele)} m</span>` : '';
+    typeof pin.ele === 'number' ? `<span class="pc-fact">${svgUse('i-ele')}${Math.round(pin.ele)} m</span>` : '';
   const card = $('pinCard');
   card.innerHTML = `
     <button class="pc-close" aria-label="Close">&times;</button>
     <p class="pc-eyebrow">Saved pin</p>
-    <div class="pc-title"><span class="ci">${svgIcon(catMeta(pin.category).icon)}</span><span class="nm">${pin.name.replace(/</g, '&lt;')}</span></div>
+    <div class="pc-title"><span class="ci">${svgUse(catMeta(pin.category).icon)}</span><span class="nm">${pin.name.replace(/</g, '&lt;')}</span></div>
     <div class="pc-grid">${gridText(pin.lat, pin.lng)}</div>
     <div class="pc-ll">${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}</div>
     <div class="pc-facts">${eleHtml}${distFactHtml(pin.lat, pin.lng)}</div>
     <div class="pc-actions">
-      <button class="pc-neutral" id="pcCopy">${svgIcon('i-copy')}Copy</button>
-      <button class="pc-neutral" id="pcShare">${svgIcon('i-share')}Share</button>
-      <button class="pc-danger" id="pcDel" aria-label="Delete pin">${svgIcon('i-trash')}</button>
+      <button class="pc-neutral" id="pcCopy">${svgUse('i-copy')}Copy</button>
+      <button class="pc-neutral" id="pcShare">${svgUse('i-share')}Share</button>
+      <button class="pc-danger" id="pcDel" aria-label="Delete pin">${svgUse('i-trash')}</button>
     </div>`;
   card.classList.remove('hidden');
 
@@ -1073,7 +1076,7 @@ function showSearchHits(hits: SearchHit[]): void {
       searchMarker = L.marker(hit.pos, {
         icon: L.divIcon({
           className: '',
-          html: `<div class="searchPin">${svgIcon('i-pin')}</div>`,
+          html: `<div class="searchPin">${svgUse('i-pin')}</div>`,
           iconSize: [32, 32],
           iconAnchor: [16, 32]
         })
@@ -1423,7 +1426,7 @@ function openRoutesPanel(): void {
     ? pins
         .map(
           (p) => `<div class="routeItem" data-pin="${p.id}">
-        <span class="pinCat">${svgIcon(catMeta(p.category).icon)}</span>
+        <span class="pinCat">${svgUse(catMeta(p.category).icon)}</span>
         <div class="meta">
           <div class="name">${p.name.replace(/</g, '&lt;')}</div>
           <div class="sub">${gridText(p.lat, p.lng)}${typeof p.ele === 'number' ? ` · ${Math.round(p.ele)} m` : ''}</div>
