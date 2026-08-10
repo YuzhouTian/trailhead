@@ -13,6 +13,12 @@
   --chip:    #e9ede9;   /* secondary/neutral button fills */
   --accent-soft:#eaf1ec;/* tinted toggle-on background */
   --map-gap: #c8d1c9;   /* the colour behind map tiles as they load */
+
+  /* Map symbology rather than chrome. These two are deliberately absent from
+     the dark blocks below: a marker has to read the same over any tiles, so
+     the disc stays white and the glyph on it stays dark in both themes. */
+  --poi-disc:  #ffffff; /* the disc a nearby-point glyph sits on */
+  --poi-glyph: #1a2420; /* the glyph itself — must not follow --ink */
 }
 
 /* ------------------------------------------------------------------ type scale
@@ -245,12 +251,14 @@ body.planning #searchWrap, body.planning #searchResults { display: none; }
 body.planning #statusBanner { display: none; }
 
 /* POI markers — map symbology, deliberately theme-independent so a pin reads
-   the same over any tiles. The ring colour comes from the category table. */
+   the same over any tiles. The ring colour comes from the category table.
+   The glyph colour is set here, not inherited: letting it follow --ink drew a
+   white glyph on the white disc in dark mode. */
 .poiMarker {
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--poi-disc); color: var(--poi-glyph);
   border: 2px solid #2d6a4f;
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
   font-size: 13px; line-height: 1;
@@ -325,7 +333,8 @@ body.planning #statusBanner { display: none; }
   display: flex; align-items: center; justify-content: center;
   width: 22px; height: 22px;
   border-radius: 50%;
-  background: #fff; border: 2px solid #2d6a4f;
+  background: var(--poi-disc); color: var(--poi-glyph);
+  border: 2px solid #2d6a4f;
   font-size: 11px; line-height: 1;
 }
 #panel .keyRow {
