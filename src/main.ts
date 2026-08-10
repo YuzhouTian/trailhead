@@ -291,12 +291,10 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
     if (fit) map.fitBounds(activeLine.getBounds(), { padding: [40, 40] });
     // Opening a route means "show me this route". With Me following, the next
     // fix — a second away — recentres on you and the route you just opened
-    // slides off the screen, which is what made loading one feel broken. Drop
-    // back to off and let them tap Me again once they have looked at it.
-    if (fit && watchId !== null) {
-      stopWatch();
-      toast('Location off so you can see the route — tap Me to follow', 3500);
-    }
+    // slides off the screen, which is what made loading one feel broken. Pause
+    // the centring instead: the dot and the off-route banner stay live, which
+    // is exactly what you want while sizing up a route you are not on yet.
+    if (fit) pauseFollow();
   }
   if (persist) saveActiveRoute(r); // remember it so a hike survives an app reload
   updateElevPanel();
@@ -850,8 +848,33 @@ function resumeFollow(): void {
   if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
 }
 
+/**
+ * Stop auto-recentring, without giving up the fix. Opening a place — a search
+ * hit, a pin, a route — means "show me this", and the next fix a second later
+ * used to drag the map straight back to you, which is what made opening
+ * anything with Me on feel broken.
+ *
+ * Everything that makes GPS worth having stays: the dot, the accuracy circle,
+ * the on/off-route banner, the distance still to go. Only the centring stops,
+ * so you can see the place you asked for and yourself at the same time.
+ * Heading-up drops back to north-up, because a map that keeps turning with
+ * your body around somewhere you are not standing is just noise. The next tap
+ * of Me re-centres and follows again, as it does after a drag.
+ */
+function pauseFollow(): void {
+  if (watchId === null) return; // not following: nothing to pause
+  const wasHeading = headingOn;
+  follow = false;
+  stopHeading(); // no-op when already north-up; squares the map back up otherwise
+  $('locateIco').innerHTML = LOCATE_ICON.follow;
+  // Silent for an ordinary pause — the dot is still there and the map simply
+  // stays put. Losing heading-up is the one part that visibly changes the map
+  // out from under you, so say that much and no more.
+  if (wasHeading) toast('Back to north-up — tap Me to follow again', 3000);
+}
+
 // Tap cycle: off → follow north-up → follow heading-up → off.
-// A map drag pauses following; the next tap just re-centres.
+// A map drag, or opening a place, pauses following; the next tap re-centres.
 $('btnLocate').addEventListener('click', async () => {
   if (watchId === null) {
     if (beginFollow()) toast('Following you — tap again to rotate with your heading', 3000);
@@ -1134,6 +1157,7 @@ function openSharedPin(): boolean {
   const lng = parseFloat(m[2]);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
   history.replaceState(null, '', location.pathname + location.search);
+  pauseFollow(); // a shared pin is somewhere else by definition
   map.setView([lat, lng], Math.max(map.getZoom(), 15));
   openNewPin(lat, lng);
   const nameEl = document.getElementById('pcName') as HTMLInputElement | null;
@@ -1190,7 +1214,10 @@ function showSearchHits(hits: SearchHit[]): void {
         })
       }).addTo(map);
       // Centre first and without animation, so the popup's auto-pan can't
-      // animate over the top of it and leave the map where it started.
+      // animate over the top of it and leave the map where it started. Pause
+      // following before the move, or the next fix pulls the map back off the
+      // place that was just asked for.
+      pauseFollow();
       map.setView(hit.pos, Math.max(map.getZoom(), 15), { animate: false });
       searchMarker
         .bindPopup(
@@ -1654,6 +1681,7 @@ function openRoutesPanel(): void {
       if (!pin) return;
       if (btn.dataset.pact === 'go') {
         hidePanel();
+        pauseFollow(); // the pin is the point of the tap; don't let a fix drag us off it
         map.setView([pin.lat, pin.lng], Math.max(map.getZoom(), 15));
         openSavedPin(pin.id);
       } else {
