@@ -150,7 +150,10 @@ body.planning #bottomBar { display: none; }
 #btnLocate {
   position: fixed;
   right: 14px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 72px + var(--card-lift));
+  /* 106px, not 72px: the scale now occupies 65–83px on this side, so the button
+     starts above it. Every px here is thumb reach on a slope, so it is the
+     smallest lift that clears the bar. */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 106px + var(--card-lift));
   width: 48px; height: 48px;
   border: none; border-radius: 50%;
   background: var(--surface); color: var(--muted);
@@ -549,18 +552,22 @@ body.planning #pinCard { display: none; }
 }
 .leaflet-bar a:hover { background: var(--chip); }
 
-/* Scale bar — themed to match the chrome, legible over any tiles.
-   Leaflet's own rule paints a white text-shadow behind the label. That is a
-   highlight under dark text in the light theme, but in dark mode it puts a
-   white halo behind near-white text, which reads as badly out of focus — so
-   the shadow is cleared, not restyled. Opaque rather than translucent for the
-   same reason: over dimmed tiles the see-through fill muddied the digits. */
+/* Scale bar — the same translucent fill as the attribution it now sits on, so
+   the pair reads as one piece of furniture and neither feels like a card
+   dropped on the map. It was opaque while dark mode dimmed the tiles, because
+   a see-through fill muddied the digits against them; that filter is gone, so
+   the tint is safe again. Raise the 82% toward 100% if it ever reads as weak
+   over busy contour detail.
+   The text-shadow clearing is separate and must stay: Leaflet paints a white
+   shadow behind the label, which in dark mode is a white halo behind near-white
+   text and reads as badly out of focus. */
 .leaflet-control-scale-line {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   color: var(--ink);
+  /* The rule itself is the measurement, so it keeps full contrast. */
   border: 2px solid var(--muted); border-top: none;
   font-size: var(--fs-meta); font-weight: 600; line-height: 1.2;
-  padding: 1px 6px 2px; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+  padding: 1px 6px 2px;
   text-shadow: none;
 }
 
@@ -569,28 +576,28 @@ body.planning #pinCard { display: none; }
 .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 50px + var(--card-lift)); }
 
 /* The scale is a Leaflet "bottomleft" control, but alone in that corner it read
-   as a stray floating object. Move it over to ride beside the Me button: same
-   row, right edge stopping short of the circle, with the attribution keeping
-   the line below to itself.
-     right  = 14 (button inset) + 48 (button) + 10 (gap)
-     bottom = the button's own offset + (48 - 18) / 2, to centre on it
-   Keeping it out of the attribution's row also means the two can never collide,
+   as a stray floating object. It now sits flush on top of the attribution and
+   shares its right edge, so the two read as one block of map furniture rather
+   than two things floating separately. 65px = the attribution's own 50px offset
+   plus its 15px height, i.e. directly on top of it with no gap.
+   Being out of the attribution's row also means the two can never collide,
    whatever width the zoom gives the bar — trimming the credit line alone did
    not achieve that, since the bar can reach its 120px maximum. */
 .leaflet-bottom.leaflet-left {
   left: auto;
-  right: 72px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 87px + var(--card-lift));
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 65px + var(--card-lift));
 }
 /* Leaflet's own 10px control margins would throw those sums out. */
 .leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
-/* Planning hides the Me button, so the scale reclaims the full right inset and
-   clears the taller plan bar instead. */
+/* Planning hides the Me button, so the scale only has to stay flush on the
+   attribution at its taller plan-mode offset (114 + its 15px height). */
 body.planning .leaflet-bottom.leaflet-left {
-  right: 14px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 110px + var(--card-lift));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 129px + var(--card-lift));
 }
-body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 90px + var(--card-lift)); }
+/* The plan bar is 108px tall, so the old 90px offset left the attribution
+   sitting behind it entirely — invisible for as long as Plan mode was open. */
+body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 114px + var(--card-lift)); }
 
 .leaflet-control-zoom { display: none; }
 @media (min-width: 700px) {
