@@ -1211,10 +1211,19 @@ $('searchInput').addEventListener('input', () => {
   searchAbort?.abort();
   if (q.trim().length < 2) return hideSearchResults();
   searchTimer = window.setTimeout(async () => {
-    searchAbort = new AbortController();
+    const ctrl = (searchAbort = new AbortController());
     const near: LatLng = lastFix ?? [map.getCenter().lat, map.getCenter().lng];
     try {
-      showSearchHits(await search(q, near, searchAbort.signal));
+      // The second callback lands later, if a background lookup finds a better
+      // order or something worth saying about a result. It may never come, and
+      // by the time it does the results may be stale or already dismissed —
+      // redrawing then would pop the list back open over a chosen place.
+      showSearchHits(
+        await search(q, near, ctrl.signal, (refined) => {
+          const open = !$('searchResults').classList.contains('hidden');
+          if (open && !ctrl.signal.aborted) showSearchHits(refined);
+        })
+      );
     } catch (e) {
       if ((e as Error).name !== 'AbortError') toast(`Search failed: ${(e as Error).message}`, 4000);
     }
