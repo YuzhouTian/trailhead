@@ -83,8 +83,11 @@ and buttons to start following it, open the elevation profile, or cache its tile
   work with no signal.
 - **Search** — place names, plus OS grid references (`NY 215 072`) and lat/lng pairs
   (`54.4542, -3.2116`) parsed offline. Place-name search is [Photon](https://photon.komoot.io)
-  (keyless, OpenStreetMap data), re-ranked for hiking so Helvellyn the mountain beats
-  Helvellyn Avenue, Sunderland.
+  (keyless, OpenStreetMap data), re-ranked for hiking: summits, reserves and lakes first,
+  then how exactly the name matches, then how well known the place is — and only then how
+  near it is. So Helvellyn the mountain beats Helvellyn Avenue, Sunderland, and Coombe Hill
+  the Chilterns summit beats the four Coombe Hill Roads that happen to be closer. Rows read
+  "Summit · 260 m · Buckinghamshire · 52 km away": what it is, how high, where, how far.
 - **Saved pins** — drop a pin, name it, tag it (summit / viewpoint / water / camp / parking /
   other) and it's kept with its grid ref and height. Any pin can be copied as text or shared
   as a link. Cards show distance and compass bearing from you.
@@ -181,7 +184,8 @@ On Windows, `Start Trailhead.cmd` does the dev-server dance and opens a browser 
 | `src/routing.ts` | BRouter calls, including mixed snapped/freeform legs |
 | `src/osgb.ts` | OS National Grid references both ways, on-device |
 | `src/search.ts` | Search box resolution: grid ref, lat/lng, then Photon place names with hiking-first ranking |
-| `src/poi.ts` | "What's nearby" — the category table, and Overpass queries across mirrors |
+| `src/poi.ts` | "What's nearby" — the category table and what each one asks Overpass for |
+| `src/overpass.ts` | Talking to the Overpass mirrors: staggered requests, first answer wins |
 | `src/elevation.ts` | Point elevation lookup, and the SVG profile chart with its scrubber |
 | `src/legend.ts` | The map key: per-layer legends, drawn as inline SVG swatches |
 | `src/share.ts` | Share links: compact payloads in the URL fragment, encode and parse |
