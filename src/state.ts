@@ -1,4 +1,5 @@
 import type { LatLng } from './geo';
+import { DEFAULT_POI_KINDS, poiCategories, type PoiKind } from './poi';
 
 export interface SavedRoute {
   id: string;
@@ -27,6 +28,8 @@ export interface Settings {
   speedKmh: number;
   /** UI theme: follow the OS, or force light/dark. */
   theme: 'system' | 'light' | 'dark';
+  /** Which categories "What's nearby" searches for. */
+  poiKinds: PoiKind[];
 }
 
 /** A saved place the user dropped and named. */
@@ -56,10 +59,17 @@ export function loadSettings(): Settings {
     profile: 'hiking-mountain',
     speedKmh: 4,
     tfKey: '',
-    theme: 'system'
+    theme: 'system',
+    poiKinds: [...DEFAULT_POI_KINDS]
   };
   try {
-    return { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };
+    const s: Settings = { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };
+    // Categories can be renamed or dropped between releases, so trust the
+    // table over whatever an old install saved.
+    s.poiKinds = Array.isArray(s.poiKinds)
+      ? poiCategories(s.poiKinds).map((c) => c.id)
+      : [...DEFAULT_POI_KINDS];
+    return s;
   } catch {
     return defaults;
   }

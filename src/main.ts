@@ -30,7 +30,15 @@ import {
 } from './geo';
 import { parseGpx, toGpx } from './gpx';
 import { formatGridRef } from './osgb';
-import { fetchPois, POI_STYLE, type Poi } from './poi';
+import {
+  DEFAULT_POI_KINDS,
+  POI_CATEGORIES,
+  POI_KINDS_ADVISORY,
+  describeKinds,
+  fetchPois,
+  poiCategory,
+  type Poi
+} from './poi';
 import { routeMixed, type RouteResult } from './routing';
 import { search, type SearchHit } from './search';
 import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
@@ -1232,6 +1240,10 @@ async function showNearbyPois(): Promise<void> {
     toast('Nearby points hidden');
     return;
   }
+  const kinds = settings.poiKinds;
+  if (!kinds.length) {
+    return toast('No nearby categories are ticked — choose some in Settings', 4500);
+  }
   const centre: LatLng = lastFix ?? [map.getCenter().lat, map.getCenter().lng];
   // Cover roughly the visible map, clamped to something Overpass answers quickly.
   const bounds = map.getBounds();
@@ -1239,9 +1251,9 @@ async function showNearbyPois(): Promise<void> {
     Math.max(haversine([bounds.getNorth(), bounds.getWest()], [bounds.getSouth(), bounds.getEast()]) / 2, 800),
     12000
   );
-  toast('Looking for summits, viewpoints and water…', 0);
+  toast(`Looking for ${nearbyKindsShort()}…`, 0);
   try {
-    const pois = await fetchPois(centre, radius);
+    const pois = await fetchPois(centre, radius, kinds);
     hideToast();
     if (!pois.length) return toast('Nothing mapped nearby', 3000);
     poiLayer = L.layerGroup(pois.map(poiMarker)).addTo(map);
@@ -1255,21 +1267,23 @@ async function showNearbyPois(): Promise<void> {
 }
 
 function poiMarker(p: Poi): L.Marker {
-  const style = POI_STYLE[p.kind];
+  const cat = poiCategory(p.kind);
   const marker = L.marker(p.pos, {
     icon: L.divIcon({
       className: '',
-      html: `<div class="poiMarker ${p.kind}">${style.icon}</div>`,
+      html: `<div class="poiMarker" style="border-color:${cat?.colour ?? '#2d6a4f'}">${cat?.icon ?? '•'}</div>`,
       iconSize: [26, 26],
       iconAnchor: [13, 13]
     })
   });
   const height = p.ele !== undefined ? ` · ${Math.round(p.ele)} m` : '';
   const away = lastKnownPos ? ` · ${formatDistance(haversine(lastKnownPos, p.pos))} away` : '';
+  // An unnamed feature is titled with its category, so don't repeat it beneath.
+  const type = p.name === cat?.label ? '' : (cat?.label ?? 'Point');
   marker.bindPopup(
     `<div style="font-size:13px;line-height:1.5">
       <b>${p.name.replace(/</g, '&lt;')}</b><br>
-      ${style.label}${height}${away}<br>${positionText(p.pos)}
+      ${(type + height + away).replace(/^ · /, '')}<br>${positionText(p.pos)}
     </div>`
   );
   return marker;
@@ -1308,9 +1322,16 @@ function openMapPanel(): void {
     <div class="row"><button id="keyBtn" class="secondary" style="flex:1">Map key — what the symbols mean</button></div>
     <hr/>
     <h3>Nearby</h3>
-    <p class="hint">Summits, viewpoints and water sources from OpenStreetMap, around what you can see.
+    <p class="hint">${
+      settings.poiKinds.length
+        ? `Looks for ${nearbyKindsShort()} from OpenStreetMap, around what you can see —
+           change what it looks for in Settings.`
+        : 'No categories are ticked — choose what to look for in Settings.'
+    }
     Needs signal, and the free map-data servers are sometimes busy — retry if it fails. Tap again to hide.</p>
-    <div class="row"><button id="poiBtn" style="flex:1">${poiLayer ? 'Hide nearby points' : "What's nearby"}</button></div>
+    <div class="row"><button id="poiBtn" style="flex:1" ${
+      settings.poiKinds.length ? '' : 'disabled'
+    }>${poiLayer ? 'Hide nearby points' : "What's nearby"}</button></div>
     <hr/>
     <h3>Overlay</h3>
     <div class="row"><select id="overlaySel" style="flex:1">${overlayOpts}</select></div>
@@ -1334,7 +1355,9 @@ function openMapPanel(): void {
     overlayTiles?.setOpacity(settings.overlayOpacity);
     saveSettings(settings);
   });
-  $('keyBtn').addEventListener('click', () => showPanel(legendHtml(settings.baseLayer)));
+  $('keyBtn').addEventListener('click', () =>
+    showPanel(legendHtml(settings.baseLayer, settings.poiKinds))
+  );
   $('poiBtn').addEventListener('click', () => {
     hidePanel();
     showNearbyPois();
@@ -1372,6 +1395,19 @@ function openSettingsPanel(): void {
       <input type="number" id="speedInput" min="1" max="8" step="0.5" value="${settings.speedKmh}" style="width:70px"/>
       <label>km/h</label>
     </div>
+    <hr/>
+    <h3>What's nearby</h3>
+    <p class="hint">What the Map tab's "What's nearby" looks for. Only the ticked categories are
+    asked for, so a short list is a faster, more reliable search.</p>
+    ${POI_CATEGORIES.map(
+      (c) => `<div class="row">
+        <input type="checkbox" id="poiKind-${c.id}" ${settings.poiKinds.includes(c.id) ? 'checked' : ''}/>
+        <span class="poiSwatch" style="border-color:${c.colour}">${c.icon}</span>
+        <label for="poiKind-${c.id}" style="flex:1">${c.plural}</label>
+      </div>`
+    ).join('')}
+    <p class="hint" id="poiKindsNote">${poiKindsNote()}</p>
+    <div class="row"><button id="poiKindsReset" class="secondary" style="flex:1">Back to the usual three</button></div>
     <hr/>
     <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'} (UTC).
     If this looks old after a deploy, fully close the app from the app switcher and reopen it.</p>
@@ -1411,6 +1447,48 @@ function openSettingsPanel(): void {
       updateElevPanel();
     }
   });
+
+  const syncPoiKinds = () => {
+    POI_CATEGORIES.forEach((c) => {
+      ($(`poiKind-${c.id}`) as HTMLInputElement).checked = settings.poiKinds.includes(c.id);
+    });
+    $('poiKindsNote').textContent = poiKindsNote();
+    // Markers already on the map would no longer match the tick list, so drop
+    // them; the Map tab's button asks again with the new selection.
+    poiLayer?.remove();
+    poiLayer = null;
+    saveSettings(settings);
+  };
+  POI_CATEGORIES.forEach((c) => {
+    $(`poiKind-${c.id}`).addEventListener('change', (e) => {
+      const on = (e.target as HTMLInputElement).checked;
+      settings.poiKinds = on
+        ? // Keep table order, so the toast and the map key read the same way.
+          POI_CATEGORIES.filter((x) => x.id === c.id || settings.poiKinds.includes(x.id)).map((x) => x.id)
+        : settings.poiKinds.filter((id) => id !== c.id);
+      syncPoiKinds();
+    });
+  });
+  $('poiKindsReset').addEventListener('click', () => {
+    settings.poiKinds = [...DEFAULT_POI_KINDS];
+    syncPoiKinds();
+  });
+}
+
+/** Naming a few reads better than a generic count; a long list does not. */
+function nearbyKindsShort(): string {
+  const n = settings.poiKinds.length;
+  return n <= 4 ? describeKinds(settings.poiKinds) : `${n} categories`;
+}
+
+/** The line under the nearby tick list: what it will search, and any warning. */
+function poiKindsNote(): string {
+  const n = settings.poiKinds.length;
+  if (!n) return 'Nothing ticked — "What\'s nearby" has nothing to look for.';
+  if (n > POI_KINDS_ADVISORY) {
+    return `${n} categories — a big ask of a free shared server. It should still take seconds, but expect the odd retry.`;
+  }
+  return `Searching for ${describeKinds(settings.poiKinds)}.`;
 }
 
 // ---------------------------------------------------------------- QR import (camera)

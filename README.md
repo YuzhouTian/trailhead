@@ -25,7 +25,7 @@ A full-screen map with a search box on top, a floating locate button, and four t
 | **Map** | Base layer, the map key, the overlay + opacity slider, and "What's nearby" |
 | **Saved** | Your routes and pins; import GPX, scan a route QR, paste a shared link |
 | **Plan** | Toggles the route planner (tap points on the map) |
-| **Settings** | Theme, Thunderforest key, routing profile, walking speed, build version |
+| **Settings** | Theme, Thunderforest key, routing profile, walking speed, nearby categories, build version |
 
 When a route is loaded, a card sits above the tabs with its name, stats, what's left of it,
 and buttons to start following it, open the elevation profile, or cache its tiles.
@@ -88,8 +88,12 @@ and buttons to start following it, open the elevation profile, or cache its tile
 - **Saved pins** — drop a pin, name it, tag it (summit / viewpoint / water / camp / parking /
   other) and it's kept with its grid ref and height. Any pin can be copied as text or shared
   as a link. Cards show distance and compass bearing from you.
-- **What's nearby** (Map tab) — summits, viewpoints and water sources around the visible map,
-  from OpenStreetMap via Overpass. Deliberately a short hiking-focused list, not a directory.
+- **What's nearby** (Map tab) — hiking points around the visible map, from OpenStreetMap via
+  Overpass. Fifteen categories to choose from — summits, trig points, viewpoints, water,
+  waterfalls, shelters and bothies, campsites, pubs and cafés, toilets, parking, public
+  transport, picnic sites, cairns and landmarks, caves, emergency points — ticked in Settings
+  and defaulting to summits, viewpoints and water. Only the ticked ones are queried, and each
+  gets its own result quota so a moor full of tors cannot crowd out every spring.
 
 ### Maps
 
@@ -177,7 +181,7 @@ On Windows, `Start Trailhead.cmd` does the dev-server dance and opens a browser 
 | `src/routing.ts` | BRouter calls, including mixed snapped/freeform legs |
 | `src/osgb.ts` | OS National Grid references both ways, on-device |
 | `src/search.ts` | Search box resolution: grid ref, lat/lng, then Photon place names with hiking-first ranking |
-| `src/poi.ts` | "What's nearby" — Overpass queries across mirrors, with fallbacks |
+| `src/poi.ts` | "What's nearby" — the category table, and Overpass queries across mirrors |
 | `src/elevation.ts` | Point elevation lookup, and the SVG profile chart with its scrubber |
 | `src/legend.ts` | The map key: per-layer legends, drawn as inline SVG swatches |
 | `src/share.ts` | Share links: compact payloads in the URL fragment, encode and parse |
