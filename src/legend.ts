@@ -10,6 +10,8 @@
  * as much as knowing what it does.
  */
 
+import { poiCategories } from './poi';
+
 // ---------------------------------------------------------------- swatches
 
 const sw = (inner: string) =>
@@ -287,6 +289,26 @@ const TF_GROUPS: Group[] = [
   }
 ];
 
+// ---------------------------------------------------------------- nearby points
+
+/** The app's own POI markers, drawn the way the map draws them. */
+const poiChip = (icon: string, colour: string) =>
+  sw(
+    `<circle cx="23" cy="9" r="7.5" fill="#fff" stroke="${colour}" stroke-width="2"/>` +
+      `<text x="23" y="12.5" text-anchor="middle" font-size="9">${icon}</text>`
+  );
+
+function nearbyGroup(kinds: readonly string[]): Group | null {
+  const cats = poiCategories(kinds);
+  if (!cats.length) return null;
+  return {
+    title: 'Nearby points',
+    entries: cats.map((c) => ({ swatch: poiChip(c.icon, c.colour), name: c.label })),
+    footnote:
+      'Trailhead\'s own markers, not part of the base map — they appear when you tap "What\'s nearby". Which categories it looks for is a tick list in Settings.'
+  };
+}
+
 // ---------------------------------------------------------------- entry point
 
 const KEYS: Record<string, { title: string; groups: Group[] }> = {
@@ -294,10 +316,12 @@ const KEYS: Record<string, { title: string; groups: Group[] }> = {
   'tf-outdoors': { title: 'Outdoors', groups: TF_GROUPS }
 };
 
-export function legendHtml(layerId: string): string {
+export function legendHtml(layerId: string, nearbyKinds: readonly string[] = []): string {
   const key = KEYS[layerId] ?? KEYS.osm;
+  const nearby = nearbyGroup(nearbyKinds);
   return `
     <h3>Map key — ${key.title}</h3>
     <p class="hint">Symbols are approximations; map styles change over time.</p>
-    ${key.groups.map(renderGroup).join('')}`;
+    ${key.groups.map(renderGroup).join('')}
+    ${nearby ? renderGroup(nearby) : ''}`;
 }

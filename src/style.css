@@ -245,7 +245,7 @@ body.planning #searchWrap, body.planning #searchResults { display: none; }
 body.planning #statusBanner { display: none; }
 
 /* POI markers — map symbology, deliberately theme-independent so a pin reads
-   the same over any tiles. */
+   the same over any tiles. The ring colour comes from the category table. */
 .poiMarker {
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px;
@@ -255,8 +255,6 @@ body.planning #statusBanner { display: none; }
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
   font-size: 13px; line-height: 1;
 }
-.poiMarker.viewpoint { border-color: #1a73e8; }
-.poiMarker.water { border-color: #3d9bd0; }
 
 /* Slide-in panel */
 #panel {
@@ -320,6 +318,16 @@ body.planning #statusBanner { display: none; }
 }
 #panel .routeItem .meta .sub { font-size: var(--fs-meta); color: var(--muted); }
 #panel .hint { font-size: var(--fs-meta); color: var(--muted); margin: 6px 0; }
+/* The nearby-category tick list: the same white disc the map draws, small
+   enough to sit on a settings row. */
+#panel .poiSwatch {
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #fff; border: 2px solid #2d6a4f;
+  font-size: 11px; line-height: 1;
+}
 #panel .keyRow {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 6px 2px; font-size: var(--fs-body); line-height: 1.35;
