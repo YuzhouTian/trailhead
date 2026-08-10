@@ -291,11 +291,12 @@ const TF_GROUPS: Group[] = [
 
 // ---------------------------------------------------------------- nearby points
 
-/** The app's own POI markers, drawn the way the map draws them. */
+/** The app's own POI markers, drawn the way the map draws them — same two
+ *  symbology tokens, so the key cannot drift from the markers it explains. */
 const poiChip = (icon: string, colour: string) =>
   sw(
-    `<circle cx="23" cy="9" r="7.5" fill="#fff" stroke="${colour}" stroke-width="2"/>` +
-      `<text x="23" y="12.5" text-anchor="middle" font-size="9">${icon}</text>`
+    `<circle cx="23" cy="9" r="7.5" style="fill:var(--poi-disc)" stroke="${colour}" stroke-width="2"/>` +
+      `<text x="23" y="12.5" text-anchor="middle" font-size="9" style="fill:var(--poi-glyph)">${icon}</text>`
   );
 
 function nearbyGroup(kinds: readonly string[]): Group | null {
