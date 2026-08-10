@@ -1,6 +1,4 @@
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import 'leaflet-rotate';
+import L from './leaflet-setup';
 import './style.css';
 import {
   BASE_LAYERS,
