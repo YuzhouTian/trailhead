@@ -2,15 +2,19 @@ import L from 'leaflet';
 
 /**
  * One-finger zoom, the Google Maps gesture: tap, then tap again and keep the
- * finger down — sliding down zooms in, sliding up zooms out, continuously and
- * anchored on the point you tapped. Pinch wants a second hand, which is the one
- * thing you haven't got while holding poles, a dog lead, or a phone in gloves.
+ * finger down — sliding down zooms in, sliding up zooms out, continuously.
+ * Pinch wants a second hand, which is the one thing you haven't got while
+ * holding poles, a dog lead, or a phone in gloves.
  *
- * Leaflet has no such handler, and no public API for a zoom that tracks a
- * finger: setZoomAround rounds to whole levels (zoomSnap) and redraws every
- * layer per frame. So this drives the same internals Leaflet's own pinch-zoom
- * handler does — one _move per animation frame, then a single _resetView to
- * settle and fetch tiles.
+ * The zoom is anchored on the centre of the screen, not on the finger. You
+ * reach for the gesture while looking at something in the middle of the map,
+ * and the thumb lands wherever the grip allows — usually off to one side.
+ * Anchoring there would drag what you were looking at towards the edge.
+ *
+ * Leaflet has no such handler, and no public API for a continuous zoom:
+ * setZoom rounds to whole levels (zoomSnap) and redraws every layer per frame.
+ * So this drives the same internals Leaflet's own pinch-zoom handler does —
+ * one _move per animation frame, then a single settle at the end.
  */
 
 // A second tap counts as a double tap if it lands this soon after the first
@@ -34,10 +38,9 @@ interface GestureMap extends L.Map {
   _moveStart(zoomChanged: boolean, noMoveStart: boolean): void;
   _move(center: L.LatLng, zoom: number, data?: { pinch?: boolean; round?: boolean }): void;
   _resetView(center: L.LatLng, zoom: number): void;
-  /** leaflet-rotate's bearing, in radians. Read rather than getBearing(),
-   *  which converts through a DomUtil constant the plugin fails to attach
-   *  under Vite's dev pre-bundling and so returns NaN there. */
-  _bearing?: number;
+  /** Applies zoomSnap, then clamps to the layer's min/max. */
+  _limitZoom(zoom: number): number;
+  _animateZoom(center: L.LatLng, zoom: number, startAnim: boolean, noUpdate?: unknown): void;
 }
 
 export function enableDoubleTapDragZoom(leafletMap: L.Map): void {
@@ -58,26 +61,14 @@ export function enableDoubleTapDragZoom(leafletMap: L.Map): void {
   let draggingWasOn = false;
   let startY = 0;
   let startZoom = 0;
-  let anchor = L.latLng(0, 0); // the ground under the tap, pinned there
-  let fromCentre = L.point(0, 0); // the tap's offset from the container centre
+  // The ground under the middle of the screen, held there for the whole
+  // gesture. Zooming about the centre means it never has to move.
   let centre = L.latLng(0, 0);
   let zoom = 0;
   let frame = 0;
 
   const at = (t: Touch): L.Point =>
     map.mouseEventToContainerPoint(t as unknown as MouseEvent);
-
-  /** The centre that leaves `anchor` under the tapped pixel at zoom `z`. */
-  function centreFor(z: number): L.LatLng {
-    // fromCentre is in container space, which leaflet-rotate turns with the
-    // map, so undo the bearing to get the offset in projected pixels.
-    const a = -(map._bearing || 0);
-    const cos = Math.cos(a);
-    const sin = Math.sin(a);
-    const dx = fromCentre.x * cos - fromCentre.y * sin;
-    const dy = fromCentre.x * sin + fromCentre.y * cos;
-    return map.unproject(map.project(anchor, z).subtract([dx, dy]), z);
-  }
 
   const swallow = (e: Event): void => {
     e.stopPropagation();
@@ -95,7 +86,7 @@ export function enableDoubleTapDragZoom(leafletMap: L.Map): void {
     }, CLICK_SWALLOW_MS);
   }
 
-  function arm(point: L.Point, clientY: number): void {
+  function arm(clientY: number): void {
     map._stop();
     armed = true;
     zooming = false;
@@ -103,8 +94,6 @@ export function enableDoubleTapDragZoom(leafletMap: L.Map): void {
     startZoom = map.getZoom();
     zoom = startZoom;
     centre = map.getCenter();
-    anchor = map.containerPointToLatLng(point);
-    fromCentre = point.subtract(map.getSize().divideBy(2));
     // Take dragging away up front: from the second tap on, this finger belongs
     // to the zoom, and waiting for the slop would let the map pan first.
     draggingWasOn = map.dragging.enabled();
@@ -130,16 +119,23 @@ export function enableDoubleTapDragZoom(leafletMap: L.Map): void {
     if (!zooming) return;
     zooming = false;
     container.removeEventListener('contextmenu', swallow, true);
-    // Settle exactly where the finger left it, tiles and all. _resetView runs
-    // the zoom through _limitZoom, which would round it to a whole level and
-    // shove the anchor off the finger, so drop zoomSnap for that one call —
-    // the in-between scales are the whole point of the gesture. Everything
-    // else (pinch, the zoom buttons) goes on snapping as before, so a later
-    // step lands the map back on a whole level.
-    const snap = map.options.zoomSnap;
-    map.options.zoomSnap = 0;
-    map._resetView(centre, zoom);
-    map.options.zoomSnap = snap;
+    // Ease onto a whole zoom level rather than resting between two.
+    //
+    // Tiles exist at whole levels only, so a map left at z15.4 is showing z15
+    // tiles stretched 1.32x — soft, and worst at just under the half step. It
+    // also asks for levels the offline download never cached (OFFLINE_ZOOMS
+    // stops at 16), which on a hill with no signal is a blank square where a
+    // slightly soft tile would have done. The in-between scales are still the
+    // point of the gesture; they just belong to the drag, not to the rest.
+    //
+    // This is exactly how Leaflet's own pinch handler ends, down to passing
+    // zoomSnap as noUpdate, so the two gestures settle alike.
+    const settled = map._limitZoom(zoom);
+    if (map.options.zoomAnimation) {
+      map._animateZoom(centre, settled, true, map.options.zoomSnap);
+    } else {
+      map._resetView(centre, settled);
+    }
     swallowTrailingClick();
   }
 
@@ -162,7 +158,7 @@ export function enableDoubleTapDragZoom(leafletMap: L.Map): void {
       lastTapPoint = null; // spent, whether or not it paired
       downAt = now;
       downPoint = point;
-      if (paired) arm(point, e.touches[0].clientY);
+      if (paired) arm(e.touches[0].clientY);
     },
     { passive: false }
   );
@@ -186,7 +182,6 @@ export function enableDoubleTapDragZoom(leafletMap: L.Map): void {
       // Stops the rubber-band scroll, and stops iOS synthesising a click.
       e.preventDefault();
       zoom = Math.max(map.getMinZoom(), Math.min(map.getMaxZoom(), startZoom + dy / PX_PER_ZOOM));
-      centre = centreFor(zoom);
       if (frame) L.Util.cancelAnimFrame(frame);
       frame = L.Util.requestAnimFrame(() => {
         frame = 0;
