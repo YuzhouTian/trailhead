@@ -7,7 +7,7 @@ import {
   OFF_ROUTE_THRESHOLD_M
 } from './config';
 import qrcode from 'qrcode-generator';
-import { fetchElevation, renderProfile } from './elevation';
+import { fetchElevation } from './elevation';
 import { initOffline } from './features/offline';
 import { legendHtml } from './legend';
 import {
@@ -52,6 +52,7 @@ import {
   type Settings
 } from './state';
 import { $, downloadFile, hideToast, svgUse, toast } from './ui/dom';
+import { climbText, initRouteCard, updateRouteCard, updateRouteStart } from './ui/routeCard';
 
 // ---------------------------------------------------------------- stored state
 
@@ -127,100 +128,33 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
     if (fit) pauseFollow();
   }
   if (persist) saveActiveRoute(r); // remember it so a hike survives an app reload
-  updateElevPanel();
+  updateRouteCard();
   updateBanner();
 }
 
-// ------------------------------------------------- elevation / stats panel
+// ------------------------------------------------- active-route card
 
-function climbText(ascentM: number, descentM?: number): string {
-  let s = `↑ ${Math.round(ascentM)} m`;
-  if (descentM !== undefined && Math.round(descentM) > 0) s += ` · ↓ ${Math.round(descentM)} m`;
-  return s;
-}
-
-let chartOpen = false;
-let scrubMarker: L.CircleMarker | null = null;
-
-function onProfileScrub(pos: LatLng | null): void {
-  if (!pos) {
-    scrubMarker?.remove();
-    scrubMarker = null;
-    return;
+// The card itself lives in ui/routeCard.ts and knows nothing about the planner
+// or GPS; this gathers what it should show. Only the "you are here" mark
+// (lastOnRouteProg) is deliberately conservative — it stays null until a fix
+// lands near the line, so the dot never appears at a guessed place.
+initRouteCard({
+  getView: () => ({
+    src: planning ? planResult : activeRoute,
+    name: planning ? 'New route' : activeRoute?.name ?? '',
+    planning,
+    remaining: planning ? null : remainingText(),
+    hereM: planning ? null : lastOnRouteProg?.alongM ?? null,
+    following: watchId !== null,
+    speedKmh: settings.speedKmh
+  }),
+  onClose: () => setActiveRoute(null),
+  onStart: () => {
+    // Begin following this route, or re-centre if GPS is already live.
+    if (watchId === null) beginFollow();
+    else resumeFollow();
   }
-  if (!scrubMarker) {
-    scrubMarker = L.circleMarker(pos, {
-      radius: 7,
-      color: '#c1121f',
-      weight: 3,
-      fillColor: '#fff',
-      fillOpacity: 1,
-      interactive: false
-    }).addTo(map);
-  } else {
-    scrubMarker.setLatLng(pos);
-  }
-}
-
-/**
- * Publish the active-route card's height so the bottom-anchored map furniture
- * can clear it (see --card-lift in style.css). The card is not a fixed size —
- * it grows with the elevation chart and the remaining line, and reflows on
- * rotation — so a hard-coded offset left the scale bar and the locate button
- * buried under a tall card. Measuring is the only thing that tracks all three.
- */
-function publishCardLift(): void {
-  const card = $('routeCard');
-  const h = card.classList.contains('hidden') ? 0 : card.getBoundingClientRect().height;
-  document.documentElement.style.setProperty('--card-lift', h ? `${Math.round(h) + 12}px` : '0px');
-}
-new ResizeObserver(publishCardLift).observe($('routeCard'));
-
-/** Refresh the active-route card from the plan in progress or the active route. */
-function updateElevPanel(): void {
-  const src = planning ? planResult : activeRoute;
-  const card = $('routeCard');
-  if (!src) {
-    card.classList.add('hidden');
-    publishCardLift();
-    onProfileScrub(null);
-    return;
-  }
-  card.classList.remove('hidden');
-  card.classList.toggle('abovePlan', planning);
-  $('rcName').textContent = planning ? 'New route' : activeRoute?.name ?? '';
-  const est = naismithHours(src.distanceM, src.ascentM, settings.speedKmh);
-  $('rcStats').textContent =
-    `${formatDistance(src.distanceM)} · ${climbText(src.ascentM, src.descentM)} · ~${formatDuration(est)}`;
-  const remaining = planning ? null : remainingText();
-  $('rcRemaining').textContent = remaining ?? '';
-  $('rcRemaining').classList.toggle('hidden', !remaining);
-  $('rcOffline').classList.toggle('hidden', planning);
-  $('rcClose').classList.toggle('hidden', planning);
-  $('rcStart').classList.toggle('hidden', planning);
-  updateRouteStart();
-  $('rcChart').classList.toggle('active', chartOpen);
-  const chart = $('elevChart');
-  if (chartOpen) {
-    chart.classList.remove('hidden');
-    // Only mark a position we actually believe: lastOnRouteProg is null until a
-    // fix lands near the line, so the dot never appears at a guessed place.
-    const hereM = planning ? null : lastOnRouteProg?.alongM ?? null;
-    if (!renderProfile(chart, src.coords, onProfileScrub, hereM)) {
-      chart.innerHTML = '<p class="hint">No elevation data for this route.</p>';
-    }
-  } else {
-    chart.classList.add('hidden');
-    onProfileScrub(null);
-  }
-  publishCardLift();
-}
-
-$('rcChart').addEventListener('click', () => {
-  chartOpen = !chartOpen;
-  updateElevPanel();
 });
-$('rcClose').addEventListener('click', () => setActiveRoute(null));
 
 // ---------------------------------------------------------------- route planner
 
@@ -249,7 +183,7 @@ function setPlanning(on: boolean): void {
     setActiveRoute(null, true, false);
     updatePlanStats();
   }
-  updateElevPanel();
+  updateRouteCard();
 }
 
 function clearPlan(): void {
@@ -315,7 +249,7 @@ async function recomputePlan(): Promise<void> {
     planLine?.remove();
     planLine = L.polyline(result.coords, { color: '#1a73e8', weight: 4 }).addTo(map);
     updatePlanStats();
-    updateElevPanel();
+    updateRouteCard();
   } catch (e) {
     if ((e as Error).name === 'AbortError') return;
     // Router unreachable (offline / bad segment): fall back to straight lines.
@@ -335,7 +269,7 @@ async function recomputePlan(): Promise<void> {
       dashArray: '6 8'
     }).addTo(map);
     updatePlanStats();
-    updateElevPanel();
+    updateRouteCard();
     toast(`Router error — showing straight line. ${(e as Error).message}`, 5000);
   }
 }
@@ -448,7 +382,7 @@ function updateBanner(): void {
     lastProg = null;
     lastOnRouteProg = null;
     banner.classList.add('hidden');
-    updateElevPanel();
+    updateRouteCard();
     return;
   }
   // One projection per fix, seeded with where we were, then shared with the
@@ -470,7 +404,7 @@ function updateBanner(): void {
     banner.className = 'off';
     banner.textContent = `OFF ROUTE · ${formatDistance(prog?.offRouteM ?? Infinity)} away`;
   }
-  updateElevPanel();
+  updateRouteCard();
 }
 
 /**
@@ -637,20 +571,8 @@ function stopWatch(): void {
   // where you last were, or pin distances vanish with it.
   $('btnLocate').classList.remove('active');
   $('locateIco').innerHTML = LOCATE_ICON.off;
-  updateRouteStart();
+  updateRouteStart(watchId !== null);
   updateBanner();
-}
-
-/** The route card's Start button: a play glyph until following, then a live
- *  locate glyph with a ring (tap to re-centre). Hidden while planning. */
-function updateRouteStart(): void {
-  const btn = $('rcStart');
-  const live = watchId !== null;
-  btn.innerHTML = live
-    ? '<svg viewBox="0 0 24 24"><use href="#i-locate-on"/></svg>'
-    : '<svg viewBox="0 0 24 24"><use href="#i-start"/></svg>';
-  btn.classList.toggle('live', live);
-  btn.title = live ? 'Re-centre on you' : 'Start following this route';
 }
 
 /** Start GPS following (north-up). Shared by the Me button and the card Start. */
@@ -666,7 +588,7 @@ function beginFollow(): boolean {
     toast(`GPS error: ${err.message}`, 5000);
     stopWatch();
   }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
-  updateRouteStart();
+  updateRouteStart(watchId !== null);
   return true;
 }
 
@@ -725,15 +647,6 @@ $('btnLocate').addEventListener('click', async () => {
 
 map.on('dragstart', () => {
   follow = false;
-});
-
-// Route card's Start: begin following this route, or re-centre if already live.
-$('rcStart').addEventListener('click', () => {
-  if (watchId === null) {
-    beginFollow();
-  } else {
-    resumeFollow();
-  }
 });
 
 // ---------------------------------------------------------------- grid references
@@ -1310,7 +1223,7 @@ function openSettingsPanel(): void {
       settings.speedKmh = v;
       saveSettings(settings);
       updatePlanStats();
-      updateElevPanel();
+      updateRouteCard();
     }
   });
 
