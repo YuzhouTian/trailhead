@@ -54,6 +54,7 @@ import {
   type SavedRoute,
   type Settings
 } from './state';
+import { enableDoubleTapDragZoom } from './tapzoom';
 
 // ---------------------------------------------------------------- helpers
 
@@ -130,6 +131,9 @@ const map = L.map('map', {
   touchRotate: false,
   rotateControl: false
 }).setView(UK_FALLBACK_VIEW.center, UK_FALLBACK_VIEW.zoom);
+
+// Zoom with one finger: double-tap and drag, so you can do it one-handed.
+enableDoubleTapDragZoom(map);
 
 // Recentre on your current location at startup, for the initial tiles. This is
 // deliberately separate from the "me"/follow control below — no marker, no
