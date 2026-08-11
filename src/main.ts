@@ -4,14 +4,11 @@ import {
   BASE_LAYERS,
   BROUTER_PROFILES,
   EN_ROUTE_THRESHOLD_M,
-  OFF_ROUTE_THRESHOLD_M,
-  OFFLINE_MAX_TILES,
-  OFFLINE_TILE_BUFFER,
-  OFFLINE_ZOOMS,
-  type BaseLayerDef
+  OFF_ROUTE_THRESHOLD_M
 } from './config';
 import qrcode from 'qrcode-generator';
 import { fetchElevation, renderProfile } from './elevation';
+import { initOffline } from './features/offline';
 import { legendHtml } from './legend';
 import {
   compassDir,
@@ -20,22 +17,13 @@ import {
   formatDistance,
   formatDuration,
   haversine,
-  latLngToTile,
   naismithHours,
   projectOnPolyline,
   type LatLng,
   type RouteProgress
 } from './geo';
 import { parseGpx, toGpx } from './gpx';
-import {
-  applyLayers,
-  initMap,
-  layerDef,
-  map,
-  setOverlayOpacity,
-  tileUrlFor,
-  usable
-} from './map/map';
+import { applyLayers, initMap, map, setOverlayOpacity } from './map/map';
 import { formatGridRef } from './osgb';
 import {
   DEFAULT_POI_KINDS,
@@ -1717,71 +1705,7 @@ openSharedPin();
 
 // ---------------------------------------------------------------- offline tiles
 
-function tileUrls(def: BaseLayerDef, coords: LatLng[]): string[] {
-  const urls = new Set<string>();
-  for (const z of OFFLINE_ZOOMS) {
-    if (z > def.maxZoom) continue;
-    const seen = new Set<string>();
-    for (const [lat, lng] of coords) {
-      const [tx, ty] = latLngToTile(lat, lng, z);
-      for (let dx = -OFFLINE_TILE_BUFFER; dx <= OFFLINE_TILE_BUFFER; dx++) {
-        for (let dy = -OFFLINE_TILE_BUFFER; dy <= OFFLINE_TILE_BUFFER; dy++) {
-          seen.add(`${tx + dx},${ty + dy}`);
-        }
-      }
-    }
-    for (const key of seen) {
-      const [x, y] = key.split(',').map(Number);
-      const n = 2 ** z;
-      if (x < 0 || y < 0 || x >= n || y >= n) continue;
-      urls.add(
-        tileUrlFor(def)
-          .replace('{s}', 'a')
-          .replace('{z}', String(z))
-          .replace('{x}', String(x))
-          .replace('{y}', String(y))
-      );
-    }
-  }
-  return [...urls];
-}
-
-$('rcOffline').addEventListener('click', async () => {
-  if (!activeRoute) return toast('Load or plan a route first');
-  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
-    return toast('Offline caching only works in the installed (built) app', 5000);
-  }
-  const defs = [layerDef(settings.baseLayer), settings.overlayLayer ? layerDef(settings.overlayLayer) : undefined]
-    .filter(usable);
-  let urls = defs.flatMap((d) => tileUrls(d, activeRoute!.coords));
-  if (urls.length > OFFLINE_MAX_TILES) {
-    toast(`Route too long — capping at ${OFFLINE_MAX_TILES} tiles`, 4000);
-    urls = urls.slice(0, OFFLINE_MAX_TILES);
-  }
-  if (!confirm(`Download ~${urls.length} map tiles for offline use?`)) return;
-
-  let done = 0;
-  let failed = 0;
-  const queue = [...urls];
-  const workers = Array.from({ length: 6 }, async () => {
-    while (queue.length) {
-      const url = queue.shift()!;
-      try {
-        const res = await fetch(url);
-        if (!res.ok) failed++;
-      } catch {
-        failed++;
-      }
-      done++;
-      if (done % 25 === 0 || done === urls.length) {
-        toast(`Caching tiles… ${done}/${urls.length}`, 0);
-      }
-    }
-  });
-  await Promise.all(workers);
-  hideToast();
-  toast(failed ? `Done — ${failed} tiles failed` : `Offline tiles ready (${urls.length})`, 4000);
-});
+initOffline({ settings, getActiveRoute: () => activeRoute });
 
 // ---------------------------------------------------------------- service worker
 
