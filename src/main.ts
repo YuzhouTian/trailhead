@@ -55,32 +55,7 @@ import {
   type Settings
 } from './state';
 import { enableDoubleTapDragZoom } from './tapzoom';
-
-// ---------------------------------------------------------------- helpers
-
-const $ = <T extends HTMLElement>(id: string): T =>
-  document.getElementById(id) as T;
-
-let toastTimer: number | undefined;
-function toast(msg: string, ms = 3000): void {
-  const el = $('toast');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  window.clearTimeout(toastTimer);
-  if (ms > 0) toastTimer = window.setTimeout(() => el.classList.add('hidden'), ms);
-}
-function hideToast(): void {
-  $('toast').classList.add('hidden');
-}
-
-function downloadFile(name: string, content: string, mime: string): void {
-  const url = URL.createObjectURL(new Blob([content], { type: mime }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
-}
+import { $, downloadFile, hideToast, svgUse, toast } from './ui/dom';
 
 // ---------------------------------------------------------------- map + layers
 
@@ -114,7 +89,6 @@ applyTheme();
 // The "Me" button shows its state through the glyph as well as the colour:
 // a hollow crosshair when off, a filled one while following you north-up, and
 // a compass arrow in heading-up mode.
-const svgUse = (id: string) => `<svg viewBox="0 0 24 24"><use href="#${id}"/></svg>`;
 const LOCATE_ICON = { off: svgUse('i-locate'), follow: svgUse('i-locate-on'), heading: svgUse('i-compass') };
 
 // The map opens on a whole-UK view, then recentres on your actual area on
