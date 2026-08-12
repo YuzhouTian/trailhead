@@ -1,4 +1,6 @@
-import { defineConfig } from 'vite';
+// `vitest/config` rather than `vite` so the `test` block below is typed; it
+// re-exports Vite's own defineConfig, so `vite build` reads this unchanged.
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   base: './',
@@ -11,5 +13,14 @@ export default defineConfig({
   },
   build: {
     target: 'es2020'
+  },
+  test: {
+    // The tested modules are pure logic, so no DOM by default: node is much
+    // faster, and an accidental `document` reference fails loudly instead of
+    // quietly passing. The two files that do need browser globals opt in —
+    // gpx.test.ts with a `@vitest-environment jsdom` comment, share.test.ts
+    // with a two-line `location` stub.
+    environment: 'node',
+    include: ['src/**/*.test.ts']
   }
 });
