@@ -2,8 +2,18 @@ import L from './leaflet-setup';
 import './style.css';
 import { BASE_LAYERS, BROUTER_PROFILES } from './config';
 import qrcode from 'qrcode-generator';
-import { fetchElevation } from './elevation';
 import { initOffline } from './features/offline';
+import {
+  catMeta,
+  deletePin,
+  dismissPinCard,
+  getPins,
+  gridText,
+  hidePinCard,
+  initPins,
+  openSavedPin,
+  openSharedPin
+} from './features/pins';
 import { getPlan, initPlanner, isPlanning, updatePlanStats } from './features/planner';
 import {
   beginFollow,
@@ -20,7 +30,7 @@ import {
   updateBanner
 } from './features/tracking';
 import { legendHtml } from './legend';
-import { compassDir, computeClimbs, formatDistance, haversine, type LatLng } from './geo';
+import { computeClimbs, formatDistance, haversine, type LatLng } from './geo';
 import { toGpx } from './gpx';
 import { applyLayers, initMap, map, setOverlayOpacity } from './map/map';
 import { formatGridRef } from './osgb';
@@ -38,15 +48,11 @@ import { search, type SearchHit } from './search';
 import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
   loadActiveRoute,
-  loadPins,
   loadRoutes,
   loadSettings,
   saveActiveRoute,
-  savePins,
   saveRoutes,
   saveSettings,
-  type Pin,
-  type PinCategory,
   type SavedRoute,
   type Settings
 } from './state';
@@ -178,262 +184,11 @@ function positionText(p: LatLng): string {
 
 // ---------------------------------------------------------------- saved pins
 
-const PIN_CATS: { id: PinCategory; label: string; icon: string }[] = [
-  { id: 'summit', label: 'Summit', icon: 'c-summit' },
-  { id: 'viewpoint', label: 'Viewpoint', icon: 'c-viewpoint' },
-  { id: 'water', label: 'Water', icon: 'c-water' },
-  { id: 'camp', label: 'Camp', icon: 'c-camp' },
-  { id: 'parking', label: 'Parking', icon: 'c-parking' },
-  { id: 'other', label: 'Other', icon: 'c-other' }
-];
-const catMeta = (id: PinCategory) => PIN_CATS.find((c) => c.id === id) ?? PIN_CATS[5];
-
-let pins = loadPins();
-const pinMarkers = new Map<string, L.Marker>();
-let dropMarker: L.Marker | null = null; // the temporary pin for an unsaved point
-let eleAbort: AbortController | null = null; // in-flight elevation lookup
-let pinCardJustOpened = false; // swallow the click that can trail a long-press
-
-function renderPinMarkers(): void {
-  for (const m of pinMarkers.values()) m.remove();
-  pinMarkers.clear();
-  for (const pin of pins) {
-    const m = L.marker([pin.lat, pin.lng], {
-      icon: L.divIcon({
-        className: '',
-        html: `<div class="savedPin">${svgUse(catMeta(pin.category).icon)}</div>`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14]
-      })
-    }).addTo(map);
-    m.on('click', () => openSavedPin(pin.id));
-    pinMarkers.set(pin.id, m);
-  }
-}
-
-/** Grid ref where Britain has one, otherwise decimal lat/lng. */
-function gridText(lat: number, lng: number): string {
-  return formatGridRef(lat, lng, 4) || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-}
-
-function distFactInner(lat: number, lng: number, from: LatLng): string {
-  const d = formatDistance(haversine(from, [lat, lng]));
-  return `${svgUse('i-compass')}${d} ${compassDir(from, [lat, lng])}`;
-}
-
-/** Distance + compass bearing from the user. Renders a placeholder when we
- *  don't know where we are yet; hydrateDistance fills it or removes it. */
-function distFactHtml(lat: number, lng: number): string {
-  const known = getKnownPosition();
-  return known
-    ? `<span class="pc-fact" id="pcDist">${distFactInner(lat, lng, known)}</span>`
-    : `<span class="pc-fact loading" id="pcDist">${svgUse('i-compass')}…</span>`;
-}
-
-/**
- * Fill in the distance for a card that opened before we had a position, asking
- * for a one-shot fix. Drops the row if the fix never arrives, so a card that
- * can't answer doesn't sit there loading forever. The element is captured by
- * reference and checked with isConnected, so a late answer can't reach into
- * whatever card replaced this one.
- */
-function hydrateDistance(card: HTMLElement, lat: number, lng: number): void {
-  const el = card.querySelector<HTMLElement>('#pcDist');
-  if (!el || !el.classList.contains('loading')) return;
-  if (!('geolocation' in navigator)) {
-    el.remove();
-    return;
-  }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      const here: LatLng = [pos.coords.latitude, pos.coords.longitude];
-      setKnownPosition(here); // worth keeping even if this card has gone
-      if (!el.isConnected) return;
-      el.classList.remove('loading');
-      el.innerHTML = distFactInner(lat, lng, here);
-    },
-    () => { if (el.isConnected) el.remove(); },
-    { enableHighAccuracy: false, maximumAge: 600_000, timeout: 10_000 }
-  );
-}
-
-async function copyPin(p: { name?: string; lat: number; lng: number; ele?: number | null }): Promise<void> {
-  const grid = formatGridRef(p.lat, p.lng, 4);
-  const lines = [];
-  if (p.name) lines.push(p.name);
-  if (grid) lines.push(grid);
-  lines.push(`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`);
-  if (typeof p.ele === 'number') lines.push(`${Math.round(p.ele)} m`);
-  const text = lines.join('\n');
-  try {
-    await navigator.clipboard.writeText(text);
-    toast('Copied');
-  } catch {
-    prompt('Copy:', text);
-  }
-}
-
-async function sharePin(p: Pin): Promise<void> {
-  const url = `${location.origin}${location.pathname}#p=${p.lat.toFixed(5)},${p.lng.toFixed(5)},${encodeURIComponent(p.name)}`;
-  try {
-    await navigator.clipboard.writeText(url);
-    toast('Pin link copied');
-  } catch {
-    prompt('Copy the link:', url);
-  }
-}
-
-function hidePinCard(): void {
-  eleAbort?.abort();
-  eleAbort = null;
-  dropMarker?.remove();
-  dropMarker = null;
-  const card = $('pinCard');
-  card.classList.add('hidden');
-  card.innerHTML = '';
-}
-
-function flagOpened(): void {
-  pinCardJustOpened = true;
-  setTimeout(() => { pinCardJustOpened = false; }, 350);
-}
-
-/** The card for a fresh point: identify, name, tag, and save it. */
-function openNewPin(lat: number, lng: number): void {
-  hidePinCard();
-  flagOpened();
-  dropMarker = L.marker([lat, lng], {
-    icon: L.divIcon({
-      className: '',
-      html: `<div class="dropPin">${svgUse('i-pin')}</div>`,
-      iconSize: [32, 32],
-      iconAnchor: [16, 32]
-    })
-  }).addTo(map);
-
-  let category: PinCategory = 'other';
-  let ele: number | null | undefined; // undefined = still loading
-
-  const chips = PIN_CATS.map(
-    (c) => `<button class="pc-chip${c.id === category ? ' on' : ''}" data-cat="${c.id}">${svgUse(c.icon)}${c.label}</button>`
-  ).join('');
-  const card = $('pinCard');
-  card.innerHTML = `
-    <button class="pc-close" aria-label="Close">&times;</button>
-    <p class="pc-eyebrow">What's here</p>
-    <div class="pc-grid">${gridText(lat, lng)}</div>
-    <div class="pc-ll">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
-    <div class="pc-facts"><span class="pc-fact loading" id="pcEle">${svgUse('i-ele')}…</span>${distFactHtml(lat, lng)}</div>
-    <div class="pc-sep"></div>
-    <input class="pc-name" id="pcName" placeholder="Name this spot" autocomplete="off" />
-    <div class="pc-chips">${chips}</div>
-    <div class="pc-actions">
-      <button class="pc-primary" id="pcSave">${svgUse('i-save')}Save pin</button>
-      <button class="pc-neutral" id="pcCopy">${svgUse('i-copy')}Copy</button>
-    </div>`;
-  card.classList.remove('hidden');
-
-  card.querySelector('.pc-close')!.addEventListener('click', hidePinCard);
-  card.querySelectorAll<HTMLButtonElement>('.pc-chip').forEach((b) =>
-    b.addEventListener('click', () => {
-      category = b.dataset.cat as PinCategory;
-      card.querySelectorAll('.pc-chip').forEach((x) => x.classList.toggle('on', x === b));
-    })
-  );
-  $('pcCopy').addEventListener('click', () => copyPin({ lat, lng, ele: ele ?? null }));
-  $('pcSave').addEventListener('click', () => {
-    const name = ($('pcName') as HTMLInputElement).value.trim() || catMeta(category).label;
-    const pin: Pin = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      name, category, lat, lng, ele: ele ?? null, createdAt: Date.now()
-    };
-    pins.push(pin);
-    savePins(pins);
-    renderPinMarkers();
-    openSavedPin(pin.id);
-    toast('Pin saved');
-  });
-
-  // Elevation arrives a moment later; fill it in, or drop the line if it fails.
-  // Captured by reference (not re-queried by id) so a stale, aborted lookup
-  // can't reach into whatever card replaced this one in the meantime.
-  hydrateDistance(card, lat, lng);
-
-  const eleEl = card.querySelector<HTMLElement>('#pcEle');
-  eleAbort = new AbortController();
-  fetchElevation(lat, lng, eleAbort.signal).then((m) => {
-    ele = m;
-    if (!eleEl || !eleEl.isConnected) return;
-    if (typeof m === 'number') {
-      eleEl.classList.remove('loading');
-      eleEl.innerHTML = `${svgUse('i-ele')}${Math.round(m)} m`;
-    } else {
-      eleEl.remove();
-    }
-  });
-}
-
-/** The card for an already-saved pin: reopened by tapping its marker. */
-function openSavedPin(id: string): void {
-  const pin = pins.find((p) => p.id === id);
-  if (!pin) return;
-  hidePinCard();
-  flagOpened();
-  const eleHtml =
-    typeof pin.ele === 'number' ? `<span class="pc-fact">${svgUse('i-ele')}${Math.round(pin.ele)} m</span>` : '';
-  const card = $('pinCard');
-  card.innerHTML = `
-    <button class="pc-close" aria-label="Close">&times;</button>
-    <p class="pc-eyebrow">Saved pin</p>
-    <div class="pc-title"><span class="ci">${svgUse(catMeta(pin.category).icon)}</span><span class="nm">${pin.name.replace(/</g, '&lt;')}</span></div>
-    <div class="pc-grid">${gridText(pin.lat, pin.lng)}</div>
-    <div class="pc-ll">${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}</div>
-    <div class="pc-facts">${eleHtml}${distFactHtml(pin.lat, pin.lng)}</div>
-    <div class="pc-actions">
-      <button class="pc-neutral" id="pcCopy">${svgUse('i-copy')}Copy</button>
-      <button class="pc-neutral" id="pcShare">${svgUse('i-share')}Share</button>
-      <button class="pc-danger" id="pcDel" aria-label="Delete pin">${svgUse('i-trash')}</button>
-    </div>`;
-  card.classList.remove('hidden');
-
-  hydrateDistance(card, pin.lat, pin.lng);
-
-  card.querySelector('.pc-close')!.addEventListener('click', hidePinCard);
-  $('pcCopy').addEventListener('click', () => copyPin(pin));
-  $('pcShare').addEventListener('click', () => sharePin(pin));
-  $('pcDel').addEventListener('click', () => {
-    if (!confirm(`Delete “${pin.name}”?`)) return;
-    pins = pins.filter((p) => p.id !== pin.id);
-    savePins(pins);
-    renderPinMarkers();
-    hidePinCard();
-    toast('Pin deleted');
-  });
-}
-
-/** A #p=lat,lng,name link centres here and offers to save the pin. */
-function openSharedPin(): boolean {
-  const m = location.hash.match(/^#p=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,(.*))?$/);
-  if (!m) return false;
-  const lat = parseFloat(m[1]);
-  const lng = parseFloat(m[2]);
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-  history.replaceState(null, '', location.pathname + location.search);
-  pauseFollow(); // a shared pin is somewhere else by definition
-  map.setView([lat, lng], Math.max(map.getZoom(), 15));
-  openNewPin(lat, lng);
-  const nameEl = document.getElementById('pcName') as HTMLInputElement | null;
-  if (nameEl && m[3]) nameEl.value = decodeURIComponent(m[3]);
-  return true;
-}
-
-renderPinMarkers();
-
-// Long-press (or right-click) anywhere to identify and optionally save a spot.
-map.on('contextmenu', (e: L.LeafletMouseEvent) => {
-  if (isPlanning()) return;
-  openNewPin(e.latlng.lat, e.latlng.lng);
-});
+// The pin cards, the long-press that drops one, and the #p= link that shares
+// one all live in features/pins.ts. It needs nothing from here: it reads where
+// you are through tracking's accessors and asks the planner whether a
+// long-press means "identify this spot" or "you are drawing a route".
+initPins();
 
 // ---------------------------------------------------------------- search
 
@@ -903,6 +658,7 @@ function openRoutesPanel(): void {
         .join('')
     : '<p class="hint">No saved routes yet. Import a GPX or plan one with the pencil tool.</p>';
 
+  const pins = getPins();
   const pinItems = pins.length
     ? pins
         .map(
@@ -947,12 +703,8 @@ function openRoutesPanel(): void {
         pauseFollow(); // the pin is the point of the tap; don't let a fix drag us off it
         map.setView([pin.lat, pin.lng], Math.max(map.getZoom(), 15));
         openSavedPin(pin.id);
-      } else {
-        if (!confirm(`Delete “${pin.name}”?`)) return;
-        pins = pins.filter((x) => x.id !== id);
-        savePins(pins);
-        renderPinMarkers();
-        openRoutesPanel();
+      } else if (deletePin(pin.id)) {
+        openRoutesPanel(); // redraw the list without it
       }
     });
   });
@@ -1032,7 +784,7 @@ $('btnRoutes').addEventListener('click', openRoutesPanel);
 map.on('click', () => {
   hidePanel();
   hideSearchResults();
-  if (!pinCardJustOpened) hidePinCard();
+  dismissPinCard(); // a no-op when a long-press only just opened it
 });
 
 // ---------------------------------------------------------------- shared-link import
