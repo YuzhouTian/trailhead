@@ -1,26 +1,32 @@
 import L from './leaflet-setup';
 import './style.css';
-import {
-  BASE_LAYERS,
-  BROUTER_PROFILES,
-  EN_ROUTE_THRESHOLD_M,
-  OFF_ROUTE_THRESHOLD_M
-} from './config';
+import { BASE_LAYERS, BROUTER_PROFILES } from './config';
 import qrcode from 'qrcode-generator';
 import { fetchElevation } from './elevation';
 import { initOffline } from './features/offline';
+import {
+  beginFollow,
+  getKnownPosition,
+  getLastFix,
+  hereAlongM,
+  initTracking,
+  isTracking,
+  pauseFollow,
+  remainingText,
+  resetRouteProgress,
+  resumeFollow,
+  setKnownPosition,
+  updateBanner
+} from './features/tracking';
 import { legendHtml } from './legend';
 import {
   compassDir,
   computeClimbs,
-  cumulativeDistances,
   formatDistance,
   formatDuration,
   haversine,
   naismithHours,
-  projectOnPolyline,
-  type LatLng,
-  type RouteProgress
+  type LatLng
 } from './geo';
 import { parseGpx, toGpx } from './gpx';
 import { applyLayers, initMap, map, setOverlayOpacity } from './map/map';
@@ -52,7 +58,7 @@ import {
   type Settings
 } from './state';
 import { $, downloadFile, hideToast, svgUse, toast } from './ui/dom';
-import { climbText, initRouteCard, updateRouteCard, updateRouteStart } from './ui/routeCard';
+import { climbText, initRouteCard, updateRouteCard } from './ui/routeCard';
 
 // ---------------------------------------------------------------- stored state
 
@@ -83,34 +89,18 @@ function applyTheme(): void {
 darkQuery.addEventListener('change', () => { if (settings.theme === 'system') applyTheme(); });
 applyTheme();
 
-// The "Me" button shows its state through the glyph as well as the colour:
-// a hollow crosshair when off, a filled one while following you north-up, and
-// a compass arrow in heading-up mode.
-const LOCATE_ICON = { off: svgUse('i-locate'), follow: svgUse('i-locate-on'), heading: svgUse('i-compass') };
-
 // Tiles, viewport and the startup recentre live in map/map.ts; the one-shot
-// startup fix comes back here because "where we last were" is the app's, not
-// the map's (see lastKnownPos below).
-initMap({ settings, onStartupPosition: (p) => { lastKnownPos = p; } });
+// startup fix goes to tracking, which owns "where we last were".
+initMap({ settings, onStartupPosition: setKnownPosition });
 
 // ---------------------------------------------------------------- active route
 
 let activeRoute: SavedRoute | null = null;
 let activeLine: L.Polyline | null = null;
-// How far along the active route we last were, and the latest projection —
-// used to keep progress continuous where the line passes close to itself.
-let routeHint: number | null = null;
-let lastProg: RouteProgress | null = null;
-// The newest projection near enough to the line to be believed as progress.
-// Stays put while you are away from the route, so the readout holds the last
-// real position instead of following a meaningless nearest-point guess.
-let lastOnRouteProg: RouteProgress | null = null;
 
 function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void {
   activeRoute = r;
-  routeHint = null; // a freshly loaded route reads from its start
-  lastProg = null;
-  lastOnRouteProg = null;
+  resetRouteProgress(); // a freshly loaded route reads from its start
   activeLine?.remove();
   activeLine = null;
   if (r) {
@@ -135,23 +125,24 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
 // ------------------------------------------------- active-route card
 
 // The card itself lives in ui/routeCard.ts and knows nothing about the planner
-// or GPS; this gathers what it should show. Only the "you are here" mark
-// (lastOnRouteProg) is deliberately conservative — it stays null until a fix
-// lands near the line, so the dot never appears at a guessed place.
+// or GPS; this gathers what it should show, reading the plan from here and the
+// progress from tracking. The "you are here" mark is deliberately conservative
+// — hereAlongM() stays null until a fix lands near the line, so the dot never
+// appears at a guessed place.
 initRouteCard({
   getView: () => ({
     src: planning ? planResult : activeRoute,
     name: planning ? 'New route' : activeRoute?.name ?? '',
     planning,
     remaining: planning ? null : remainingText(),
-    hereM: planning ? null : lastOnRouteProg?.alongM ?? null,
-    following: watchId !== null,
+    hereM: planning ? null : hereAlongM(),
+    following: isTracking(),
     speedKmh: settings.speedKmh
   }),
   onClose: () => setActiveRoute(null),
   onStart: () => {
     // Begin following this route, or re-centre if GPS is already live.
-    if (watchId === null) beginFollow();
+    if (!isTracking()) beginFollow();
     else resumeFollow();
   }
 });
@@ -360,294 +351,10 @@ $('gpxFile').addEventListener('change', async (e) => {
 
 // ---------------------------------------------------------------- location + on/off route
 
-const gpsIcon = L.divIcon({ className: '', html: '<div class="gpsDot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
-
-let watchId: number | null = null;
-let gpsMarker: L.Marker | null = null;
-let accCircle: L.Circle | null = null;
-let lastFix: LatLng | null = null;
-let lastAccuracy = 0;
-let follow = false;
-/**
- * Best position we know of, whether or not Me is following. Deliberately
- * separate from lastFix: route progress and the on/off-route banner should only
- * speak while GPS is genuinely live, but "how far away is that pin" is still
- * worth answering from the last position we had. Survives stopWatch().
- */
-let lastKnownPos: LatLng | null = null;
-
-function updateBanner(): void {
-  const banner = $('statusBanner');
-  if (!lastFix || !activeRoute) {
-    lastProg = null;
-    lastOnRouteProg = null;
-    banner.classList.add('hidden');
-    updateRouteCard();
-    return;
-  }
-  // One projection per fix, seeded with where we were, then shared with the
-  // remaining-distance readout so both stay consistent and continuous.
-  const prog = projectOnPolyline(lastFix, activeRoute.coords, routeHint);
-  lastProg = prog;
-  // Only let a fix near the line move the hint. From miles away the nearest
-  // point can be anywhere on the route, and seeding the hint with that would
-  // drag every later projection towards the wrong part of the walk.
-  if (prog && prog.offRouteM <= EN_ROUTE_THRESHOLD_M) {
-    routeHint = prog.alongM;
-    lastOnRouteProg = prog;
-  }
-  banner.classList.remove('hidden');
-  if (prog && prog.offRouteM <= OFF_ROUTE_THRESHOLD_M) {
-    banner.className = '';
-    banner.textContent = `On route · ${Math.round(prog.offRouteM)} m from line`;
-  } else {
-    banner.className = 'off';
-    banner.textContent = `OFF ROUTE · ${formatDistance(prog?.offRouteM ?? Infinity)} away`;
-  }
-  updateRouteCard();
-}
-
-/**
- * What's left of the active route from the current position: distance,
- * remaining climb, and a time estimate at the user's pace.
- */
-function remainingText(): string | null {
-  if (!lastFix || !activeRoute || !lastProg) return null;
-  const coords = activeRoute.coords;
-
-  // Away from the line, the projection is not progress. Before the walk has
-  // started there is nothing to report but how far off the route is; once it
-  // has, hold the last position we believed rather than jumping about.
-  const prog = lastProg.offRouteM <= EN_ROUTE_THRESHOLD_M ? lastProg : lastOnRouteProg;
-  if (!prog) return `Not started · ${formatDistance(lastProg.offRouteM)} to the route`;
-
-  const cum = cumulativeDistances(coords);
-  const total = cum[cum.length - 1];
-  const remainingM = Math.max(0, total - prog.alongM);
-
-  // Remaining climb and descent: only the part of the profile still ahead.
-  const ahead = coords.slice(prog.index + 1);
-  const { ascentM, descentM } = computeClimbs(ahead);
-  const est = naismithHours(remainingM, ascentM, settings.speedKmh);
-
-  const pct = total > 0 ? Math.round((prog.alongM / total) * 100) : 0;
-  return `${formatDistance(remainingM)} to go · ${climbText(ascentM, descentM)} · ~${formatDuration(est)} · ${pct}% done`;
-}
-
-function onFix(pos: GeolocationPosition): void {
-  const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
-  lastFix = p;
-  lastKnownPos = p;
-  lastAccuracy = pos.coords.accuracy;
-  if (!gpsMarker) {
-    gpsMarker = L.marker(p, { icon: gpsIcon }).addTo(map);
-    // Tap your own dot for the grid reference to read out to mountain rescue.
-    // Built lazily on open (from the latest fix) rather than rebuilt every
-    // second, which is wasted work you never see unless the popup is showing.
-    gpsMarker.bindPopup(() =>
-      `<div style="font-size:13px;line-height:1.5">${lastFix ? positionText(lastFix) : ''}<br>
-       <span style="color:var(--muted)">±${Math.round(lastAccuracy)} m</span></div>`
-    );
-    accCircle = L.circle(p, {
-      radius: pos.coords.accuracy,
-      color: '#1a73e8',
-      weight: 1,
-      fillOpacity: 0.12,
-      interactive: false
-    }).addTo(map);
-  } else {
-    gpsMarker.setLatLng(p);
-    accCircle!.setLatLng(p).setRadius(pos.coords.accuracy);
-  }
-  // Recentre instantly: fixes arrive every second or so, and queueing a pan
-  // animation per fix looks jittery and stalls entirely while backgrounded.
-  if (follow) map.setView(p, Math.max(map.getZoom(), 15), { animate: false });
-  updateBanner();
-}
-
-// --- compass (heading-up) mode ---------------------------------------
-
-let headingOn = false;
-let headingHandler: ((e: DeviceOrientationEvent) => void) | null = null;
-/** Newest compass reading, degrees clockwise from north. */
-let targetHeading: number | null = null;
-/** Smoothed heading currently drawn, chased towards the target each frame. */
-let shownHeading: number | null = null;
-let appliedHeading: number | null = null;
-let headingFrame: number | null = null;
-
-/** Shortest signed turn from a to b, in (-180, 180] — handles the 359°→0° wrap. */
-function angleDelta(a: number, b: number): number {
-  return ((b - a + 540) % 360) - 180;
-}
-
-/**
- * Redraw the bearing once per animation frame rather than once per compass
- * event, easing towards the latest reading. Following the raw sensor looks
- * jittery (it is noisy and fires irregularly); easing at display rate looks
- * like the map is simply turning with you.
- */
-function headingTick(): void {
-  if (targetHeading === null) {
-    headingFrame = null;
-    return;
-  }
-
-  if (shownHeading === null) shownHeading = targetHeading;
-  else shownHeading = (shownHeading + angleDelta(shownHeading, targetHeading) * 0.25 + 360) % 360;
-
-  if (appliedHeading === null || Math.abs(angleDelta(appliedHeading, shownHeading)) >= 0.25) {
-    appliedHeading = shownHeading;
-    map.setBearing(-shownHeading);
-  }
-
-  // Keep animating only while the shown heading is still catching up. Once it
-  // has settled, stop the loop entirely so a still phone wakes nothing — the
-  // compass handler restarts it when you actually turn.
-  if (Math.abs(angleDelta(shownHeading, targetHeading)) >= 0.25) {
-    headingFrame = requestAnimationFrame(headingTick);
-  } else {
-    shownHeading = targetHeading;
-    headingFrame = null;
-  }
-}
-
-async function startHeading(): Promise<boolean> {
-  type DOEStatic = { requestPermission?: () => Promise<string> };
-  const doe = DeviceOrientationEvent as unknown as DOEStatic;
-  try {
-    if (typeof doe.requestPermission === 'function') {
-      if ((await doe.requestPermission()) !== 'granted') return false;
-    }
-  } catch {
-    return false;
-  }
-  // Record every reading; headingTick decides how often to redraw. Restart the
-  // animation loop only when it's asleep and the reading actually moved, so a
-  // motionless phone keeps it idle.
-  headingHandler = (e: DeviceOrientationEvent) => {
-    const webkit = (e as DeviceOrientationEvent & { webkitCompassHeading?: number })
-      .webkitCompassHeading;
-    let reading: number | null = null;
-    if (typeof webkit === 'number' && !Number.isNaN(webkit)) reading = webkit;
-    else if (e.absolute && typeof e.alpha === 'number') reading = 360 - e.alpha;
-    if (reading === null) return;
-    targetHeading = reading;
-    if (
-      headingOn &&
-      headingFrame === null &&
-      (shownHeading === null || Math.abs(angleDelta(shownHeading, reading)) >= 0.25)
-    ) {
-      headingFrame = requestAnimationFrame(headingTick);
-    }
-  };
-  window.addEventListener('deviceorientation', headingHandler);
-  headingFrame = requestAnimationFrame(headingTick);
-  headingOn = true;
-  return true;
-}
-
-function stopHeading(): void {
-  if (headingHandler) window.removeEventListener('deviceorientation', headingHandler);
-  if (headingFrame !== null) cancelAnimationFrame(headingFrame);
-  headingHandler = null;
-  headingFrame = null;
-  targetHeading = shownHeading = appliedHeading = null;
-  headingOn = false;
-  map.setBearing(0);
-}
-
-function stopWatch(): void {
-  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-  watchId = null;
-  follow = false;
-  stopHeading();
-  gpsMarker?.remove();
-  accCircle?.remove();
-  gpsMarker = null;
-  accCircle = null;
-  lastFix = null;
-  // lastKnownPos deliberately kept: switching following off shouldn't erase
-  // where you last were, or pin distances vanish with it.
-  $('btnLocate').classList.remove('active');
-  $('locateIco').innerHTML = LOCATE_ICON.off;
-  updateRouteStart(watchId !== null);
-  updateBanner();
-}
-
-/** Start GPS following (north-up). Shared by the Me button and the card Start. */
-function beginFollow(): boolean {
-  if (!('geolocation' in navigator)) {
-    toast('No geolocation on this device');
-    return false;
-  }
-  follow = true;
-  $('btnLocate').classList.add('active');
-  $('locateIco').innerHTML = LOCATE_ICON.follow;
-  watchId = navigator.geolocation.watchPosition(onFix, (err) => {
-    toast(`GPS error: ${err.message}`, 5000);
-    stopWatch();
-  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
-  updateRouteStart(watchId !== null);
-  return true;
-}
-
-// Re-centre on the last fix and resume following, keeping the heading-up/
-// north-up icon in sync with whether heading mode is currently on.
-function resumeFollow(): void {
-  follow = true;
-  $('locateIco').innerHTML = headingOn ? LOCATE_ICON.heading : LOCATE_ICON.follow;
-  if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
-}
-
-/**
- * Stop auto-recentring, without giving up the fix. Opening a place — a search
- * hit, a pin, a route — means "show me this", and the next fix a second later
- * used to drag the map straight back to you, which is what made opening
- * anything with Me on feel broken.
- *
- * Everything that makes GPS worth having stays: the dot, the accuracy circle,
- * the on/off-route banner, the distance still to go. Only the centring stops,
- * so you can see the place you asked for and yourself at the same time.
- * Heading-up drops back to north-up, because a map that keeps turning with
- * your body around somewhere you are not standing is just noise. The next tap
- * of Me re-centres and follows again, as it does after a drag.
- */
-function pauseFollow(): void {
-  if (watchId === null) return; // not following: nothing to pause
-  const wasHeading = headingOn;
-  follow = false;
-  stopHeading(); // no-op when already north-up; squares the map back up otherwise
-  $('locateIco').innerHTML = LOCATE_ICON.follow;
-  // Silent for an ordinary pause — the dot is still there and the map simply
-  // stays put. Losing heading-up is the one part that visibly changes the map
-  // out from under you, so say that much and no more.
-  if (wasHeading) toast('Back to north-up — tap Me to follow again', 3000);
-}
-
-// Tap cycle: off → follow north-up → follow heading-up → off.
-// A map drag, or opening a place, pauses following; the next tap re-centres.
-$('btnLocate').addEventListener('click', async () => {
-  if (watchId === null) {
-    if (beginFollow()) toast('Following you — tap again to rotate with your heading', 3000);
-  } else if (!follow) {
-    resumeFollow();
-  } else if (!headingOn) {
-    if (await startHeading()) {
-      $('locateIco').innerHTML = LOCATE_ICON.heading;
-      toast('Heading-up — the map turns with you. Tap again to stop.', 3000);
-    } else {
-      toast('Compass not available — staying north-up. Tap again to stop.', 3500);
-      stopWatch();
-    }
-  } else {
-    stopWatch();
-  }
-});
-
-map.on('dragstart', () => {
-  follow = false;
-});
+// The GPS dot, the Me button's follow/heading-up cycle, the on/off-route banner
+// and everything derived from a fix live in features/tracking.ts. The route it
+// measures progress against is the app's, so it reads it through a getter.
+initTracking({ settings, getActiveRoute: () => activeRoute, positionText });
 
 // ---------------------------------------------------------------- grid references
 
@@ -706,7 +413,7 @@ function distFactInner(lat: number, lng: number, from: LatLng): string {
 /** Distance + compass bearing from the user. Renders a placeholder when we
  *  don't know where we are yet; hydrateDistance fills it or removes it. */
 function distFactHtml(lat: number, lng: number): string {
-  const known = lastKnownPos;
+  const known = getKnownPosition();
   return known
     ? `<span class="pc-fact" id="pcDist">${distFactInner(lat, lng, known)}</span>`
     : `<span class="pc-fact loading" id="pcDist">${svgUse('i-compass')}…</span>`;
@@ -728,10 +435,11 @@ function hydrateDistance(card: HTMLElement, lat: number, lng: number): void {
   }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      lastKnownPos = [pos.coords.latitude, pos.coords.longitude];
+      const here: LatLng = [pos.coords.latitude, pos.coords.longitude];
+      setKnownPosition(here); // worth keeping even if this card has gone
       if (!el.isConnected) return;
       el.classList.remove('loading');
-      el.innerHTML = distFactInner(lat, lng, lastKnownPos);
+      el.innerHTML = distFactInner(lat, lng, here);
     },
     () => { if (el.isConnected) el.remove(); },
     { enableHighAccuracy: false, maximumAge: 600_000, timeout: 10_000 }
@@ -982,7 +690,7 @@ $('searchInput').addEventListener('input', () => {
   if (q.trim().length < 2) return hideSearchResults();
   searchTimer = window.setTimeout(async () => {
     const ctrl = (searchAbort = new AbortController());
-    const near: LatLng = lastFix ?? [map.getCenter().lat, map.getCenter().lng];
+    const near: LatLng = getLastFix() ?? [map.getCenter().lat, map.getCenter().lng];
     try {
       // The second callback lands later, if a background lookup finds a better
       // order or something worth saying about a result. It may never come, and
@@ -1023,7 +731,7 @@ async function showNearbyPois(): Promise<void> {
   if (!kinds.length) {
     return toast('No nearby categories are ticked — choose some in Settings', 4500);
   }
-  const centre: LatLng = lastFix ?? [map.getCenter().lat, map.getCenter().lng];
+  const centre: LatLng = getLastFix() ?? [map.getCenter().lat, map.getCenter().lng];
   // Cover roughly the visible map, clamped to something Overpass answers quickly.
   const bounds = map.getBounds();
   const radius = Math.min(
@@ -1056,7 +764,8 @@ function poiMarker(p: Poi): L.Marker {
     })
   });
   const height = p.ele !== undefined ? ` · ${Math.round(p.ele)} m` : '';
-  const away = lastKnownPos ? ` · ${formatDistance(haversine(lastKnownPos, p.pos))} away` : '';
+  const here = getKnownPosition();
+  const away = here ? ` · ${formatDistance(haversine(here, p.pos))} away` : '';
   // An unnamed feature is titled with its category, so don't repeat it beneath.
   const type = p.name === cat?.label ? '' : (cat?.label ?? 'Point');
   marker.bindPopup(

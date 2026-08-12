@@ -66,6 +66,10 @@ export function initOffline(opts: {
 
   $('rcOffline').addEventListener('click', async () => {
     const route = getActiveRoute();
+    // Belt and braces, not a state you can reach: ui/routeCard.ts hides this
+    // button whenever there is no route (and while planning), so by the time it
+    // is clickable there is always one. Kept because that rule lives in another
+    // module — this is what keeps offline.ts correct on its own if it drifts.
     if (!route) return toast('Load or plan a route first');
     if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
       return toast('Offline caching only works in the installed (built) app', 5000);
