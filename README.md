@@ -169,9 +169,31 @@ npm install
 npm run dev     # vite dev server on http://localhost:5173
 npm run build   # production build into dist/
 npm run preview # serve the built app (service worker only runs here, not in dev)
+npm test        # unit tests, once
+npm run test:watch
 ```
 
 On Windows, `Start Trailhead.cmd` does the dev-server dance and opens a browser for you.
+
+### Tests
+
+Vitest, in the node environment, with each test file sitting next to the module it covers
+(`src/geo.test.ts` beside `src/geo.ts`). They cover the pure logic only — the maths and the
+parsing, where a silently wrong answer is most expensive. The feature modules touch the DOM
+and Leaflet and are not covered yet.
+
+Fixtures come from published sources rather than from the code's own output, so the tests say
+something about correctness rather than merely detecting change. In particular `osgb.ts` is
+checked against all forty of Ordnance Survey's own OSTN15 transformation test points, from the
+Scillies to Shetland; it agrees with them to under five metres, which is the expected error of
+a Helmert transform standing in for the full OSTN15 grid.
+
+Two tests are marked `it.fails`. Those are known bugs with the assertion already written
+([#41](https://github.com/YuzhouTian/trailhead/issues/41),
+[#42](https://github.com/YuzhouTian/trailhead/issues/42)); fixing the code turns them green,
+and the marker comes off in the same commit.
+
+`npm test` runs in CI ahead of the build, so a failing test blocks the deploy.
 
 ### Project layout
 
