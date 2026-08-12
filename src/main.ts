@@ -43,6 +43,18 @@ import { initRouteCard, updateRouteCard } from './ui/routeCard';
 const settings = loadSettings();
 let routes = loadRoutes();
 
+/**
+ * Keep a new route. Both ways of acquiring one — planning or importing a GPX
+ * (features/planner.ts), and receiving a shared link (features/sharing.ts) —
+ * end here, so what "save" means is written down once rather than in each of
+ * their init calls. `routes` is reassigned when one is deleted, which is why
+ * this closes over the variable rather than being handed the array.
+ */
+function saveRoute(r: SavedRoute): void {
+  routes.push(r);
+  saveRoutes(routes);
+}
+
 // ---------------------------------------------------------------- theme
 // A pre-paint script in index.html already set data-theme from the saved
 // choice; this keeps it in sync when the setting changes, and drives the
@@ -135,15 +147,7 @@ initRouteCard({
 // Sketching a route and importing a GPX file both live in features/planner.ts.
 // Neither keeps what it makes: a finished route comes back out through these
 // callbacks, because the saved list and the active route are the app's.
-initPlanner({
-  settings,
-  saveRoute: (r) => {
-    routes.push(r);
-    saveRoutes(routes);
-  },
-  setActiveRoute,
-  hidePanel
-});
+initPlanner({ settings, saveRoute, setActiveRoute, hidePanel });
 
 // ---------------------------------------------------------------- location + on/off route
 
@@ -176,16 +180,7 @@ initSearch({ settings });
 // being kept there. features/qr.ts is the camera half, split off because it is
 // a different job with different failures and a decoder chunk most people never
 // download; it knows only enough to recognise a link and hand it over.
-initSharing({
-  settings,
-  saveRoute: (r) => {
-    routes.push(r);
-    saveRoutes(routes);
-  },
-  setActiveRoute,
-  showPanel,
-  hidePanel
-});
+initSharing({ settings, saveRoute, setActiveRoute, showPanel, hidePanel });
 initQr({ hidePanel });
 
 // ---------------------------------------------------------------- panels
@@ -229,6 +224,11 @@ openSharedPin();
 
 // ---------------------------------------------------------------- offline tiles
 
+// Down here with the service worker rather than up with the other inits: the
+// download only works once the SW is controlling the page, and the two are one
+// story. Ordering is not what keeps it here — nothing else listens to
+// #rcOffline, and the route arrives as a getter — so it is safe to move if the
+// grouping ever stops earning its place.
 initOffline({ settings, getActiveRoute: () => activeRoute });
 
 // ---------------------------------------------------------------- service worker
