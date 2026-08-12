@@ -85,7 +85,18 @@ function clearPlan(): void {
   planLine = null;
   planResult = null;
   planAbort?.abort();
+  refreshPlanUi();
+}
+
+/**
+ * The plan changed. Two things read it — the stats line along the plan bar and
+ * the route card above it — and both have to be told, in every direction. Only
+ * telling the plan bar is what left a cleared plan's stats sitting on the card
+ * until you added a point back or left planning (#39).
+ */
+function refreshPlanUi(): void {
   updatePlanStats();
+  updateRouteCard();
 }
 
 /**
@@ -133,7 +144,7 @@ async function recomputePlan(): Promise<void> {
     planLine?.remove();
     planLine = null;
     planResult = null;
-    updatePlanStats();
+    refreshPlanUi();
     return;
   }
   planAbort?.abort();
@@ -144,8 +155,7 @@ async function recomputePlan(): Promise<void> {
     planResult = result;
     planLine?.remove();
     planLine = L.polyline(result.coords, { color: '#1a73e8', weight: 4 }).addTo(map);
-    updatePlanStats();
-    updateRouteCard();
+    refreshPlanUi();
   } catch (e) {
     if ((e as Error).name === 'AbortError') return;
     // Router unreachable (offline / bad segment): fall back to straight lines.
@@ -164,8 +174,7 @@ async function recomputePlan(): Promise<void> {
       weight: 4,
       dashArray: '6 8'
     }).addTo(map);
-    updatePlanStats();
-    updateRouteCard();
+    refreshPlanUi();
     toast(`Router error — showing straight line. ${(e as Error).message}`, 5000);
   }
 }
