@@ -1,7 +1,6 @@
 import L from './leaflet-setup';
 import './style.css';
 import { BASE_LAYERS, BROUTER_PROFILES } from './config';
-import qrcode from 'qrcode-generator';
 import { initOffline } from './features/offline';
 import {
   catMeta,
@@ -14,6 +13,7 @@ import {
   openSharedPin
 } from './features/pins';
 import { getPlan, initPlanner, isPlanning, updatePlanStats } from './features/planner';
+import { initQr, startQrScan } from './features/qr';
 import {
   clearNearby,
   hideSearchResults,
@@ -23,6 +23,12 @@ import {
   poiKindsNote,
   showNearbyPois
 } from './features/search';
+import {
+  importSharedRoute,
+  initSharing,
+  openSharePanel,
+  pasteSharedRoute
+} from './features/sharing';
 import {
   beginFollow,
   hereAlongM,
@@ -36,12 +42,10 @@ import {
   updateBanner
 } from './features/tracking';
 import { legendHtml } from './legend';
-import { computeClimbs, formatDistance, haversine } from './geo';
+import { formatDistance } from './geo';
 import { toGpx } from './gpx';
 import { applyLayers, initMap, map, setOverlayOpacity } from './map/map';
 import { DEFAULT_POI_KINDS, POI_CATEGORIES } from './poi';
-import { routeMixed } from './routing';
-import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
   loadActiveRoute,
   loadRoutes,
@@ -52,7 +56,7 @@ import {
   type SavedRoute,
   type Settings
 } from './state';
-import { $, downloadFile, hideToast, svgUse, toast } from './ui/dom';
+import { $, downloadFile, svgUse, toast } from './ui/dom';
 import { gridText } from './ui/format';
 import { climbText, initRouteCard, updateRouteCard } from './ui/routeCard';
 
@@ -185,6 +189,26 @@ initPins();
 // markers with the same popup, and both pause following. The Map and Settings
 // panels drive nearby, so it exposes state rather than owning a control.
 initSearch({ settings });
+
+// ---------------------------------------------------------------- sharing + QR
+
+// Both ends of the #r= link live in features/sharing.ts — writing one as a QR
+// and a URL, and reading one back from a paste, a scan or the address bar. Like
+// the planner, a received route leaves through these callbacks rather than
+// being kept there. features/qr.ts is the camera half, split off because it is
+// a different job with different failures and a decoder chunk most people never
+// download; it knows only enough to recognise a link and hand it over.
+initSharing({
+  settings,
+  saveRoute: (r) => {
+    routes.push(r);
+    saveRoutes(routes);
+  },
+  setActiveRoute,
+  showPanel,
+  hidePanel
+});
+initQr({ hidePanel });
 
 // ---------------------------------------------------------------- panels
 
@@ -371,97 +395,6 @@ function openSettingsPanel(): void {
   });
 }
 
-// ---------------------------------------------------------------- QR import (camera)
-
-let qrStream: MediaStream | null = null;
-let qrRAF: number | null = null;
-
-function stopQrScan(): void {
-  if (qrRAF !== null) cancelAnimationFrame(qrRAF);
-  qrRAF = null;
-  qrStream?.getTracks().forEach((t) => t.stop());
-  qrStream = null;
-  ($('qrVideo') as HTMLVideoElement).srcObject = null;
-  $('qrScan').classList.add('hidden');
-}
-
-/** Open the camera and watch for a Trailhead route QR, importing the first one
- *  seen. Other QR codes are ignored so it keeps looking. */
-async function startQrScan(): Promise<void> {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    return toast('No camera access in this app', 4000);
-  }
-  const video = $('qrVideo') as HTMLVideoElement;
-  // The decoder is a chunk of its own, fetched only the first time you scan, so
-  // it never weighs down the app for people who don't. Cached after first use.
-  let jsQR: typeof import('jsqr').default;
-  try {
-    jsQR = (await import('jsqr')).default;
-  } catch {
-    return toast('Could not load the scanner — connect to the internet once and retry', 5000);
-  }
-  try {
-    // Ask for a high-resolution rear stream — the default is often 640×480,
-    // too coarse to resolve a QR across the room on a monitor. `ideal` degrades
-    // gracefully on cameras that can't hit it.
-    qrStream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: 'environment',
-        width: { ideal: 1920 },
-        height: { ideal: 1080 }
-      }
-    });
-  } catch {
-    return toast('Camera blocked — allow it for this site in Settings', 5000);
-  }
-  hidePanel();
-  video.srcObject = qrStream;
-  await video.play().catch(() => {});
-  $('qrScan').classList.remove('hidden');
-
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return stopQrScan();
-
-  // Decode a centred square crop at full resolution (the QR sits in the middle
-  // reticle), capped so a big frame doesn't stall the decode loop. This spends
-  // the sensor's pixels where the code actually is.
-  const DECODE_MAX = 1024;
-  // A QR code doesn't change between frames, so decoding at the full 60fps
-  // rAF rate is wasted CPU/battery for a getImageData readback this size.
-  const DECODE_INTERVAL_MS = 120;
-  let lastDecode = 0;
-  const tick = () => {
-    qrRAF = requestAnimationFrame(tick);
-    const now = performance.now();
-    if (now - lastDecode < DECODE_INTERVAL_MS) return;
-    lastDecode = now;
-    if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-    const vw = video.videoWidth;
-    const vh = video.videoHeight;
-    if (!vw || !vh) return;
-    const side = Math.min(vw, vh);
-    const dim = Math.min(side, DECODE_MAX);
-    canvas.width = dim;
-    canvas.height = dim;
-    ctx.drawImage(video, (vw - side) / 2, (vh - side) / 2, side, side, 0, 0, dim, dim);
-    const img = ctx.getImageData(0, 0, dim, dim);
-    const code = jsQR(img.data, dim, dim, { inversionAttempts: 'dontInvert' });
-    if (!code) return;
-    const m = code.data.match(/#r=[A-Za-z0-9_-]+/);
-    let parsed: ParsedShare | null = null;
-    try {
-      parsed = m && parseShareHash(m[0]);
-    } catch { /* not a valid route link — keep scanning */ }
-    if (!parsed) return; // some other QR, ignore and keep looking
-    stopQrScan();
-    void importParsed(parsed);
-  };
-  qrRAF = requestAnimationFrame(tick);
-}
-
-$('qrCancel').addEventListener('click', stopQrScan);
-
 function openRoutesPanel(): void {
   const items = routes.length
     ? routes
@@ -535,22 +468,7 @@ function openRoutesPanel(): void {
     });
   });
   $('importBtn').addEventListener('click', () => $('gpxFile').click());
-  $('pasteRoute').addEventListener('click', async () => {
-    let text = '';
-    try {
-      text = await navigator.clipboard.readText();
-    } catch {
-      text = prompt('Paste the route link:') ?? '';
-    }
-    const m = text.match(/#r=[A-Za-z0-9_-]+/);
-    let parsed: ParsedShare | null = null;
-    try {
-      parsed = m && parseShareHash(m[0]);
-    } catch { /* fall through to toast */ }
-    if (!parsed) return toast('No route link found on the clipboard', 4000);
-    hidePanel();
-    await importParsed(parsed);
-  });
+  $('pasteRoute').addEventListener('click', pasteSharedRoute);
 
   content.querySelectorAll<HTMLButtonElement>('.routeItem[data-id] button').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -576,34 +494,6 @@ function openRoutesPanel(): void {
   });
 }
 
-function openSharePanel(r: SavedRoute): void {
-  const url = buildShareUrl(r, settings.profile);
-  let qrHtml: string;
-  try {
-    const qr = qrcode(0, 'M');
-    qr.addData(url);
-    qr.make();
-    qrHtml = `<div class="qrBox">${qr.createSvgTag({ cellSize: 4, margin: 2 })}</div>`;
-  } catch {
-    qrHtml = '<p class="hint">Route too detailed for a QR code — use the link instead.</p>';
-  }
-  showPanel(`
-    <h3>Share “${r.name.replace(/</g, '&lt;')}”</h3>
-    <p class="hint">Scan with your phone's camera to open this route in Trailhead on the phone
-    (it saves itself automatically), or copy the link and send it any way you like.</p>
-    ${qrHtml}
-    <div class="row"><button id="copyLink" style="flex:1">Copy link</button></div>
-  `);
-  $('copyLink').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      toast('Link copied');
-    } catch {
-      prompt('Copy the link:', url);
-    }
-  });
-}
-
 $('btnMap').addEventListener('click', openMapPanel);
 $('btnSettings').addEventListener('click', openSettingsPanel);
 $('btnRoutes').addEventListener('click', openRoutesPanel);
@@ -612,99 +502,6 @@ map.on('click', () => {
   hideSearchResults();
   dismissPinCard(); // a no-op when a long-press only just opened it
 });
-
-// ---------------------------------------------------------------- shared-link import
-
-/** Import a parsed share payload: re-route (waypoint shares), save, activate. */
-async function importParsed(parsed: ParsedShare): Promise<void> {
-  try {
-    let r: SavedRoute;
-    if (parsed.waypoints) {
-      toast('Loading shared route…', 0);
-      const res = await routeMixed(
-        parsed.waypoints,
-        parsed.snaps,
-        parsed.profile || settings.profile
-      );
-      r = {
-        id: String(Date.now()),
-        name: parsed.name,
-        waypoints: parsed.waypoints,
-        snaps: parsed.snaps ?? null,
-        coords: res.coords,
-        distanceM: res.distanceM,
-        ascentM: res.ascentM,
-        descentM: res.descentM,
-        createdAt: Date.now()
-      };
-    } else {
-      const coords = parsed.coords!;
-      let dist = 0;
-      for (let i = 1; i < coords.length; i++) dist += haversine(coords[i - 1], coords[i]);
-      r = {
-        id: String(Date.now()),
-        name: parsed.name,
-        waypoints: null,
-        coords,
-        distanceM: dist,
-        ...computeClimbs(coords),
-        createdAt: Date.now()
-      };
-    }
-    hideToast();
-    routes.push(r);
-    saveRoutes(routes);
-    setActiveRoute(r);
-    toast(`Loaded “${r.name}” (${formatDistance(r.distanceM)})`);
-  } catch (e) {
-    hideToast();
-    toast(`Shared route failed to load: ${(e as Error).message}`, 6000);
-  }
-}
-
-const isStandalone =
-  window.matchMedia('(display-mode: standalone)').matches ||
-  (navigator as unknown as { standalone?: boolean }).standalone === true;
-
-/** iOS opens scanned QR links in Safari, whose storage is separate from the
-    home-screen app's — walk the user through the clipboard hand-off. */
-function openHandoffPanel(url: string, name: string): void {
-  showPanel(`
-    <h3>Get this route into the app</h3>
-    <p class="hint">The route loaded here in the browser, but the home-screen app keeps
-    its own separate storage. To hand “${name.replace(/</g, '&lt;')}” over:</p>
-    <ol style="font-size:14px; padding-left:20px; line-height:1.5">
-      <li>Tap <b>Copy route link</b> below</li>
-      <li>Open <b>Trailhead</b> from your home screen</li>
-      <li>Tap <svg class="inlineIco" viewBox="0 0 24 24"><use href="#i-routes"/></svg> <b>Routes</b> → <b>Paste shared route</b></li>
-    </ol>
-    <div class="row"><button id="handoffCopy" style="flex:1">Copy route link</button></div>
-  `);
-  $('handoffCopy').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      toast('Copied — now open the Trailhead app');
-    } catch {
-      prompt('Copy the link:', url);
-    }
-  });
-}
-
-async function importSharedRoute(): Promise<void> {
-  let parsed: ParsedShare | null;
-  const originalUrl = location.href;
-  try {
-    parsed = parseShareHash(location.hash);
-  } catch {
-    return toast('Could not read the shared route link', 5000);
-  }
-  if (!parsed) return;
-  history.replaceState(null, '', location.pathname + location.search);
-  await importParsed(parsed);
-  if (!isStandalone && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
-    openHandoffPanel(originalUrl, parsed.name);
-  }
-}
 
 // Bring back the route we were on before a reload (drawn, not re-zoomed — the
 // startup geolocation centres you near it). A shared link below overrides it.
