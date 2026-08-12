@@ -21,6 +21,7 @@ import { map } from '../map/map';
 import { formatGridRef } from '../osgb';
 import { loadPins, savePins, type Pin, type PinCategory } from '../state';
 import { $, svgUse, toast } from '../ui/dom';
+import { gridText } from '../ui/format';
 
 /** How long a long-press keeps swallowing clicks — see flagOpened(). */
 const JUST_OPENED_MS = 350;
@@ -83,11 +84,6 @@ function renderPinMarkers(): void {
 }
 
 // ---------------------------------------------------------------- formatting
-
-/** Grid ref where Britain has one, otherwise decimal lat/lng. */
-export function gridText(lat: number, lng: number): string {
-  return formatGridRef(lat, lng, 4) || `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-}
 
 function distFactInner(lat: number, lng: number, from: LatLng): string {
   const d = formatDistance(haversine(from, [lat, lng]));

@@ -23,6 +23,7 @@ import {
 import { map } from '../map/map';
 import { type SavedRoute, type Settings } from '../state';
 import { $, svgUse, toast } from '../ui/dom';
+import { positionText } from '../ui/format';
 import { climbText, updateRouteCard, updateRouteStart } from '../ui/routeCard';
 
 const gpsIcon = L.divIcon({ className: '', html: '<div class="gpsDot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
@@ -36,8 +37,6 @@ const LOCATE_ICON = { off: svgUse('i-locate'), follow: svgUse('i-locate-on'), he
 // for the time estimate).
 let settings: Settings;
 let getActiveRoute: () => SavedRoute | null;
-/** How the app formats a position for a popup — grid ref plus lat/lng. */
-let positionText: (p: LatLng) => string;
 
 let watchId: number | null = null;
 let gpsMarker: L.Marker | null = null;
@@ -363,11 +362,9 @@ export function pauseFollow(): void {
 export function initTracking(opts: {
   settings: Settings;
   getActiveRoute: () => SavedRoute | null;
-  positionText: (p: LatLng) => string;
 }): void {
   settings = opts.settings;
   getActiveRoute = opts.getActiveRoute;
-  positionText = opts.positionText;
 
   // Tap cycle: off → follow north-up → follow heading-up → off.
   // A map drag, or opening a place, pauses following; the next tap re-centres.
