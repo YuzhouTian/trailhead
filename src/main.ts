@@ -4,6 +4,7 @@ import { BASE_LAYERS, BROUTER_PROFILES } from './config';
 import qrcode from 'qrcode-generator';
 import { fetchElevation } from './elevation';
 import { initOffline } from './features/offline';
+import { getPlan, initPlanner, isPlanning, updatePlanStats } from './features/planner';
 import {
   beginFollow,
   getKnownPosition,
@@ -19,16 +20,8 @@ import {
   updateBanner
 } from './features/tracking';
 import { legendHtml } from './legend';
-import {
-  compassDir,
-  computeClimbs,
-  formatDistance,
-  formatDuration,
-  haversine,
-  naismithHours,
-  type LatLng
-} from './geo';
-import { parseGpx, toGpx } from './gpx';
+import { compassDir, computeClimbs, formatDistance, haversine, type LatLng } from './geo';
+import { toGpx } from './gpx';
 import { applyLayers, initMap, map, setOverlayOpacity } from './map/map';
 import { formatGridRef } from './osgb';
 import {
@@ -40,7 +33,7 @@ import {
   poiCategory,
   type Poi
 } from './poi';
-import { routeMixed, type RouteResult } from './routing';
+import { routeMixed } from './routing';
 import { search, type SearchHit } from './search';
 import { buildShareUrl, parseShareHash, type ParsedShare } from './share';
 import {
@@ -125,20 +118,25 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
 // ------------------------------------------------- active-route card
 
 // The card itself lives in ui/routeCard.ts and knows nothing about the planner
-// or GPS; this gathers what it should show, reading the plan from here and the
-// progress from tracking. The "you are here" mark is deliberately conservative
-// — hereAlongM() stays null until a fix lands near the line, so the dot never
-// appears at a guessed place.
+// or GPS; this gathers what it should show from the two modules that do, plus
+// the active route, which is the app's. A sketch in progress wins over the
+// active route, and silences the progress readouts — there is no walking a
+// route you are still drawing. The "you are here" mark is deliberately
+// conservative: hereAlongM() stays null until a fix lands near the line, so the
+// dot never appears at a guessed place.
 initRouteCard({
-  getView: () => ({
-    src: planning ? planResult : activeRoute,
-    name: planning ? 'New route' : activeRoute?.name ?? '',
-    planning,
-    remaining: planning ? null : remainingText(),
-    hereM: planning ? null : hereAlongM(),
-    following: isTracking(),
-    speedKmh: settings.speedKmh
-  }),
+  getView: () => {
+    const planning = isPlanning();
+    return {
+      src: planning ? getPlan() : activeRoute,
+      name: planning ? 'New route' : activeRoute?.name ?? '',
+      planning,
+      remaining: planning ? null : remainingText(),
+      hereM: planning ? null : hereAlongM(),
+      following: isTracking(),
+      speedKmh: settings.speedKmh
+    };
+  },
   onClose: () => setActiveRoute(null),
   onStart: () => {
     // Begin following this route, or re-centre if GPS is already live.
@@ -149,204 +147,17 @@ initRouteCard({
 
 // ---------------------------------------------------------------- route planner
 
-const wpIcon = L.divIcon({ className: '', html: '<div class="wpMarker"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
-
-let planning = false;
-let planWaypoints: LatLng[] = [];
-/** planSnaps[i]: the leg arriving at waypoint i follows paths (magnet on). */
-let planSnaps: boolean[] = [];
-let snapMode = true;
-let planMarkers: L.Marker[] = [];
-let planLine: L.Polyline | null = null;
-let planResult: RouteResult | null = null;
-let planAbort: AbortController | null = null;
-let planTimer: number | undefined;
-
-function setPlanning(on: boolean): void {
-  planning = on;
-  document.body.classList.toggle('planning', on);
-  $('btnPlan').classList.toggle('active', on);
-  $('planBar').classList.toggle('hidden', !on);
-  map.getContainer().style.cursor = on ? 'crosshair' : '';
-  if (on) {
-    // Hides the active route line/stats while sketching, but doesn't touch
-    // localStorage: entering Plan shouldn't erase a hike that's still live.
-    setActiveRoute(null, true, false);
-    updatePlanStats();
-  }
-  updateRouteCard();
-}
-
-function clearPlan(): void {
-  planWaypoints = [];
-  planSnaps = [];
-  planMarkers.forEach((m) => m.remove());
-  planMarkers = [];
-  planLine?.remove();
-  planLine = null;
-  planResult = null;
-  planAbort?.abort();
-  updatePlanStats();
-}
-
-function updatePlanStats(text?: string): void {
-  const el = $('planStats');
-  if (text) {
-    el.textContent = text;
-  } else if (planResult) {
-    const est = naismithHours(planResult.distanceM, planResult.ascentM, settings.speedKmh);
-    el.textContent = `${formatDistance(planResult.distanceM)} · ${climbText(planResult.ascentM, planResult.descentM)} · ~${formatDuration(est)}`;
-  } else if (planWaypoints.length < 2) {
-    el.textContent = 'Tap the map to add points — the route follows real paths';
-  } else {
-    el.textContent = 'Routing…';
-  }
-}
-
-function addWaypoint(p: LatLng): void {
-  planWaypoints.push(p);
-  planSnaps.push(snapMode);
-  const marker = L.marker(p, { icon: wpIcon, draggable: true }).addTo(map);
-  marker.on('dragend', () => {
-    const i = planMarkers.indexOf(marker);
-    const ll = marker.getLatLng();
-    planWaypoints[i] = [ll.lat, ll.lng];
-    scheduleRecompute();
-  });
-  planMarkers.push(marker);
-  scheduleRecompute();
-}
-
-function scheduleRecompute(): void {
-  updatePlanStats();
-  window.clearTimeout(planTimer);
-  planTimer = window.setTimeout(recomputePlan, 350);
-}
-
-async function recomputePlan(): Promise<void> {
-  if (planWaypoints.length < 2) {
-    planLine?.remove();
-    planLine = null;
-    planResult = null;
-    updatePlanStats();
-    return;
-  }
-  planAbort?.abort();
-  planAbort = new AbortController();
-  updatePlanStats('Routing…');
-  try {
-    const result = await routeMixed(planWaypoints, planSnaps, settings.profile, planAbort.signal);
-    planResult = result;
-    planLine?.remove();
-    planLine = L.polyline(result.coords, { color: '#1a73e8', weight: 4 }).addTo(map);
-    updatePlanStats();
-    updateRouteCard();
-  } catch (e) {
-    if ((e as Error).name === 'AbortError') return;
-    // Router unreachable (offline / bad segment): fall back to straight lines.
-    planResult = {
-      coords: [...planWaypoints],
-      distanceM: planWaypoints.reduce(
-        (acc, p, i) => (i ? acc + haversine(planWaypoints[i - 1], p) : 0),
-        0
-      ),
-      ascentM: 0,
-      descentM: 0
-    };
-    planLine?.remove();
-    planLine = L.polyline(planResult.coords, {
-      color: '#1a73e8',
-      weight: 4,
-      dashArray: '6 8'
-    }).addTo(map);
-    updatePlanStats();
-    updateRouteCard();
-    toast(`Router error — showing straight line. ${(e as Error).message}`, 5000);
-  }
-}
-
-map.on('click', (e: L.LeafletMouseEvent) => {
-  if (planning) addWaypoint([e.latlng.lat, e.latlng.lng]);
-});
-
-function planToRoute(name: string): SavedRoute | null {
-  if (!planResult) return null;
-  return {
-    id: String(Date.now()),
-    name,
-    waypoints: [...planWaypoints],
-    snaps: [...planSnaps],
-    coords: planResult.coords,
-    distanceM: planResult.distanceM,
-    ascentM: planResult.ascentM,
-    descentM: planResult.descentM,
-    createdAt: Date.now()
-  };
-}
-
-$('btnPlan').addEventListener('click', () => setPlanning(!planning));
-$('planSnap').addEventListener('click', () => {
-  snapMode = !snapMode;
-  $('planSnap').classList.toggle('active', snapMode);
-  toast(snapMode ? 'Snap to paths ON' : 'Freeform ON — next points connect in straight lines', 2500);
-});
-$('planUndo').addEventListener('click', () => {
-  planWaypoints.pop();
-  planSnaps.pop();
-  planMarkers.pop()?.remove();
-  scheduleRecompute();
-});
-$('planClear').addEventListener('click', clearPlan);
-$('planDone').addEventListener('click', () => {
-  // Nothing drawn yet — just leave planning.
-  if (!planResult || planWaypoints.length < 2) {
-    setPlanning(false);
-    clearPlan();
-    return;
-  }
-  // Offer to keep it: naming the route saves it to your list; cancelling still
-  // finishes with the route shown (but unsaved), so a plan is never lost by an
-  // accidental tap. Either way, planning ends here.
-  const name = prompt('Name this route to save it — or cancel to finish without saving:', 'My route');
-  const r = planToRoute(name || 'Unsaved route')!;
-  if (name) {
+// Sketching a route and importing a GPX file both live in features/planner.ts.
+// Neither keeps what it makes: a finished route comes back out through these
+// callbacks, because the saved list and the active route are the app's.
+initPlanner({
+  settings,
+  saveRoute: (r) => {
     routes.push(r);
     saveRoutes(routes);
-    toast(`Saved “${name}”`);
-  }
-  setPlanning(false);
-  clearPlan();
-  setActiveRoute(r, false);
-});
-
-// ---------------------------------------------------------------- GPX import
-
-$('gpxFile').addEventListener('change', async (e) => {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  input.value = '';
-  if (!file) return;
-  try {
-    const gpx = parseGpx(await file.text(), file.name.replace(/\.gpx$/i, ''));
-    let dist = 0;
-    for (let i = 1; i < gpx.coords.length; i++) dist += haversine(gpx.coords[i - 1], gpx.coords[i]);
-    const r: SavedRoute = {
-      id: String(Date.now()),
-      name: gpx.name,
-      waypoints: null,
-      coords: gpx.coords,
-      distanceM: dist,
-      ...computeClimbs(gpx.coords),
-      createdAt: Date.now()
-    };
-    routes.push(r);
-    saveRoutes(routes);
-    setActiveRoute(r);
-    hidePanel();
-    toast(`Imported “${gpx.name}” (${formatDistance(dist)})`);
-  } catch (err) {
-    toast(`Import failed: ${(err as Error).message}`, 5000);
-  }
+  },
+  setActiveRoute,
+  hidePanel
 });
 
 // ---------------------------------------------------------------- location + on/off route
@@ -620,7 +431,7 @@ renderPinMarkers();
 
 // Long-press (or right-click) anywhere to identify and optionally save a spot.
 map.on('contextmenu', (e: L.LeafletMouseEvent) => {
-  if (planning) return;
+  if (isPlanning()) return;
   openNewPin(e.latlng.lat, e.latlng.lng);
 });
 
