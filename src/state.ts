@@ -14,6 +14,19 @@ export interface SavedRoute {
   ascentM: number;
   /** Missing on routes saved before descent tracking existed. */
   descentM?: number;
+  /**
+   * The place a "Directions to" route leads to, and the mark that says it is
+   * one. Absent on every other route. Carries the name rather than a bare flag
+   * so the arrival banner can say where you have arrived without the route's
+   * own name having to be taken apart.
+   */
+  detourTo?: string;
+  /**
+   * The router couldn't be reached, so this is a bearing rather than a path.
+   * Worth persisting: a toast is gone in five seconds, and a solid line between
+   * two points on a hillside claims a way through that nobody has checked.
+   */
+  straightLine?: boolean;
   createdAt: number;
 }
 

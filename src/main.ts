@@ -1,7 +1,8 @@
 import L from './leaflet-setup';
 import './style.css';
+import { initDetour } from './features/detour';
 import { initOffline } from './features/offline';
-import { dismissPinCard, initPins, openSharedPin } from './features/pins';
+import { dismissPinCard, initPins, openSharedPin, refreshCardDistance } from './features/pins';
 import { getPlan, initPlanner, isPlanning } from './features/planner';
 import { initQr } from './features/qr';
 import { hideSearchResults, initSearch } from './features/search';
@@ -97,7 +98,11 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
     activeLine = L.polyline(r.coords, {
       color: '#c1121f',
       weight: 4,
-      opacity: 0.85
+      opacity: 0.85,
+      // A route the router never saw is drawn dashed, the same way the planner
+      // draws its own straight-line fallback. Solid means "someone's path goes
+      // here"; dashes mean "this is the bearing, find your own way".
+      ...(r.straightLine ? { dashArray: '6 8' } : {})
     }).addTo(map);
     if (fit) map.fitBounds(activeLine.getBounds(), { padding: [40, 40] });
     // Opening a route means "show me this route". With Me following, the next
@@ -154,7 +159,10 @@ initPlanner({ settings, saveRoute, setActiveRoute, hidePanel });
 // The GPS dot, the Me button's follow/heading-up cycle, the on/off-route banner
 // and everything derived from a fix live in features/tracking.ts. The route it
 // measures progress against is the app's, so it reads it through a getter.
-initTracking({ settings, getActiveRoute: () => activeRoute });
+// An open pin card's distance goes stale the moment you walk, so it is
+// refreshed on each fix. Tracking is the only place that knows one landed, but
+// it has no business knowing about pins — hence the callback.
+initTracking({ settings, getActiveRoute: () => activeRoute, onPosition: refreshCardDistance });
 
 // ---------------------------------------------------------------- saved pins
 
@@ -163,6 +171,14 @@ initTracking({ settings, getActiveRoute: () => activeRoute });
 // you are through tracking's accessors and asks the planner whether a
 // long-press means "identify this spot" or "you are drawing a route".
 initPins();
+
+// ---------------------------------------------------------------- directions
+
+// "Directions to" a pin lives in features/detour.ts. Like the planner, what it
+// makes is an ordinary route that leaves through setActiveRoute rather than
+// being kept there — which is what lets a detour reuse the card, the profile,
+// the banner and the offline button without any of them knowing it exists.
+initDetour({ settings, getActiveRoute: () => activeRoute, setActiveRoute });
 
 // ---------------------------------------------------------------- search + nearby
 

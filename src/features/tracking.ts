@@ -9,12 +9,13 @@
 // through the accessors below rather than reaching into the closure.
 
 import L from '../leaflet-setup';
-import { EN_ROUTE_THRESHOLD_M, OFF_ROUTE_THRESHOLD_M } from '../config';
+import { ARRIVAL_M, EN_ROUTE_THRESHOLD_M, OFF_ROUTE_THRESHOLD_M } from '../config';
 import {
   computeClimbs,
   cumulativeDistances,
   formatDistance,
   formatDuration,
+  haversine,
   naismithHours,
   projectOnPolyline,
   type LatLng,
@@ -37,6 +38,8 @@ const LOCATE_ICON = { off: svgUse('i-locate'), follow: svgUse('i-locate-on'), he
 // for the time estimate).
 let settings: Settings;
 let getActiveRoute: () => SavedRoute | null;
+/** Told about every fix, for anything that shows a distance from you. */
+let onPosition: (() => void) | null = null;
 
 let watchId: number | null = null;
 let gpsMarker: L.Marker | null = null;
@@ -123,6 +126,16 @@ export function updateBanner(): void {
     lastOnRouteProg = prog;
   }
   banner.classList.remove('hidden');
+  // Arriving where a set of directions was leading outranks anything the line
+  // has to say: at the lake you asked for, "OFF ROUTE" is technically true and
+  // completely unhelpful. Measured to the destination rather than along the
+  // route, because the router stops where the path does, not where you stand.
+  if (activeRoute.detourTo && haversine(lastFix, activeRoute.coords[activeRoute.coords.length - 1]) <= ARRIVAL_M) {
+    banner.className = 'arrive';
+    banner.textContent = `Arrived at ${activeRoute.detourTo}`;
+    updateRouteCard();
+    return;
+  }
   if (prog && prog.offRouteM <= OFF_ROUTE_THRESHOLD_M) {
     banner.className = '';
     banner.textContent = `On route · ${Math.round(prog.offRouteM)} m from line`;
@@ -192,6 +205,7 @@ function onFix(pos: GeolocationPosition): void {
   // animation per fix looks jittery and stalls entirely while backgrounded.
   if (follow) map.setView(p, Math.max(map.getZoom(), 15), { animate: false });
   updateBanner();
+  onPosition?.();
 }
 
 // --- compass (heading-up) mode ---------------------------------------
@@ -362,9 +376,17 @@ export function pauseFollow(): void {
 export function initTracking(opts: {
   settings: Settings;
   getActiveRoute: () => SavedRoute | null;
+  /**
+   * Called after each fix. Anything that shows a distance from you goes stale
+   * as you walk, and this is the only place that knows a fix landed — but who
+   * cares about that is not tracking's business, so it arrives as a callback
+   * rather than as an import of the features that do.
+   */
+  onPosition?: () => void;
 }): void {
   settings = opts.settings;
   getActiveRoute = opts.getActiveRoute;
+  onPosition = opts.onPosition ?? null;
 
   // Tap cycle: off → follow north-up → follow heading-up → off.
   // A map drag, or opening a place, pauses following; the next tap re-centres.
