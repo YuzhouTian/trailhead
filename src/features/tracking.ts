@@ -126,24 +126,40 @@ export function updateBanner(): void {
     lastOnRouteProg = prog;
   }
   banner.classList.remove('hidden');
+  const { className, text } = bannerFor(lastFix, activeRoute, prog);
+  banner.className = className;
+  banner.textContent = text;
+  updateRouteCard();
+}
+
+/**
+ * What the banner should say about where you are relative to the active route.
+ *
+ * Split out from updateBanner because the interesting part is the precedence,
+ * not the DOM underneath it, and precedence is worth being able to test: get it
+ * wrong and someone standing at the tarn they asked for is told they are off
+ * route. Everything above is the state a fix leaves behind; this is only a
+ * reading of it, so it takes what it needs and touches nothing.
+ */
+export function bannerFor(
+  fix: LatLng,
+  route: SavedRoute,
+  prog: RouteProgress | null
+): { className: string; text: string } {
   // Arriving where a set of directions was leading outranks anything the line
   // has to say: at the lake you asked for, "OFF ROUTE" is technically true and
   // completely unhelpful. Measured to the destination rather than along the
   // route, because the router stops where the path does, not where you stand.
-  if (activeRoute.detourTo && haversine(lastFix, activeRoute.coords[activeRoute.coords.length - 1]) <= ARRIVAL_M) {
-    banner.className = 'arrive';
-    banner.textContent = `Arrived at ${activeRoute.detourTo}`;
-    updateRouteCard();
-    return;
+  if (route.detourTo && haversine(fix, route.coords[route.coords.length - 1]) <= ARRIVAL_M) {
+    return { className: 'arrive', text: `Arrived at ${route.detourTo}` };
   }
   if (prog && prog.offRouteM <= OFF_ROUTE_THRESHOLD_M) {
-    banner.className = '';
-    banner.textContent = `On route · ${Math.round(prog.offRouteM)} m from line`;
-  } else {
-    banner.className = 'off';
-    banner.textContent = `OFF ROUTE · ${formatDistance(prog?.offRouteM ?? Infinity)} away`;
+    return { className: '', text: `On route · ${Math.round(prog.offRouteM)} m from line` };
   }
-  updateRouteCard();
+  return {
+    className: 'off',
+    text: `OFF ROUTE · ${formatDistance(prog?.offRouteM ?? Infinity)} away`
+  };
 }
 
 /**
