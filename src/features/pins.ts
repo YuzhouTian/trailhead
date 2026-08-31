@@ -14,6 +14,7 @@
 
 import L from '../leaflet-setup';
 import { fetchElevation } from '../elevation';
+import { directionsTo, type DetourTarget } from './detour';
 import { isPlanning } from './planner';
 import { getKnownPosition, pauseFollow, setKnownPosition } from './tracking';
 import { compassDir, formatDistance, haversine, type LatLng } from '../geo';
@@ -43,6 +44,8 @@ const pinMarkers = new Map<string, L.Marker>();
 let dropMarker: L.Marker | null = null; // the temporary pin for an unsaved point
 let eleAbort: AbortController | null = null; // in-flight elevation lookup
 let pinCardJustOpened = false; // swallow the click that can trail a long-press
+/** Where the open card's place is, so its distance can be kept up to date. */
+let cardPoint: LatLng | null = null;
 
 // ---------------------------------------------------------------- the list
 
@@ -100,6 +103,25 @@ function distFactHtml(lat: number, lng: number): string {
 }
 
 /**
+ * Keep an open card's distance honest as you walk. The card is built once and
+ * then just sits there, so without this a pin you are walking towards holds the
+ * distance it had when you opened it — which is the number you are least likely
+ * to notice is wrong, and most likely to act on. Only the distance row is
+ * touched; everything else on the card is as true as it was.
+ *
+ * Skips a row still waiting on its first position: that one belongs to
+ * hydrateDistance, which will either fill it or take it away.
+ */
+export function refreshCardDistance(): void {
+  if (!cardPoint) return;
+  const here = getKnownPosition();
+  if (!here) return;
+  const el = document.getElementById('pcDist');
+  if (!el || el.classList.contains('loading')) return;
+  el.innerHTML = distFactInner(cardPoint[0], cardPoint[1], here);
+}
+
+/**
  * Fill in the distance for a card that opened before we had a position, asking
  * for a one-shot fix. Drops the row if the fix never arrives, so a card that
  * can't answer doesn't sit there loading forever. The element is captured by
@@ -154,6 +176,46 @@ async function sharePin(p: Pin): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------- directions
+
+/**
+ * The "Directions" row. It sits above the housekeeping buttons on both cards,
+ * but only leads on the saved one: on a pin you have kept, routing to it is the
+ * thing you came for, whereas on a spot you have only just long-pressed, naming
+ * and saving it still is.
+ */
+function directionsRow(id: string, primary: boolean): string {
+  return `<div class="pc-actions">
+      <button class="${primary ? 'pc-primary' : 'pc-neutral'}" id="${id}">${svgUse('i-routes')}Directions</button>
+    </div>`;
+}
+
+/**
+ * Wire a Directions button up. `target` is read at tap time rather than
+ * captured, because on the unsaved card the name is whatever has been typed
+ * into the box by then — or, if nothing has, the grid reference.
+ */
+function wireDirections(id: string, target: () => DetourTarget): void {
+  const btn = document.getElementById(id) as HTMLButtonElement | null;
+  if (!btn) return;
+  const idle = `${svgUse('i-routes')}Directions`;
+  btn.addEventListener('click', () => {
+    void directionsTo(target(), (text) => {
+      // The card can be gone by the time an answer arrives — a slow router
+      // outlives a tap on the map — so never reach into a detached button.
+      if (!btn.isConnected) return;
+      btn.disabled = text !== null;
+      btn.classList.toggle('busy', text !== null);
+      btn.innerHTML = text ?? idle;
+    }).then((started) => {
+      // The route card is about to appear along the bottom; two cards stacked
+      // there is one too many, and the question the pin card was answering has
+      // just been answered.
+      if (started) hidePinCard();
+    });
+  });
+}
+
 // ---------------------------------------------------------------- the card
 
 /** Close the pin card now. Opening a panel over it counts. */
@@ -162,6 +224,7 @@ export function hidePinCard(): void {
   eleAbort = null;
   dropMarker?.remove();
   dropMarker = null;
+  cardPoint = null;
   const card = $('pinCard');
   card.classList.add('hidden');
   card.innerHTML = '';
@@ -185,6 +248,7 @@ function flagOpened(): void {
 export function openNewPin(lat: number, lng: number): void {
   hidePinCard();
   flagOpened();
+  cardPoint = [lat, lng];
   dropMarker = L.marker([lat, lng], {
     icon: L.divIcon({
       className: '',
@@ -210,11 +274,20 @@ export function openNewPin(lat: number, lng: number): void {
     <div class="pc-sep"></div>
     <input class="pc-name" id="pcName" placeholder="Name this spot" autocomplete="off" />
     <div class="pc-chips">${chips}</div>
+    ${directionsRow('pcDirections', false)}
     <div class="pc-actions">
       <button class="pc-primary" id="pcSave">${svgUse('i-save')}Save pin</button>
       <button class="pc-neutral" id="pcCopy">${svgUse('i-copy')}Copy</button>
     </div>`;
   card.classList.remove('hidden');
+
+  // Routing to a spot shouldn't make you name it first — but if you have
+  // started to, that name is better than the grid reference.
+  wireDirections('pcDirections', () => ({
+    name: ($('pcName') as HTMLInputElement).value.trim() || gridText(lat, lng),
+    lat,
+    lng
+  }));
 
   card.querySelector('.pc-close')!.addEventListener('click', hidePinCard);
   card.querySelectorAll<HTMLButtonElement>('.pc-chip').forEach((b) =>
@@ -262,6 +335,7 @@ export function openSavedPin(id: string): void {
   if (!pin) return;
   hidePinCard();
   flagOpened();
+  cardPoint = [pin.lat, pin.lng];
   const eleHtml =
     typeof pin.ele === 'number' ? `<span class="pc-fact">${svgUse('i-ele')}${Math.round(pin.ele)} m</span>` : '';
   const card = $('pinCard');
@@ -272,6 +346,7 @@ export function openSavedPin(id: string): void {
     <div class="pc-grid">${gridText(pin.lat, pin.lng)}</div>
     <div class="pc-ll">${pin.lat.toFixed(5)}, ${pin.lng.toFixed(5)}</div>
     <div class="pc-facts">${eleHtml}${distFactHtml(pin.lat, pin.lng)}</div>
+    ${directionsRow('pcDirections', true)}
     <div class="pc-actions">
       <button class="pc-neutral" id="pcCopy">${svgUse('i-copy')}Copy</button>
       <button class="pc-neutral" id="pcShare">${svgUse('i-share')}Share</button>
@@ -279,6 +354,7 @@ export function openSavedPin(id: string): void {
     </div>`;
   card.classList.remove('hidden');
 
+  wireDirections('pcDirections', () => ({ name: pin.name, lat: pin.lat, lng: pin.lng }));
   hydrateDistance(card, pin.lat, pin.lng);
 
   card.querySelector('.pc-close')!.addEventListener('click', hidePinCard);

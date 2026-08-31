@@ -86,6 +86,15 @@ export const OFF_ROUTE_THRESHOLD_M = 50;
  */
 export const EN_ROUTE_THRESHOLD_M = 300;
 
+/**
+ * Distance (m) from a detour's destination at which you have arrived. Asked of
+ * the destination itself rather than of the route's end, because standing at
+ * the place you asked for you can easily be a few metres past where the router
+ * chose to stop. Well inside OFF_ROUTE_THRESHOLD_M, which is far too loose to
+ * mean "I am there".
+ */
+export const ARRIVAL_M = 30;
+
 /** Zoom levels pre-cached by the offline download. */
 export const OFFLINE_ZOOMS = [12, 13, 14, 15, 16];
 /** Corridor half-width in tiles around the route at each zoom. */
