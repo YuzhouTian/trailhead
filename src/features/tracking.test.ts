@@ -10,8 +10,7 @@ vi.mock('../map/map', () => ({ map: {} }));
 vi.mock('../ui/dom', () => ({ $: () => ({}), svgUse: () => '', toast: () => {} }));
 vi.mock('../ui/routeCard', () => ({
   climbText: () => '',
-  updateRouteCard: () => {},
-  updateRouteStart: () => {}
+  updateRouteCard: () => {}
 }));
 
 import { describe, expect, it, vi } from 'vitest';

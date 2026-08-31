@@ -25,7 +25,7 @@ import { map } from '../map/map';
 import { type SavedRoute, type Settings } from '../state';
 import { $, svgUse, toast } from '../ui/dom';
 import { positionText } from '../ui/format';
-import { climbText, updateRouteCard, updateRouteStart } from '../ui/routeCard';
+import { climbText, updateRouteCard } from '../ui/routeCard';
 
 const gpsIcon = L.divIcon({ className: '', html: '<div class="gpsDot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
 
@@ -330,11 +330,10 @@ function stopWatch(): void {
   // where you last were, or pin distances vanish with it.
   $('btnLocate').classList.remove('active');
   $('locateIco').innerHTML = LOCATE_ICON.off;
-  updateRouteStart(watchId !== null);
   updateBanner();
 }
 
-/** Start GPS following (north-up). Shared by the Me button and the card Start. */
+/** Start GPS following (north-up). */
 export function beginFollow(): boolean {
   if (!('geolocation' in navigator)) {
     toast('No geolocation on this device');
@@ -347,7 +346,6 @@ export function beginFollow(): boolean {
     toast(`GPS error: ${err.message}`, 5000);
     stopWatch();
   }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
-  updateRouteStart(watchId !== null);
   return true;
 }
 

@@ -29,14 +29,12 @@ export interface RouteCardView {
   src: RouteCardSource | null;
   /** Title line — the route's name, or "New route" while planning. */
   name: string;
-  /** Planning hides the close/start/offline controls and the remaining line. */
+  /** Planning hides the close/offline controls and the remaining line. */
   planning: boolean;
   /** Progress readout, or null when there is nothing believable to say. */
   remaining: string | null;
   /** Metres along the route to mark as "you are here" on the profile, if known. */
   hereM: number | null;
-  /** GPS is live — the Start button becomes a re-centre control. */
-  following: boolean;
   /** Walking pace for the time estimate. */
   speedKmh: number;
 }
@@ -85,17 +83,6 @@ function publishCardLift(): void {
   document.documentElement.style.setProperty('--card-lift', h ? `${Math.round(h) + 12}px` : '0px');
 }
 
-/** The route card's Start button: a play glyph until following, then a live
- *  locate glyph with a ring (tap to re-centre). Hidden while planning. */
-export function updateRouteStart(following: boolean): void {
-  const btn = $('rcStart');
-  btn.innerHTML = following
-    ? '<svg viewBox="0 0 24 24"><use href="#i-locate-on"/></svg>'
-    : '<svg viewBox="0 0 24 24"><use href="#i-start"/></svg>';
-  btn.classList.toggle('live', following);
-  btn.title = following ? 'Re-centre on you' : 'Start following this route';
-}
-
 /** Refresh the card from the plan in progress or the active route. */
 export function updateRouteCard(): void {
   const view = getView();
@@ -117,8 +104,6 @@ export function updateRouteCard(): void {
   $('rcRemaining').classList.toggle('hidden', !view.remaining);
   $('rcOffline').classList.toggle('hidden', view.planning);
   $('rcClose').classList.toggle('hidden', view.planning);
-  $('rcStart').classList.toggle('hidden', view.planning);
-  updateRouteStart(view.following);
   $('rcChart').classList.toggle('active', chartOpen);
   const chart = $('elevChart');
   if (chartOpen) {
@@ -144,8 +129,6 @@ export function initRouteCard(opts: {
   getView: () => RouteCardView;
   /** The × button: the app decides what closing a route means. */
   onClose: () => void;
-  /** The start/re-centre button: tracking owns what following actually does. */
-  onStart: () => void;
 }): void {
   getView = opts.getView;
 
@@ -156,5 +139,4 @@ export function initRouteCard(opts: {
     updateRouteCard();
   });
   $('rcClose').addEventListener('click', opts.onClose);
-  $('rcStart').addEventListener('click', opts.onStart);
 }

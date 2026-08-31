@@ -8,14 +8,11 @@ import { initQr } from './features/qr';
 import { hideSearchResults, initSearch } from './features/search';
 import { importSharedRoute, initSharing } from './features/sharing';
 import {
-  beginFollow,
   hereAlongM,
   initTracking,
-  isTracking,
   pauseFollow,
   remainingText,
   resetRouteProgress,
-  resumeFollow,
   setKnownPosition,
   updateBanner
 } from './features/tracking';
@@ -135,16 +132,10 @@ initRouteCard({
       planning,
       remaining: planning ? null : remainingText(),
       hereM: planning ? null : hereAlongM(),
-      following: isTracking(),
       speedKmh: settings.speedKmh
     };
   },
-  onClose: () => setActiveRoute(null),
-  onStart: () => {
-    // Begin following this route, or re-centre if GPS is already live.
-    if (!isTracking()) beginFollow();
-    else resumeFollow();
-  }
+  onClose: () => setActiveRoute(null)
 });
 
 // ---------------------------------------------------------------- route planner
