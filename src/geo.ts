@@ -137,8 +137,11 @@ export function formatDistance(m: number): string {
 }
 
 export function formatDuration(hours: number): string {
-  const h = Math.floor(hours);
-  const min = Math.round((hours - h) * 60);
+  // Round to whole minutes first, then split: rounding the minutes on their own
+  // lets a remainder round up to 60 while the hour count stays behind.
+  const total = Math.round(hours * 60);
+  const h = Math.floor(total / 60);
+  const min = total % 60;
   return h > 0 ? `${h} h ${min.toString().padStart(2, '0')} min` : `${min} min`;
 }
 
