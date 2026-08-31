@@ -28,9 +28,13 @@ export function parseGpx(text: string, fallbackName: string): GpxData {
   if (coords.length === 0) coords = readPoints('wpt');
   if (coords.length === 0) throw new Error('No track points found in GPX');
 
+  // Asked one at a time, not as a selector list: a list resolves in document
+  // order, and GPX puts <metadata> before <trk>, so the file-level name would
+  // always win. See #42.
   const name =
-    doc.querySelector('trk > name, rte > name, metadata > name')?.textContent?.trim() ||
-    fallbackName;
+    ['trk > name', 'rte > name', 'metadata > name']
+      .map((sel) => doc.querySelector(sel)?.textContent?.trim())
+      .find((n) => n) || fallbackName;
 
   return { name, coords };
 }
