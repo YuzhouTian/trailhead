@@ -13,9 +13,12 @@
 // It reads where you are through tracking's accessors rather than owning any
 // GPS state, the same arrangement pins.ts has.
 //
-// Holding the route you were already on and resuming it afterwards is the
-// second half of issue #22 and is deliberately not here yet — see replaceCheck()
-// for what happens meanwhile.
+// Pausing the route you were already on and resuming it afterwards was the
+// other half of issue #22, and was dropped: it needs a second storage slot for
+// the held route — one slot is all saveActiveRoute() has — and a shelf in the
+// route card to resume from, which is a lot of machinery for the few minutes
+// between leaving a path and getting back to it. Asking before replacing the
+// route is the answer, not a placeholder for one. See replaceCheck().
 
 import { haversine, type LatLng } from '../geo';
 import { routeMixed } from '../routing';
@@ -98,10 +101,11 @@ function toRoute(
 }
 
 /**
- * Until pause-and-resume lands, making a detour active closes whatever route
- * you were on, so ask first. Saved routes are still in your list afterwards;
- * an unsaved one would be gone, which is exactly why this is a question rather
- * than something that quietly happens.
+ * Making a detour active closes whatever route you were on, so ask first.
+ * Saved routes are still in your list afterwards; an unsaved one would be gone,
+ * which is exactly why this is a question rather than something that quietly
+ * happens — and why the question is the whole answer here rather than a stand-in
+ * for holding the route aside (see the header).
  */
 function replaceCheck(dest: DetourTarget): boolean {
   const current = getActiveRoute();
