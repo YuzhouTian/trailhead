@@ -15,11 +15,12 @@ export default defineConfig({
     target: 'es2020'
   },
   test: {
-    // The tested modules are pure logic, so no DOM by default: node is much
+    // Most tested modules are pure logic, so no DOM by default: node is much
     // faster, and an accidental `document` reference fails loudly instead of
-    // quietly passing. The two files that do need browser globals opt in —
-    // gpx.test.ts with a `@vitest-environment jsdom` comment, share.test.ts
-    // with a two-line `location` stub.
+    // quietly passing. Files that do need browser globals opt in — a
+    // `@vitest-environment jsdom` comment where a whole DOM is wanted
+    // (gpx.test.ts, features/sharing.test.ts), or a two-line `location` stub
+    // where one property is (share.test.ts).
     environment: 'node',
     include: ['src/**/*.test.ts']
   }

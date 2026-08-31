@@ -14,12 +14,24 @@
 import qrcode from 'qrcode-generator';
 import { computeClimbs, formatDistance, haversine } from '../geo';
 import { routeMixed } from '../routing';
-import { buildShareUrl, parseShareHash, type ParsedShare } from '../share';
+import {
+  buildShareUrl,
+  DAMAGED_LINK_MESSAGE,
+  parseShareHash,
+  type ParsedShare
+} from '../share';
 import { type SavedRoute, type Settings } from '../state';
 import { $, hideToast, toast } from '../ui/dom';
 
-/** A route link anywhere in a blob of text — a pasted URL, or a scanned QR. */
-const ROUTE_LINK = /#r=[A-Za-z0-9_-]+/;
+/** Below about three screen pixels a camera can no longer resolve one module,
+    and the code is decoration. The share panel is only ~292px wide, so a dense
+    code scaled to fit it looked valid and never scanned (#44). */
+const MIN_CELL = 3;
+/** The quiet zone the spec asks for, in modules — the white border a decoder
+    needs to find the code at all. */
+const QUIET_MODULES = 4;
+
+type QrCode = ReturnType<typeof qrcode>;
 
 let settings: Settings;
 let saveRoute: (r: SavedRoute) => void;
@@ -28,17 +40,16 @@ let showPanel: (html: string) => HTMLElement;
 let hidePanel: () => void;
 
 /**
- * Pull a route link out of arbitrary text, or null if there isn't a valid one.
- * Shared by the paste button and the QR scanner: one sees a clipboard, the
- * other a camera frame, but "is there a route in this string?" is one question.
+ * Pull a route link out of arbitrary text, or null if there isn't a usable one.
+ * The scanner's question is only ever "is there a route in this frame?" — a
+ * damaged one is no different from somebody else's QR code, and either way it
+ * should keep looking rather than stop and complain.
  */
 export function parseRouteLink(text: string): ParsedShare | null {
-  const m = text.match(ROUTE_LINK);
-  if (!m) return null;
   try {
-    return parseShareHash(m[0]);
+    return parseShareHash(text);
   } catch {
-    return null; // not a valid route link
+    return null; // not a route link we can read
   }
 }
 
@@ -98,13 +109,23 @@ export async function pasteSharedRoute(): Promise<void> {
   } catch {
     text = prompt('Paste the route link:') ?? '';
   }
-  const parsed = parseRouteLink(text);
+  let parsed: ParsedShare | null;
+  try {
+    parsed = parseShareHash(text);
+  } catch (e) {
+    // There was a link on the clipboard; it just didn't survive the trip. Say
+    // which, rather than the misleading "no route link found".
+    return toast((e as Error).message, 7000);
+  }
   if (!parsed) return toast('No route link found on the clipboard', 4000);
   hidePanel();
   await importParsed(parsed);
 }
 
-const isStandalone =
+/** Running from the home screen rather than in a browser tab. Asked when it is
+    needed, not as the module loads — a module that reaches for the DOM on
+    import is one nothing else can pull in. */
+const isStandalone = (): boolean =>
   window.matchMedia('(display-mode: standalone)').matches ||
   (navigator as unknown as { standalone?: boolean }).standalone === true;
 
@@ -138,38 +159,112 @@ export async function importSharedRoute(): Promise<void> {
   const originalUrl = location.href;
   try {
     parsed = parseShareHash(location.hash);
-  } catch {
-    return toast('Could not read the shared route link', 5000);
+  } catch (e) {
+    return toast((e as Error).message, 7000);
   }
-  if (!parsed) return;
+  // A fragment that meant to carry a route but yielded none. Staying silent
+  // here is what left people looking at a plain map wondering where the route
+  // went, so say something even though there is nothing to import.
+  if (!parsed) {
+    if (location.hash.includes('#r')) toast(DAMAGED_LINK_MESSAGE, 7000);
+    return;
+  }
   history.replaceState(null, '', location.pathname + location.search);
   await importParsed(parsed);
-  if (!isStandalone && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+  if (!isStandalone() && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
     openHandoffPanel(originalUrl, parsed.name);
   }
 }
 
 // ---------------------------------------------------------------- sending
 
+/**
+ * How to draw a `modules`-wide code into `avail` px of screen.
+ *
+ * The module size is whole pixels on purpose: a fractional one lands off the
+ * pixel grid and the browser antialiases every edge into grey, which is a
+ * decode failure of its own. And `createSvgTag`'s margin is in *pixels*, so the
+ * quiet zone has to be scaled with it — the flat `margin: 2` this replaces left
+ * the code with a two-pixel white border, which is no quiet zone at all.
+ *
+ * Exported because the sizes it picks are the whole of #44, and the test
+ * decodes a real code drawn at them.
+ */
+export function qrRender(modules: number, avail: number): { cellSize: number; margin: number } {
+  const cellSize = Math.max(1, Math.floor(avail / (modules + QUIET_MODULES * 2)));
+  return { cellSize, margin: cellSize * QUIET_MODULES };
+}
+
+const svgFor = (qr: QrCode, avail: number): string =>
+  qr.createSvgTag(qrRender(qr.getModuleCount(), avail));
+
+/**
+ * The dense-code escape hatch: the whole viewport is two to three times the
+ * width of the panel, which for a long route is the difference between a code a
+ * camera can resolve and one it cannot.
+ */
+function openQrFullscreen(qr: QrCode): void {
+  const el = document.createElement('div');
+  el.id = 'qrFull';
+  const avail = Math.min(window.innerWidth, window.innerHeight) - 32;
+  el.innerHTML = `
+    <div class="qrFullCode">${svgFor(qr, avail)}</div>
+    <p>${
+      qrRender(qr.getModuleCount(), avail).cellSize >= MIN_CELL
+        ? 'Point the other phone’s camera at this'
+        : 'Still too dense to scan on a screen this size — send the link instead'
+    }</p>
+    <button class="qrFullClose">Done</button>`;
+  el.addEventListener('click', () => el.remove());
+  document.body.appendChild(el);
+}
+
 /** The share sheet for a saved route: a QR to scan, and a link to copy. */
 export function openSharePanel(r: SavedRoute): void {
   const url = buildShareUrl(r, settings.profile);
-  let qrHtml: string;
+  let qr: QrCode | null = null;
   try {
-    const qr = qrcode(0, 'M');
+    qr = qrcode(0, 'M');
     qr.addData(url);
     qr.make();
-    qrHtml = `<div class="qrBox">${qr.createSvgTag({ cellSize: 4, margin: 2 })}</div>`;
   } catch {
-    qrHtml = '<p class="hint">Route too detailed for a QR code — use the link instead.</p>';
+    qr = null; // past QR version 40 — more data than any code can hold
   }
   showPanel(`
     <h3>Share “${r.name.replace(/</g, '&lt;')}”</h3>
     <p class="hint">Scan with your phone's camera to open this route in Trailhead on the phone
     (it saves itself automatically), or copy the link and send it any way you like.</p>
-    ${qrHtml}
+    ${
+      qr
+        ? '<div class="qrBox" id="qrBox"></div>'
+        : '<p class="hint">Route too detailed for a QR code — use the link instead.</p>'
+    }
     <div class="row"><button id="copyLink" style="flex:1">Copy link</button></div>
   `);
+  // Sized from the box's real width rather than a number copied out of the
+  // stylesheet, so it stays right on any viewport — and never wider than the
+  // box, which is what let the old fixed cellSize get scaled down to grey mush.
+  if (qr) {
+    const box = $('qrBox');
+    const code = qr;
+    const avail = box.clientWidth || 292;
+    box.innerHTML = svgFor(code, avail);
+    // Enlarging is always on offer, because even a code that fits here scans
+    // more easily bigger. What changes with a dense one is that we say outright
+    // it cannot be scanned at this size, rather than shrinking it and letting
+    // the receiver find out by holding a camera at it.
+    box.insertAdjacentHTML(
+      'beforeend',
+      `${
+        qrRender(code.getModuleCount(), avail).cellSize < MIN_CELL
+          ? '<p class="hint">Too small to scan at this size.</p>'
+          : ''
+      }
+       <button id="qrEnlarge" class="secondary">Enlarge to scan</button>`
+    );
+    $('qrEnlarge').addEventListener('click', () => openQrFullscreen(code));
+    box.querySelector('svg')?.addEventListener('click', () => openQrFullscreen(code));
+  }
   $('copyLink').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(url);
