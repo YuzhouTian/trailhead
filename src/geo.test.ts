@@ -262,13 +262,10 @@ describe('formatDuration', () => {
     expect(formatDuration(12.5)).toBe('12 h 30 min');
   });
 
-  // Known bug, filed as #41: the minutes are rounded independently of the
-  // hours, so anything within half a minute of the next hour reads as ":60".
-  // Left failing on purpose — when #41 is fixed this test goes green and the
-  // `.fails` marker comes off.
-  it.fails('rolls up to the next hour instead of showing 60 minutes', () => {
+  it('rolls up to the next hour instead of showing 60 minutes', () => {
     expect(formatDuration(1.999)).toBe('2 h 00 min');
     expect(formatDuration(0.999)).toBe('1 h 00 min');
+    expect(formatDuration(0.995)).toBe('1 h 00 min');
   });
 });
 
