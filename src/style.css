@@ -499,9 +499,29 @@ body.planning #pinCard { display: none; }
 .searchPin { color: var(--brand); filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
 .searchPin svg { width: 32px; height: 32px; display: block; }
 
-/* QR share */
+/* QR share. No `max-width: 100%` here on purpose: scaling the SVG down was the
+   whole bug (#44) — it put modules on fractional pixels, greyed every edge, and
+   produced something that looked like a QR code and never scanned. The module
+   size is computed from this box's real width in features/sharing.ts instead,
+   and a code too dense to fit goes full-screen below rather than shrinking. */
 .qrBox { text-align: center; padding: 8px 0; }
-.qrBox svg { max-width: 100%; height: auto; }
+.qrBox svg { display: block; margin: 0 auto; cursor: zoom-in; }
+.qrBox .hint { margin: 8px 0 6px; }
+.qrBox button { width: 100%; }
+
+/* The enlarged code: the whole viewport, so a dense one has room to be read. */
+#qrFull {
+  position: fixed; inset: 0; z-index: 3000; background: #fff; color: #1a2420;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 16px; cursor: zoom-out;
+}
+#qrFull .qrFullCode svg { display: block; }
+#qrFull p { margin: 0; font-size: var(--fs-ui); font-weight: 600; text-align: center; }
+#qrFull .qrFullClose {
+  padding: 12px 28px; border: none; border-radius: 24px;
+  background: #e9ede9; color: #1a2420;
+  font-size: var(--fs-ui); font-weight: 700; cursor: pointer;
+}
 
 /* QR scanner (import a route by camera) */
 #qrScan {
