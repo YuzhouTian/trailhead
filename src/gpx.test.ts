@@ -44,12 +44,7 @@ describe('parseGpx', () => {
     ]);
   });
 
-  // Known bug, filed as #42: the name is chosen with a selector list, which
-  // resolves in document order rather than in the order it is written, so the
-  // file-level <metadata> name beats the track name whenever both exist.
-  // Left failing on purpose — fixing #42 turns this green and the `.fails`
-  // marker comes off.
-  it.fails('takes the track name in preference to the file-level name', () => {
+  it('takes the track name in preference to the file-level name', () => {
     expect(parseGpx(TRACK_GPX, 'download (3).gpx').name).toBe('Scafell Pike from Wasdale');
   });
 
