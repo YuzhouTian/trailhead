@@ -1,6 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { LatLng } from './geo';
-import { buildShareUrl, parseShareHash } from './share';
+import {
+  buildShareUrl,
+  CORRUPTED_LINK_MESSAGE,
+  parseShareHash,
+  ShareLinkError
+} from './share';
+import { encodePolyline } from './polyline';
 import type { SavedRoute } from './state';
 
 // `buildShareUrl` builds an absolute URL, so it needs somewhere to be. Two
@@ -136,7 +142,7 @@ describe('round trip', () => {
 
   it('thins a dense track so the link stays scannable', () => {
     // 3,000 GPS points is a normal day's track and far too much for a QR code,
-    // so buildShareUrl simplifies until it is under 500 points. The shape has
+    // so buildShareUrl simplifies until the link fits its budget. The shape has
     // to survive: this one is a long arc, not a straight line.
     const coords: LatLng[] = Array.from({ length: 3000 }, (_, i) => [
       54.4 + Math.sin(i / 500) * 0.05,
@@ -149,6 +155,145 @@ describe('round trip', () => {
     const thinned = parsed.coords!;
     expect(thinned[0][0]).toBeCloseTo(coords[0][0], 4);
     expect(thinned[thinned.length - 1][0]).toBeCloseTo(coords[coords.length - 1][0], 4);
+  });
+});
+
+describe('link budget', () => {
+  /** A wandering track, so simplification has real corners to keep. */
+  const wander = (n: number, ele = false): LatLng[] =>
+    Array.from({ length: n }, (_, i) => {
+      const p: LatLng = [
+        54.4 + Math.sin(i / 40) * 0.03 + i * 0.00004,
+        -3.2 + Math.cos(i / 55) * 0.03
+      ];
+      if (ele) p.push(Math.round(300 + Math.sin(i / 30) * 400));
+      return p;
+    });
+
+  it.each([
+    [500, false],
+    [1500, false],
+    [4000, false],
+    [1500, true],
+    [4000, true]
+  ])('keeps a %i-point track (elevations: %s) inside the link budget', (n, ele) => {
+    // The budget is on the link, because the link is what has to fit through a
+    // QR code and a mail client. Before this, a 500-point track made a 3.5 KB
+    // URL — unscannable (#44) and easily truncated in transit (#45).
+    const url = buildShareUrl(route({ coords: wander(n, ele) }), 'hiking');
+    expect(url.length).toBeLessThanOrEqual(750);
+  });
+
+  it('keeps enough of the shape to still be the same walk', () => {
+    const coords = wander(2000);
+    const parsed = parseShareHash(hashOf(buildShareUrl(route({ coords }), 'hiking')))!;
+    expect(parsed.coords!.length).toBeGreaterThanOrEqual(24);
+    // Every kept point sits on the original line, and both ends are exact.
+    const kept = parsed.coords!;
+    expect(kept[0][0]).toBeCloseTo(coords[0][0], 4);
+    expect(kept[kept.length - 1][0]).toBeCloseTo(coords[coords.length - 1][0], 4);
+  });
+
+  it('leaves a short track alone rather than thinning to a budget it already meets', () => {
+    const coords = wander(30);
+    const parsed = parseShareHash(hashOf(buildShareUrl(route({ coords }), 'hiking')))!;
+    expect(parsed.coords).toHaveLength(30);
+  });
+});
+
+describe('link damage', () => {
+  /** A route that fills the link budget, so there is plenty of payload to damage. */
+  const longLink = (): string =>
+    buildShareUrl(
+      route({
+        coords: Array.from({ length: 600 }, (_, i) => [
+          54.4 + Math.sin(i / 40) * 0.03 + i * 0.00004,
+          -3.2 + Math.cos(i / 55) * 0.03
+        ])
+      }),
+      'hiking'
+    );
+
+  it('names truncation instead of failing anonymously', () => {
+    // Every cut point through a real link has to land on a message the receiver
+    // can act on, not a dead end. That was the whole of #45.
+    const hash = hashOf(longLink());
+    for (let cut = 4; cut < hash.length; cut += 7) {
+      let thrown: unknown = null;
+      let parsed: unknown = null;
+      try {
+        parsed = parseShareHash(hash.slice(0, cut));
+      } catch (e) {
+        thrown = e;
+      }
+      // Either it decodes to nothing, or it says what went wrong — never a
+      // route, and never a bare failure.
+      expect(parsed).toBeNull();
+      if (thrown) expect(thrown).toBeInstanceOf(ShareLinkError);
+    }
+  });
+
+  it('rejects a link with one character corrupted rather than importing it', () => {
+    // A flipped character used to decode cleanly into a route drawn in the
+    // wrong place — plausible, wrong coordinates on a hill are worse than
+    // an error message.
+    const hash = hashOf(longLink());
+    const intact = JSON.stringify(parseShareHash(hash));
+    let tried = 0;
+    let wrongRoute = 0;
+    for (let i = 4; i < hash.length; i++) {
+      const bent = hash.slice(0, i) + (hash[i] === 'A' ? 'B' : 'A') + hash.slice(i + 1);
+      tried++;
+      try {
+        const parsed = parseShareHash(bent);
+        // The last base64 character carries spare bits that decode to nothing,
+        // so flipping it yields the same payload — the same route, not a wrong
+        // one. Anything else getting through is the bug.
+        if (parsed && JSON.stringify(parsed) !== intact) wrongRoute++;
+      } catch {
+        /* rejected, which is the point */
+      }
+    }
+    expect(tried).toBeGreaterThan(500);
+    expect(wrongRoute).toBe(0);
+  });
+
+  it('says the link is corrupted when only the checksum disagrees', () => {
+    const hash = hashOf(buildShareUrl(route({ waypoints: [[54.4, -3.2], [54.5, -3.1]] }), 'hiking'));
+    const payload = JSON.parse(
+      atob(hash.slice(3).replace(/-/g, '+').replace(/_/g, '/'))
+    ) as Record<string, string>;
+    payload.n = 'A different name';
+    const bent = btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    expect(() => parseShareHash(`#r=${bent}`)).toThrow(CORRUPTED_LINK_MESSAGE);
+  });
+
+  it('still reads a link from before checksums existed', () => {
+    // Links are out in people's inboxes; an unverified one is better than a
+    // rejected one.
+    const payload = { n: 'Old link', c: encodePolyline([[54.4, -3.2], [54.5, -3.1]]) };
+    const b64 = btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    expect(parseShareHash(`#r=${b64}`)!.coords).toHaveLength(2);
+  });
+});
+
+describe('links that got knocked about in transit', () => {
+  const url = (): string =>
+    buildShareUrl(route({ waypoints: [[54.4271, -3.2472], [54.4542, -3.2116]] }), 'hiking');
+
+  it.each([
+    ['a trailing full stop from a sentence', (u: string) => `${u}.`],
+    ['brackets added by a chat client', (u: string) => `<${u}>`],
+    ['a tracking parameter appended', (u: string) => `${u}&utm_source=chat`],
+    ['prose around it', (u: string) => `Here you go — ${u} — see you Saturday`],
+    ['a line break through the middle', (u: string) => `${u.slice(0, 60)}\r\n${u.slice(60)}`],
+    ['wrapped at 78 columns', (u: string) => u.replace(/(.{78})/g, '$1\n')]
+  ])('reads a link through %s', (_label, damage) => {
+    // Opening a link used to anchor on the whole fragment while pasting one
+    // searched, so half of these silently did nothing when opened (#45).
+    const parsed = parseShareHash(damage(url()));
+    expect(parsed!.name).toBe('Scafell Pike from Wasdale');
+    expect(parsed!.waypoints).toHaveLength(2);
   });
 });
 
