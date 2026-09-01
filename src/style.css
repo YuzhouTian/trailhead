@@ -177,6 +177,9 @@ body.planning #bottomBar { display: none; }
 #btnLocate .ico { line-height: 0; }
 #btnLocate .ico svg { width: 24px; height: 24px; display: block; }
 #btnLocate.active { color: var(--brand); }
+/* The watch has given up — denied, or an error we stopped on. Not danger:
+   nothing is wrong with the walk, there is just no dot until you tap to retry. */
+#btnLocate.failed { color: var(--notice); }
 body.planning #btnLocate { display: none; }
 
 /* Belt and braces: paint the bar's own colour from its bottom edge down past
