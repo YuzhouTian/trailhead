@@ -54,7 +54,7 @@ const route = (over: Partial<SavedRoute> = {}): SavedRoute => ({
 describe('loadSettings', () => {
   it('gives a fresh install its defaults', () => {
     const s = loadSettings();
-    expect(s.baseLayer).toBe('osm');
+    expect(s.baseLayer).toBe('freemap');
     expect(s.overlayLayer).toBe('');
     expect(s.overlayOpacity).toBe(0.5);
     expect(s.profile).toBe('hiking-beta');
@@ -79,6 +79,26 @@ describe('loadSettings', () => {
     expect(s.theme).toBe('dark');
     // Keys the old install never wrote still get their defaults.
     expect(s.profile).toBe('hiking-beta');
+  });
+
+  describe('base layer migration', () => {
+    it('moves an install still on the old default over to Freemap', () => {
+      store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'osm', speedKmh: 5 }));
+      const s = loadSettings();
+      expect(s.baseLayer).toBe('freemap');
+      // Everything else the old install saved survives the move.
+      expect(s.speedKmh).toBe(5);
+    });
+
+    it('leaves a layer the user actually chose alone', () => {
+      store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'tf-outdoors' }));
+      expect(loadSettings().baseLayer).toBe('tf-outdoors');
+    });
+
+    it('does not run twice — picking OSM after the move sticks', () => {
+      store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'osm', schema: 1 }));
+      expect(loadSettings().baseLayer).toBe('osm');
+    });
   });
 
   it('round trips through saveSettings', () => {
