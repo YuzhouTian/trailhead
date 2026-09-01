@@ -57,7 +57,7 @@ describe('loadSettings', () => {
     expect(s.baseLayer).toBe('osm');
     expect(s.overlayLayer).toBe('');
     expect(s.overlayOpacity).toBe(0.5);
-    expect(s.profile).toBe('hiking-mountain');
+    expect(s.profile).toBe('hiking-beta');
     expect(s.speedKmh).toBe(4);
     expect(s.tfKey).toBe('');
     expect(s.theme).toBe('system');
@@ -78,7 +78,7 @@ describe('loadSettings', () => {
     expect(s.speedKmh).toBe(5.5);
     expect(s.theme).toBe('dark');
     // Keys the old install never wrote still get their defaults.
-    expect(s.profile).toBe('hiking-mountain');
+    expect(s.profile).toBe('hiking-beta');
   });
 
   it('round trips through saveSettings', () => {

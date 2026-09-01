@@ -69,7 +69,7 @@ export function loadSettings(): Settings {
     baseLayer: 'osm',
     overlayLayer: '',
     overlayOpacity: 0.5,
-    profile: 'hiking-mountain',
+    profile: 'hiking-beta',
     speedKmh: 4,
     tfKey: '',
     theme: 'system',
