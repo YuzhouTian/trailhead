@@ -19,6 +19,18 @@ export interface BaseLayerDef {
 
 export const BASE_LAYERS: BaseLayerDef[] = [
   {
+    id: 'freemap',
+    name: 'Outdoor (Freemap)',
+    // No extension and no subdomain; {r} becomes "@2x", which this server
+    // renders natively rather than upscaling.
+    url: 'https://outdoor.tiles.freemap.sk/{z}/{x}/{y}{r}',
+    attribution: '&copy; OpenStreetMap contributors | Outdoor style &copy; Freemap Slovakia',
+    maxZoom: 20,
+    maxNativeZoom: 20,
+    retina: true,
+    blurb: 'Contours, hillshading and crag ticks over OpenStreetMap data, with waymarked routes named along the line. The sharpest layer here — its own tiles all the way to z20, at true retina resolution. Covers Europe only.'
+  },
+  {
     id: 'tf-outdoors',
     name: 'Outdoors (Thunderforest)',
     // {r} becomes "@2x" on high-density screens.
@@ -37,9 +49,18 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     attribution: '&copy; OpenStreetMap contributors',
     maxZoom: 19,
     maxNativeZoom: 19,
-    blurb: 'The reference rendering, and the only layer that draws individual gates and stiles. No key needed, so it is also the fallback if Outdoors is unavailable.'
+    blurb: 'The reference rendering, and the only layer that draws individual gates and stiles. No key, global coverage and the sturdiest servers, which is why it is the fallback.'
   }
 ];
+
+/**
+ * The layer to fall back to when the chosen one cannot be used — a missing key,
+ * a retired id, tiles that will not load. Named rather than "the first keyless
+ * layer" because the default is now Freemap, and the point of a fallback is to
+ * be the *dependable* one: OpenStreetMap is global (Freemap is Europe-only) and
+ * runs on the most robust servers of the four.
+ */
+export const FALLBACK_LAYER_ID = 'osm';
 
 export const BROUTER_URL = 'https://brouter.de/brouter';
 

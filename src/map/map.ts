@@ -5,7 +5,7 @@
 // this module only knows about the canvas they draw on.
 
 import L from '../leaflet-setup';
-import { BASE_LAYERS, type BaseLayerDef } from '../config';
+import { BASE_LAYERS, FALLBACK_LAYER_ID, type BaseLayerDef } from '../config';
 import { type LatLng } from '../geo';
 import { saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
@@ -76,7 +76,10 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
 }
 
 /** The layer we fall back to: always available, never needs a key. */
-const FALLBACK_LAYER = BASE_LAYERS.find((l) => !l.needsTfKey) ?? BASE_LAYERS[0];
+const FALLBACK_LAYER =
+  BASE_LAYERS.find((l) => l.id === FALLBACK_LAYER_ID) ??
+  BASE_LAYERS.find((l) => !l.needsTfKey) ??
+  BASE_LAYERS[0];
 
 /** A layer is usable if it exists and any key it needs has been entered. */
 export function usable(def: BaseLayerDef | undefined): def is BaseLayerDef {
@@ -97,13 +100,26 @@ export function applyLayers(): void {
   baseTiles?.remove();
   baseTiles = makeTileLayer(base).addTo(map);
 
-  // An empty key is caught above, but a *wrong* one just 401s and leaves a
-  // blank map. Bail out to the keyless layer rather than showing nothing.
-  if (base.needsTfKey) {
+  // Layers disagree about how far in they go (Freemap 20, OpenStreetMap 19), so
+  // switching down from a deeper layer can leave the map at a zoom the new one
+  // will not serve. Leaflet only clamps on the next interaction; do it now.
+  if (map.getZoom() > base.maxZoom) map.setZoom(base.maxZoom);
+
+  // Tiles can fail for reasons the checks above cannot see: a *wrong* key 401s,
+  // and Freemap covers Europe only, so walking off the edge of its data returns
+  // nothing. Either way you get a blank map with no explanation — bail out to
+  // the dependable layer instead. Never attached to the fallback itself, which
+  // would loop. Four failures rather than one so a blip does not switch layers.
+  if (base.id !== FALLBACK_LAYER.id) {
     let failures = 0;
     baseTiles.on('tileerror', () => {
       if (++failures !== 4 || settings.baseLayer !== base.id) return;
-      toast(`${base.name} tiles are failing — check the key in Settings`, 6000);
+      toast(
+        base.needsTfKey
+          ? `${base.name} tiles are failing — check the key in Settings`
+          : `${base.name} has no tiles here — switched to ${FALLBACK_LAYER.name}`,
+        6000
+      );
       settings.baseLayer = FALLBACK_LAYER.id;
       applyLayers();
     });

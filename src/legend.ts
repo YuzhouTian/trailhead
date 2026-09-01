@@ -293,6 +293,68 @@ const TF_GROUPS: Group[] = [
 
 /** The app's own POI markers, drawn the way the map draws them — same two
  *  symbology tokens, so the key cannot drift from the markers it explains. */
+const mine = (colour: string) =>
+  symbol(
+    `<g stroke="${colour}" stroke-width="1.5" fill="none">` +
+      `<path d="M19 14 L27 5"/><path d="M27 14 L19 5"/></g>`
+  );
+
+const routeDots = (colour: string) =>
+  sw(`<g fill="${colour}">${[6, 14, 22, 30, 38].map((x) => `<circle cx="${x}" cy="9" r="2.4"/>`).join('')}</g>`);
+
+const FREEMAP_GROUPS: Group[] = [
+  {
+    title: 'Ways you can walk',
+    entries: [
+      { swatch: line('#8b3a3a', 2, '3 3'), name: 'Path or footpath', note: 'Fine red-brown dashes. The commonest walking line on this layer.' },
+      { swatch: line('#a08048', 3, '8 5', '#e8d9b8'), name: 'Track', note: 'Wider, with a pale casing. Usually the fastest going underfoot.' },
+      { swatch: line('#ffffff', 5, '', '#c9c2b8'), name: 'Road' },
+      { swatch: rungs('#4a4a4a', 5, '#e8e8e8'), name: 'Railway', note: 'Cross-hatched. The Snowdon Mountain Railway draws like this.' }
+    ]
+  },
+  {
+    title: 'Waymarked routes',
+    entries: [
+      { swatch: routeDots('#b03a8a'), name: 'Route waymarks', note: 'Small coloured markers strung along a way that carries a named route.' },
+      {
+        swatch: symbol('<text x="23" y="13" text-anchor="middle" font-size="8" fill="#5a4a3a" font-style="italic">Name</text>'),
+        name: 'Route name',
+        note: 'Written along the line itself — you can read which route you are on without tapping anything.'
+      }
+    ]
+  },
+  {
+    title: 'Relief',
+    entries: [
+      { swatch: contours('#c0a080', '#9a7850'), name: 'Contours', note: 'Heavier index lines carry the height label; lighter lines run between them.' },
+      { swatch: area('#ddd6c8'), name: 'Hillshading', note: 'Shaded relief under everything else, so you read the shape of a slope at a glance.' },
+      { swatch: cliff('#333'), name: 'Crag or cliff', note: 'Ticks point downhill, off the top of the drop.' },
+      { swatch: stipple('#9a9a9a'), name: 'Scree or bare rock' }
+    ]
+  },
+  {
+    title: 'Ground cover and water',
+    entries: [
+      { swatch: trees('#6a9e4f'), name: 'Broadleaf woodland' },
+      { swatch: conifers('#3f7d3f'), name: 'Conifer plantation' },
+      { swatch: line('#7fb8d4', 3), name: 'River or stream' },
+      { swatch: area('#aad3df'), name: 'Lake or tarn' }
+    ]
+  },
+  {
+    title: 'Landmarks',
+    entries: [
+      { swatch: peak('#6b4a2a'), name: 'Peak', note: 'With name and spot height — Bwlch Glâs draws as 998.' },
+      { swatch: mine('#4a4a4a'), name: 'Mine or adit', note: 'Crossed tools. Old workings are common on Welsh and Lakeland hillsides.' },
+      { swatch: letterChip('P', '#4a7ebb'), name: 'Car park' },
+      { swatch: letterChip('▲', '#7a9e3f'), name: 'Campsite' }
+    ],
+    footnote:
+      'Covers Europe only — walk off the edge of its data and Trailhead switches you to OpenStreetMap. Gates and stiles are not drawn, so switch to the OSM layer to check a specific crossing.'
+  }
+];
+
+
 const poiChip = (icon: string, colour: string) =>
   sw(
     `<circle cx="23" cy="9" r="7.5" style="fill:var(--poi-disc)" stroke="${colour}" stroke-width="2"/>` +
@@ -314,7 +376,8 @@ function nearbyGroup(kinds: readonly string[]): Group | null {
 
 const KEYS: Record<string, { title: string; groups: Group[] }> = {
   osm: { title: 'OpenStreetMap', groups: OSM_GROUPS },
-  'tf-outdoors': { title: 'Outdoors', groups: TF_GROUPS }
+  'tf-outdoors': { title: 'Outdoors', groups: TF_GROUPS },
+  freemap: { title: 'Outdoor', groups: FREEMAP_GROUPS }
 };
 
 export function legendHtml(layerId: string, nearbyKinds: readonly string[] = []): string {

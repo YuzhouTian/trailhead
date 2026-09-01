@@ -43,7 +43,15 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark';
   /** Which categories "What's nearby" searches for. */
   poiKinds: PoiKind[];
+  /**
+   * Bumped when a default changes in a way an existing install should follow.
+   * Absent on anything saved before base layers were reshuffled.
+   */
+  schema?: number;
 }
+
+/** Current settings shape. See `migrate` for what each bump carries. */
+const SCHEMA = 1;
 
 /** A saved place the user dropped and named. */
 export type PinCategory = 'summit' | 'viewpoint' | 'water' | 'camp' | 'parking' | 'other';
@@ -64,25 +72,47 @@ const ROUTES_KEY = 'trailhead.routes';
 const PINS_KEY = 'trailhead.pins';
 const ACTIVE_ROUTE_KEY = 'trailhead.activeRoute';
 
+/**
+ * Carry an existing install forward when a default changes.
+ *
+ * v1 makes Freemap the base layer. It only moves installs still sitting on the
+ * old default of 'osm': a saved value of anything else is a choice the user made
+ * from the Map panel, and stays put. Someone who genuinely picked OpenStreetMap
+ * back when it was also the default is indistinguishable from someone who never
+ * touched it, so they get moved too — one tap in the Map panel puts it back.
+ */
+function migrate(s: Settings, saved: unknown): Settings {
+  // Read the version off what was *stored*, not off the merged object: the
+  // defaults carry the current schema, so the merge would always look current
+  // and no migration would ever fire. Storage can also hold `null` or a
+  // non-object, which spreads harmlessly but cannot be read from.
+  const prev = (saved && typeof saved === 'object' ? saved : {}) as Partial<Settings>;
+  if (prev.schema === undefined && prev.baseLayer === 'osm') s.baseLayer = 'freemap';
+  s.schema = SCHEMA;
+  return s;
+}
+
 export function loadSettings(): Settings {
   const defaults: Settings = {
-    baseLayer: 'osm',
+    baseLayer: 'freemap',
     overlayLayer: '',
     overlayOpacity: 0.5,
     profile: 'hiking-beta',
     speedKmh: 4,
     tfKey: '',
     theme: 'system',
-    poiKinds: [...DEFAULT_POI_KINDS]
+    poiKinds: [...DEFAULT_POI_KINDS],
+    schema: SCHEMA
   };
   try {
-    const s: Settings = { ...defaults, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') };
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
+    const s: Settings = { ...defaults, ...saved };
     // Categories can be renamed or dropped between releases, so trust the
     // table over whatever an old install saved.
     s.poiKinds = Array.isArray(s.poiKinds)
       ? poiCategories(s.poiKinds).map((c) => c.id)
       : [...DEFAULT_POI_KINDS];
-    return s;
+    return migrate(s, saved);
   } catch {
     return defaults;
   }
