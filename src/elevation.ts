@@ -24,11 +24,23 @@ export async function fetchElevation(
   }
 }
 
+/** Where the scrubber sits: the point on the route, and how far along it is. */
+export interface Scrub {
+  pos: LatLng;
+  alongM: number;
+}
+
 /**
  * Render a distance-vs-elevation profile into the container as SVG,
- * with a touch/mouse scrubber. `onScrub` fires with the map position
- * under the scrubber (null when scrubbing ends). Returns false if the
- * route has no elevation data to draw.
+ * with a press-and-drag scrubber. `onScrub` fires with the point under the
+ * scrubber whenever it moves, and with null when there is nothing to mark.
+ * Returns false if the route has no elevation data to draw.
+ *
+ * The scrubber deliberately stays put when the finger (or mouse button) lifts:
+ * the whole point of putting it on the chart is to look at the map afterwards.
+ * It is the caller that owns where it sits, by remembering the last `onScrub`
+ * and handing it back as `scrubM` — without that the next GPS fix, which
+ * repaints this profile from scratch, would silently wipe it.
  *
  * `positionM` is how far along the route the walker currently is, in metres —
  * drawn as a "you are here" marker so the profile answers what is still to
@@ -38,8 +50,9 @@ export async function fetchElevation(
 export function renderProfile(
   container: HTMLElement,
   coords: LatLng[],
-  onScrub?: (pos: LatLng | null) => void,
-  positionM?: number | null
+  onScrub?: (scrub: Scrub | null) => void,
+  positionM?: number | null,
+  scrubM?: number | null
 ): boolean {
   const pts: { d: number; e: number; lat: number; lng: number }[] = [];
   let dist = 0;
@@ -114,9 +127,8 @@ export function renderProfile(
     scrub.querySelector('circle')!,
     scrub.querySelector('text')!
   ];
-  const onMove = (clientX: number) => {
-    const rect = svg.getBoundingClientRect();
-    const d = Math.max(0, Math.min(dist, ((clientX - rect.left - padL) / (W - padL - padR)) * dist));
+  /** Draw the scrubber at the sampled point nearest `d` metres along. */
+  const place = (d: number): Scrub => {
     let best = pts[0];
     for (const p of pts) if (Math.abs(p.d - d) < Math.abs(best.d - d)) best = p;
     scrub.style.display = '';
@@ -128,20 +140,45 @@ export function renderProfile(
     const flip = x(best.d) > W - 110;
     label.setAttribute('x', String(x(best.d) + (flip ? -6 : 6)));
     label.setAttribute('text-anchor', flip ? 'end' : 'start');
-    onScrub?.([best.lat, best.lng, best.e]);
+    return { pos: [best.lat, best.lng, best.e], alongM: best.d };
   };
-  const endScrub = () => {
-    scrub.style.display = 'none';
-    onScrub?.(null);
+
+  // Restore the scrubber this profile was last left with. A route can change
+  // length underneath a saved position (an edited plan, a different walk), so
+  // anything now off the end is reported as gone rather than clamped to a
+  // point the reader never picked.
+  if (typeof scrubM === 'number') {
+    onScrub?.(scrubM >= 0 && scrubM <= dist ? place(scrubM) : null);
+  }
+
+  // Pointer events rather than mouse+touch: a mouse that merely passes over the
+  // chart should not leave a marker behind now that markers outlive the gesture,
+  // so scrubbing starts on press for both. Capture keeps the drag alive when the
+  // finger strays off the small chart, and #elevChart sets touch-action: none so
+  // a horizontal drag scrubs instead of scrolling the card.
+  const distanceAt = (clientX: number): number => {
+    const rect = svg.getBoundingClientRect();
+    const inner = Math.max(rect.width - padL - padR, 1);
+    return Math.max(0, Math.min(dist, ((clientX - rect.left - padL) / inner) * dist));
   };
-  svg.addEventListener('mousemove', (e) => onMove(e.clientX));
-  svg.addEventListener('touchstart', (e) => onMove(e.touches[0].clientX), { passive: true });
-  svg.addEventListener('touchmove', (e) => {
-    onMove(e.touches[0].clientX);
+  let dragging = false;
+  svg.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    // Capture is a nicety — without it a drag that wanders off the chart just
+    // stops — so environments that lack it degrade rather than throw.
+    svg.setPointerCapture?.(e.pointerId);
+    onScrub?.(place(distanceAt(e.clientX)));
     e.preventDefault();
-  }, { passive: false });
-  svg.addEventListener('mouseleave', endScrub);
-  svg.addEventListener('touchend', endScrub);
-  svg.addEventListener('touchcancel', endScrub);
+  });
+  svg.addEventListener('pointermove', (e) => {
+    if (dragging) onScrub?.(place(distanceAt(e.clientX)));
+  });
+  const endDrag = (e: PointerEvent) => {
+    // The scrubber stays where it was dropped; only the drag ends.
+    dragging = false;
+    if (svg.hasPointerCapture?.(e.pointerId)) svg.releasePointerCapture(e.pointerId);
+  };
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
   return true;
 }

@@ -10,7 +10,7 @@
 // and dies with the card rather than with any feature.
 
 import L from '../leaflet-setup';
-import { renderProfile } from '../elevation';
+import { renderProfile, type Scrub } from '../elevation';
 import { formatDistance, formatDuration, naismithHours, type LatLng } from '../geo';
 import { map } from '../map/map';
 import { $ } from './dom';
@@ -49,13 +49,25 @@ export function climbText(ascentM: number, descentM?: number): string {
 let getView: () => RouteCardView;
 let chartOpen = false;
 let scrubMarker: L.CircleMarker | null = null;
+// Where the chart's scrubber was left, in metres along the route. Held here
+// rather than in the chart because the chart is thrown away and redrawn on
+// every GPS fix, and a marker you have to keep re-placing every few seconds is
+// no use for reading the map.
+let scrubM: number | null = null;
+// The coords the chart currently shows. A new route — or an edited plan — is a
+// different walk, so the scrubber from the old one is dropped rather than
+// reappearing at the same distance along something else.
+let scrubCoords: LatLng[] | null = null;
 
-function onProfileScrub(pos: LatLng | null): void {
-  if (!pos) {
+function onProfileScrub(scrub: Scrub | null): void {
+  scrubM = scrub?.alongM ?? null;
+  if (!scrub) {
+    scrubCoords = null;
     scrubMarker?.remove();
     scrubMarker = null;
     return;
   }
+  const pos = scrub.pos;
   if (!scrubMarker) {
     scrubMarker = L.circleMarker(pos, {
       radius: 7,
@@ -108,10 +120,14 @@ export function updateRouteCard(): void {
   const chart = $('elevChart');
   if (chartOpen) {
     chart.classList.remove('hidden');
+    if (scrubCoords && scrubCoords !== src.coords) onProfileScrub(null);
     // Only mark a position we actually believe: hereM is null until a fix lands
     // near the line, so the dot never appears at a guessed place.
-    if (!renderProfile(chart, src.coords, onProfileScrub, view.hereM)) {
+    if (renderProfile(chart, src.coords, onProfileScrub, view.hereM, scrubM)) {
+      scrubCoords = src.coords;
+    } else {
       chart.innerHTML = '<p class="hint">No elevation data for this route.</p>';
+      onProfileScrub(null);
     }
   } else {
     chart.classList.add('hidden');
