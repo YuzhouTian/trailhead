@@ -13,6 +13,17 @@ export interface BaseLayerDef {
   needsTfKey?: boolean;
   /** Server offers @2x tiles — much sharper on a phone's high-density screen. */
   retina?: boolean;
+  /**
+   * Whether the server sends `Access-Control-Allow-Origin`. Default true.
+   *
+   * Set false and tiles are requested without `crossOrigin`, because a browser
+   * refuses an image fetched with `crossOrigin="anonymous"` from a host that
+   * sends no CORS header — even on a 200 with a perfectly good tile in the body.
+   * The cost is that the response becomes opaque: neither the offline download
+   * nor the service worker can read its status. See both for what they do
+   * instead.
+   */
+  cors?: boolean;
   /** Shown under the layer name in the Map panel. */
   blurb?: string;
 }
@@ -28,6 +39,8 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     maxZoom: 20,
     maxNativeZoom: 20,
     retina: true,
+    // Serves tiles happily but sends no Access-Control-Allow-Origin.
+    cors: false,
     blurb: 'Contours, hillshading and crag ticks over OpenStreetMap data, with waymarked routes named along the line. The sharpest layer here — its own tiles all the way to z20, at true retina resolution. Covers Europe only.'
   },
   {
@@ -52,6 +65,20 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     blurb: 'The reference rendering, and the only layer that draws individual gates and stiles. No key, global coverage and the sturdiest servers, which is why it is the fallback.'
   }
 ];
+
+/**
+ * What to give an `<img>` as its `crossOrigin` for this layer, or undefined to
+ * leave the attribute off entirely.
+ *
+ * Lives here beside the definitions, and pure, because the rule is easy to get
+ * backwards and expensive when you do: asking a CORS-less host for a CORS image
+ * makes the browser throw away a perfectly good tile, and the layer looks dead
+ * rather than broken. map.ts cannot be imported in a test — it builds a real
+ * Leaflet map the moment it loads — so this is where the rule can be pinned.
+ */
+export function crossOriginFor(def: BaseLayerDef): 'anonymous' | undefined {
+  return def.cors === false ? undefined : 'anonymous';
+}
 
 /**
  * The layer to fall back to when the chosen one cannot be used — a missing key,

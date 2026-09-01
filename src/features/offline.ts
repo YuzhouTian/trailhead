@@ -76,7 +76,11 @@ export function initOffline(opts: {
     }
     const defs = [layerDef(settings.baseLayer), settings.overlayLayer ? layerDef(settings.overlayLayer) : undefined]
       .filter(usable);
-    let urls = defs.flatMap((d) => tileUrls(d, route.coords));
+    // Carry each layer's CORS support alongside its URLs: how the tile is
+    // fetched, and whether the result can be checked, differ per layer.
+    let urls = defs.flatMap((d) =>
+      tileUrls(d, route.coords).map((url) => ({ url, cors: d.cors !== false }))
+    );
     if (urls.length > OFFLINE_MAX_TILES) {
       toast(`Route too long — capping at ${OFFLINE_MAX_TILES} tiles`, 4000);
       urls = urls.slice(0, OFFLINE_MAX_TILES);
@@ -88,10 +92,15 @@ export function initOffline(opts: {
     const queue = [...urls];
     const workers = Array.from({ length: FETCH_WORKERS }, async () => {
       while (queue.length) {
-        const url = queue.shift()!;
+        const { url, cors } = queue.shift()!;
         try {
-          const res = await fetch(url);
-          if (!res.ok) failed++;
+          // A default fetch is a CORS fetch, which a server that sends no CORS
+          // header rejects outright — every Freemap tile would be counted a
+          // failure and none would reach the cache. Ask the way the <img> does
+          // instead. The response comes back opaque, so "it did not throw" is
+          // the only success signal there is for those layers.
+          const res = await fetch(url, cors ? undefined : { mode: 'no-cors' });
+          if (cors && !res.ok) failed++;
         } catch {
           failed++;
         }

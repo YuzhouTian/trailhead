@@ -5,7 +5,7 @@
 // this module only knows about the canvas they draw on.
 
 import L from '../leaflet-setup';
-import { BASE_LAYERS, FALLBACK_LAYER_ID, type BaseLayerDef } from '../config';
+import { BASE_LAYERS, FALLBACK_LAYER_ID, crossOriginFor, type BaseLayerDef } from '../config';
 import { type LatLng } from '../geo';
 import { saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
@@ -58,8 +58,11 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
     maxZoom: def.maxZoom,
     maxNativeZoom: def.maxNativeZoom,
     // CORS requests let the service worker distinguish real tiles from
-    // errors, so failures are never cached as permanent grey squares.
-    crossOrigin: 'anonymous',
+    // errors, so failures are never cached as permanent grey squares. Asking
+    // for it from a server that does not send the header is worse than not
+    // asking: the browser discards a good tile and the layer looks dead, so
+    // hosts without CORS opt out and give up the status check instead.
+    crossOrigin: crossOriginFor(def),
     // Leaflet defaults updateWhenIdle to true on touch devices, which holds
     // every tile request until the pan stops — the map visibly fills in
     // behind your finger. Load them as you go instead.
