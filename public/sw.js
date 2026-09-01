@@ -2,7 +2,10 @@
 const STATIC_CACHE = 'trailhead-static-v1';
 // v2: v1 could contain opaque error responses cached as if they were tiles
 // (permanent grey squares) — bumping the name discards them.
-const TILE_CACHE = 'trailhead-tiles-v2';
+// v3: the default layer moved to Freemap, which sends no CORS header, so its
+// tiles are opaque and cached on trust again (see the fetch handler). Bumping
+// discards anything the previous rules let through.
+const TILE_CACHE = 'trailhead-tiles-v3';
 
 const PRECACHE = ['./', './index.html', './manifest.webmanifest'];
 
@@ -62,10 +65,18 @@ self.addEventListener('fetch', (event) => {
       tileCache().then(async (cache) => {
         const hit = await cache.match(key);
         if (hit) return hit;
-        // Tiles are requested with CORS, so status is visible: only cache
-        // real tiles. Failures stay uncached and are retried on next view.
+        // Tiles from a CORS-capable host have a readable status, so only real
+        // ones are cached and failures are retried on the next view.
+        //
+        // Freemap sends no CORS header, so Trailhead asks for its tiles without
+        // one and they arrive opaque: the status is hidden and there is nothing
+        // to check. Caching them on trust is the only way the default layer
+        // works offline at all. A dropped connection rejects the fetch rather
+        // than returning a response, so patchy signal on a hill still cannot
+        // poison the cache; a server-side 404 or 5xx can, and that is what
+        // bumping TILE_CACHE clears.
         const res = await fetch(req);
-        if (res.ok) cache.put(key, res.clone());
+        if (res.ok || res.type === 'opaque') cache.put(key, res.clone());
         return res;
       })
     );
