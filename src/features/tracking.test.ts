@@ -17,7 +17,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { ARRIVAL_M, OFF_ROUTE_THRESHOLD_M } from '../config';
 import { haversine, type LatLng, type RouteProgress } from '../geo';
 import type { SavedRoute } from '../state';
-import { bannerFor } from './tracking';
+import { bannerFor, locateAction } from './tracking';
 
 const TARN: LatLng = [54.468, -3.21];
 
@@ -112,5 +112,55 @@ describe('while still walking', () => {
     const banner = bannerFor(northOf(TARN, 900), directions(), null);
     expect(banner.className).toBe('off');
     expect(banner.text).toContain('OFF ROUTE');
+  });
+});
+
+// What a tap of Me does. The button has no off step, so the whole of its
+// behaviour is this precedence: fix the watch, else come back to me, else turn
+// the map. Get it wrong and a walker who tapped "take me back" gets a spinning
+// map of somewhere they are not standing.
+describe('the Me button', () => {
+  const state = (o: Partial<Parameters<typeof locateAction>[0]> = {}) => ({
+    failed: false,
+    follow: true,
+    headingOn: false,
+    ...o
+  });
+
+  it('toggles rotation while the map is on you, in both directions', () => {
+    expect(locateAction(state({ headingOn: false }))).toBe('heading-up');
+    expect(locateAction(state({ headingOn: true }))).toBe('north-up');
+  });
+
+  it('brings you back once the map has moved off you', () => {
+    expect(locateAction(state({ follow: false }))).toBe('recentre');
+  });
+
+  it('brings you back rather than rotating, which is the point of the order', () => {
+    // Panned away in heading-up. Turning the map further is not what the tap
+    // was for; the map is not even on you to turn around.
+    expect(locateAction(state({ follow: false, headingOn: true }))).toBe('recentre');
+  });
+
+  it('offers a retry above everything once the watch has given up', () => {
+    // With no off step, this is the only way back to a dot — so it has to win
+    // from every combination of the others.
+    for (const follow of [true, false]) {
+      for (const headingOn of [true, false]) {
+        expect(locateAction({ failed: true, follow, headingOn })).toBe('retry');
+      }
+    }
+  });
+
+  it('never switches GPS off, from any state', () => {
+    const actions = new Set<string>();
+    for (const failed of [true, false]) {
+      for (const follow of [true, false]) {
+        for (const headingOn of [true, false]) {
+          actions.add(locateAction({ failed, follow, headingOn }));
+        }
+      }
+    }
+    expect([...actions].sort()).toEqual(['heading-up', 'north-up', 'recentre', 'retry']);
   });
 });
