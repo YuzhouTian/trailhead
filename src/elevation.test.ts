@@ -5,6 +5,9 @@
 // can look away from the chart and at the map, so lifting a finger must not
 // take it away, and neither must the profile being repainted underneath it —
 // which happens on every GPS fix while you walk.
+//
+// The other half is that a mouse and a finger are scrubbed differently: a mouse
+// hovers, a finger has to press. Both leave the marker behind when they go.
 
 import { describe, expect, it, vi } from 'vitest';
 import { renderProfile, type Scrub } from './elevation';
@@ -41,8 +44,15 @@ function xAt(fraction: number): number {
   return padL + (W - padL - padR) * fraction;
 }
 
-function pointer(svg: SVGSVGElement, type: string, clientX: number): void {
-  svg.dispatchEvent(new PointerEvent(type, { clientX, pointerId: 1, bubbles: true }));
+function pointer(
+  svg: SVGSVGElement,
+  type: string,
+  clientX: number,
+  pointerType = 'touch'
+): void {
+  svg.dispatchEvent(
+    new PointerEvent(type, { clientX, pointerId: 1, pointerType, bubbles: true })
+  );
 }
 
 const visible = (container: HTMLElement): boolean =>
@@ -64,16 +74,54 @@ describe('renderProfile scrubber', () => {
     expect(onScrub).toHaveBeenCalledTimes(2);
   });
 
-  it('ignores a pointer that is only passing over', () => {
+  it('ignores a finger that is only passing over', () => {
     const onScrub = vi.fn<(s: Scrub | null) => void>();
     const container = mount();
     renderProfile(container, coords, onScrub);
     const svg = measured(container);
 
+    // A stray touchmove over the chart — no press, so nothing to scrub with.
     pointer(svg, 'pointermove', xAt(0.5));
 
     expect(visible(container)).toBe(false);
     expect(onScrub).not.toHaveBeenCalled();
+  });
+
+  it('follows a hovering mouse with no button held', () => {
+    const onScrub = vi.fn<(s: Scrub | null) => void>();
+    const container = mount();
+    renderProfile(container, coords, onScrub);
+    const svg = measured(container);
+
+    pointer(svg, 'pointermove', xAt(0.25), 'mouse');
+    pointer(svg, 'pointermove', xAt(0.75), 'mouse');
+
+    expect(visible(container)).toBe(true);
+    expect(onScrub).toHaveBeenCalledTimes(2);
+    const [first, second] = onScrub.mock.calls.map((c) => c[0]!);
+    expect(second.alongM).toBeGreaterThan(first.alongM);
+  });
+
+  it('stays where the mouse last hovered after it leaves the chart', () => {
+    const onScrub = vi.fn<(s: Scrub | null) => void>();
+    const container = mount();
+    renderProfile(container, coords, onScrub);
+    const svg = measured(container);
+
+    pointer(svg, 'pointermove', xAt(0.5), 'mouse');
+    const left = onScrub.mock.calls[0][0]!;
+    svg.dispatchEvent(new PointerEvent('pointerleave', { pointerId: 1, bubbles: true }));
+    svg.dispatchEvent(new PointerEvent('pointerout', { pointerId: 1, bubbles: true }));
+
+    // A hover is a real scrub, so leaving takes nothing away — and the caller
+    // can hand the position back on the next repaint like any other.
+    expect(visible(container)).toBe(true);
+    expect(onScrub).not.toHaveBeenCalledWith(null);
+    expect(onScrub).toHaveBeenCalledTimes(1);
+
+    const again = vi.fn<(s: Scrub | null) => void>();
+    renderProfile(container, coords, again, null, left.alongM);
+    expect(again.mock.calls[0][0]).toEqual(left);
   });
 
   it('redraws where it was left when the profile is repainted', () => {
