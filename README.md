@@ -54,9 +54,12 @@ and buttons to start following it, open the elevation profile, or cache its tile
 
 ### Following a route
 
-- **Live position** — the locate button cycles off → follow (north-up) → **heading-up**
-  (the map rotates with your compass) → off. Dragging the map pauses following; the next tap
-  re-centres.
+- **Live position** — the map is on you from the first fix, and there is no off. Tapping
+  **Me** while it sits on your dot toggles north-up against **heading-up** (the map rotates
+  with your compass); tapping it anywhere else brings you back. Dragging the map — or
+  opening a pin, a search hit or a route — pauses the re-centring but keeps the rotation,
+  so you can look up the valley with up still meaning forward. The next tap comes back
+  heading-up; the one after that squares the map to north.
 - **On/off-route banner** — how far you are from the planned line, turning red past 50 m.
 - **Route progress** — distance to go, remaining climb and descent, a time estimate at your
   pace, and % done, live on the route card. Progress is projected onto the line in a way that

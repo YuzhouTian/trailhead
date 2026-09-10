@@ -33,9 +33,14 @@ import { climbText, updateRouteCard } from '../ui/routeCard';
 
 const gpsIcon = L.divIcon({ className: '', html: '<div class="gpsDot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
 
-// The "Me" button shows its state through the glyph as well as the colour: a
-// hollow crosshair when the map is not on you (or has no fix to be on), a
-// filled one while following you north-up, and a compass arrow in heading-up.
+// The "Me" button carries two facts in two channels, because they now vary
+// independently: the glyph says which way the map is pointing (crosshair for
+// north-up, compass arrow while it turns with you) and the colour says whether
+// the map is on you (lit while following, muted once you have moved it off).
+// A muted arrow — where a drag in heading-up leaves you — is then readable as
+// the thing it is: still turning with you, no longer on you, tap to come back.
+// The crosshair's filled centre says the same as the colour and predates it;
+// kept as the redundancy it is, since one glyph is no worse for having two.
 const LOCATE_ICON = { away: svgUse('i-locate'), follow: svgUse('i-locate-on'), heading: svgUse('i-compass') };
 
 // Owned by the app and shared by reference; only read here (the walking pace
@@ -51,14 +56,6 @@ let accCircle: L.Circle | null = null;
 let lastFix: LatLng | null = null;
 let lastAccuracy = 0;
 let follow = false;
-/**
- * The rotation you last asked for, which outlives the compass itself. Pausing
- * squares the map up — a map turning with your body around somewhere you are
- * not standing is noise — but forgetting that you wanted heading-up would make
- * every glance at a pin cost two taps to undo. Kept separate from headingOn,
- * which is only whether the sensor is live right now.
- */
-let headingWanted = false;
 /**
  * Set when the watch has given up: permission refused, or an error we stopped
  * on. The button then reads as a retry rather than as a toggle, because with no
@@ -339,9 +336,13 @@ function stopHeading(): void {
 
 /**
  * Repaint the Me button from the state it is in. Every path that changes
- * following, rotation or the health of the watch ends here, so the glyph can
- * never drift from what the map is actually doing — which is exactly how a
- * drag used to leave a lit compass over a map that had stopped turning.
+ * following, rotation or the health of the watch ends here, so neither channel
+ * can drift from what the map is actually doing.
+ *
+ * The glyph follows the rotation alone. It deliberately does not ask whether
+ * the map is on you: a map panned off you in heading-up is still turning with
+ * your body, and a crosshair there would deny something the walker can watch
+ * happening. Centring is the colour's to say.
  */
 function paintLocate(): void {
   const btn = $('btnLocate');
@@ -350,7 +351,7 @@ function paintLocate(): void {
   btn.classList.toggle('failed', gpsFailed);
   $('locateIco').innerHTML = gpsFailed
     ? LOCATE_ICON.away
-    : follow && headingOn
+    : headingOn
       ? LOCATE_ICON.heading
       : centred
         ? LOCATE_ICON.follow
@@ -429,16 +430,13 @@ function startWatch(): boolean {
 }
 
 /**
- * Re-centre on your dot and resume following, restoring heading-up if that is
- * the rotation you were in when the map was last on you. One tap puts you back
- * where you were rather than two.
+ * Re-centre on your dot and resume following. The rotation needs no restoring:
+ * it was never taken away, so a tap that comes back in heading-up comes back
+ * heading-up, and the tap after it is the one that squares the map to north.
  */
-async function resumeFollow(): Promise<void> {
+function resumeFollow(): void {
   follow = true;
   if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
-  // Restore the compass before painting, so the glyph lands on its final state
-  // rather than flicking through north-up on the way.
-  if (headingWanted && !headingOn) await startHeading();
   paintLocate();
 }
 
@@ -448,24 +446,23 @@ async function resumeFollow(): Promise<void> {
  * used to drag the map straight back to you, which is what made opening
  * anything with Me on feel broken. A map drag says the same thing.
  *
- * Everything that makes GPS worth having stays: the dot, the accuracy circle,
- * the on/off-route banner, the distance still to go. Only the centring stops,
- * so you can see the place you asked for and yourself at the same time.
- * Heading-up drops back to north-up, because a map that keeps turning with
- * your body around somewhere you are not standing is just noise — but the
- * wanting of it is remembered, so the tap that brings you back brings the
- * rotation back with it.
+ * Centring is the whole of what stops. The dot, the accuracy circle, the
+ * on/off-route banner, the distance still to go and the rotation all stay, so
+ * you can see the place you asked for and yourself at the same time.
+ *
+ * The rotation staying is the point. Dragging up the valley to see what is
+ * ahead is still looking at the ground you are standing on, from the direction
+ * you are facing, and up-is-forward is worth most exactly then — squaring the
+ * map to north under your thumb took away the one thing that made the look
+ * worth taking. It costs nothing to keep: the map turning while you are panned
+ * off yourself is still turning with your body, which is true wherever the map
+ * happens to be pointed. So this is silent — nothing has changed that the
+ * walker cannot see, and the button says the rest.
  */
 export function pauseFollow(): void {
   if (watchId === null || !follow) return; // not following: nothing to pause
-  const wasHeading = headingOn;
   follow = false;
-  stopHeading(); // no-op when already north-up; squares the map back up otherwise
   paintLocate();
-  // Silent for an ordinary pause — the dot is still there and the map simply
-  // stays put. Losing heading-up is the one part that visibly changes the map
-  // out from under you, so say that much and no more.
-  if (wasHeading) toast('Back to north-up — tap Me to follow again', 3000);
 }
 
 /**
@@ -495,22 +492,19 @@ export function initTracking(opts: {
         startWatch();
         break;
       case 'recentre':
-        await resumeFollow();
+        resumeFollow();
         break;
       case 'heading-up':
-        headingWanted = true;
         if (await startHeading()) {
           toast('Heading-up — the map turns with you. Tap again for north-up.', 3000);
         } else {
           // The compass is the only thing that failed. Staying north-up costs
           // the walker nothing they had; taking the dot away would.
-          headingWanted = false;
           toast('Compass not available — staying north-up', 3500);
         }
         paintLocate();
         break;
       case 'north-up':
-        headingWanted = false;
         stopHeading();
         paintLocate();
         break;
