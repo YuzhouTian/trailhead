@@ -31,12 +31,12 @@ export interface Scrub {
 }
 
 /**
- * Render a distance-vs-elevation profile into the container as SVG,
- * with a press-and-drag scrubber. `onScrub` fires with the point under the
- * scrubber whenever it moves, and with null when there is nothing to mark.
- * Returns false if the route has no elevation data to draw.
+ * Render a distance-vs-elevation profile into the container as SVG, with a
+ * scrubber that follows a hovering mouse and a pressed finger. `onScrub` fires
+ * with the point under the scrubber whenever it moves, and with null when there
+ * is nothing to mark. Returns false if the route has no elevation data to draw.
  *
- * The scrubber deliberately stays put when the finger (or mouse button) lifts:
+ * The scrubber deliberately stays put when the finger (or the mouse) leaves:
  * the whole point of putting it on the chart is to look at the map afterwards.
  * It is the caller that owns where it sits, by remembering the last `onScrub`
  * and handing it back as `scrubM` — without that the next GPS fix, which
@@ -151,11 +151,18 @@ export function renderProfile(
     onScrub?.(scrubM >= 0 && scrubM <= dist ? place(scrubM) : null);
   }
 
-  // Pointer events rather than mouse+touch: a mouse that merely passes over the
-  // chart should not leave a marker behind now that markers outlive the gesture,
-  // so scrubbing starts on press for both. Capture keeps the drag alive when the
-  // finger strays off the small chart, and #elevChart sets touch-action: none so
-  // a horizontal drag scrubs instead of scrolling the card.
+  // One pointer handler for both input kinds, split on pointerType rather than
+  // on screen size — a touchscreen laptop gets hover from its mouse and drag
+  // from its finger, in the same session. A mouse has a position over the chart
+  // whether or not a button is down, so it scrubs on plain movement; a finger
+  // has no position until it touches, so it scrubs from press to release.
+  // Capture keeps a finger's drag alive when it strays off the small chart, and
+  // #elevChart sets touch-action: none so a horizontal drag scrubs instead of
+  // scrolling the card.
+  //
+  // A hover is a real scrub, not a preview: the marker stays where the mouse
+  // last was, exactly as it stays where a finger lifted, so `onScrub` keeps its
+  // single meaning and the caller persists a hovered position like any other.
   const distanceAt = (clientX: number): number => {
     const rect = svg.getBoundingClientRect();
     const inner = Math.max(rect.width - padL - padR, 1);
@@ -171,7 +178,7 @@ export function renderProfile(
     e.preventDefault();
   });
   svg.addEventListener('pointermove', (e) => {
-    if (dragging) onScrub?.(place(distanceAt(e.clientX)));
+    if (dragging || e.pointerType === 'mouse') onScrub?.(place(distanceAt(e.clientX)));
   });
   const endDrag = (e: PointerEvent) => {
     // The scrubber stays where it was dropped; only the drag ends.

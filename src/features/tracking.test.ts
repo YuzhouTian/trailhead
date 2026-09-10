@@ -230,6 +230,49 @@ function stubGeolocation() {
 }
 
 /**
+ * The compass, under the test's control. jsdom has neither half of it: not the
+ * DeviceOrientationEvent static that tracking reads iOS's permission prompt
+ * off, and not the events themselves. Its requestAnimationFrame is replaced
+ * too, since the easing towards a new reading is spread over frames and
+ * racing a real clock for them would make every assertion here a coin toss.
+ * So readings land when a test says so, and frames run when a test says so.
+ */
+function stubCompass() {
+  let permission = 'granted';
+  Object.defineProperty(globalThis, 'DeviceOrientationEvent', {
+    configurable: true,
+    value: { requestPermission: async () => permission }
+  });
+
+  let frames: FrameRequestCallback[] = [];
+  globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) =>
+    frames.push(cb)) as typeof requestAnimationFrame;
+  // Only ever one frame is in flight here, so dropping the lot is the same
+  // thing as cancelling the id — and the id is never compared to anything.
+  globalThis.cancelAnimationFrame = (() => void (frames = [])) as typeof cancelAnimationFrame;
+
+  return {
+    /** As a refused permission prompt, or a phone with no compass in it. */
+    deny() {
+      permission = 'denied';
+    },
+    /** Turn to face `deg` clockwise from north, and let the map catch up. */
+    turn(deg: number) {
+      const e = new Event('deviceorientation');
+      Object.assign(e, { webkitCompassHeading: deg });
+      window.dispatchEvent(e);
+      // The easing chases by a quarter of what is left each frame and stops
+      // inside a quarter-degree, so this always terminates well short of the cap.
+      for (let i = 0; frames.length && i < 500; i++) {
+        const due = frames;
+        frames = [];
+        for (const cb of due) cb(0);
+      }
+    }
+  };
+}
+
+/**
  * A tracking module with nothing behind it: fresh module state, a blank page, a
  * map that has never moved, and a GPS that says nothing until asked.
  *
@@ -243,6 +286,7 @@ async function boot(route: SavedRoute | null = null) {
   document.body.innerHTML = PAGE;
   stub.reset();
   const gps = stubGeolocation();
+  const compass = stubCompass();
   const card = await import('../ui/routeCard');
   const tracking = await import('./tracking');
   let positions = 0;
@@ -254,6 +298,7 @@ async function boot(route: SavedRoute | null = null) {
   return {
     tracking,
     gps,
+    compass,
     map: stub.map,
     updateRouteCard: vi.mocked(card.updateRouteCard),
     /** The one marker and the one circle, once a fix has built them. */
@@ -278,6 +323,12 @@ async function boot(route: SavedRoute | null = null) {
     /** How many times anything that shows a distance from you was told to refresh. */
     get positions() {
       return positions;
+    },
+    /** Tap Me and let the handler finish — turning the compass on awaits a
+        permission prompt, so the button's work outlives the click itself. */
+    async tap() {
+      $('btnLocate').click();
+      await new Promise((r) => setTimeout(r, 0));
     }
   };
 }
@@ -388,6 +439,86 @@ describe('following you', () => {
     t.map.fire('dragstart');
     expect(t.button.classList.contains('active')).toBe(false);
     expect(t.glyph).toBe('#i-locate');
+  });
+});
+
+// Heading-up: the map turned so that up is the way you are facing. What the
+// mode is for is reading the ground in front of you off the map without doing
+// the rotation in your head, and that is worth exactly as much when you have
+// pushed the map along to see what is coming as when it sits on your dot.
+describe('turning the map with you', () => {
+  /** On your dot in heading-up, facing `deg` clockwise from north. */
+  const facing = async (deg: number) => {
+    const t = await boot();
+    t.gps.fix(START);
+    await t.tap();
+    t.compass.turn(deg);
+    return t;
+  };
+
+  it('rotates to put the way you are facing at the top', async () => {
+    const t = await facing(90);
+    // Facing east, so the map turns a quarter anticlockwise to bring east up.
+    expect(t.map.bearing).toBeCloseTo(-90, 0);
+    expect(t.glyph).toBe('#i-compass');
+    expect(t.button.classList.contains('active')).toBe(true);
+  });
+
+  it('keeps turning with you while you look around the map', async () => {
+    const t = await facing(90);
+    const squarings = () => t.map.bearings.filter((b) => b === 0).length;
+
+    t.map.fire('dragstart');
+    expect(t.map.bearing).toBeCloseTo(-90, 0); // the drag did not square it up
+    expect(squarings()).toBe(0);
+
+    t.compass.turn(180);
+    expect(t.map.bearing).toBeCloseTo(-180, 0); // and it is still your body it follows
+    // The drag used to announce the squaring-up it was doing. Nothing to say
+    // now: the toast still holds the "tap again for north-up" from turning the
+    // compass on, and no drag has added to it.
+    expect($('toast').textContent).not.toContain('Back to north-up');
+  });
+
+  it('says it is still turning but no longer on you, one fact per channel', async () => {
+    const t = await facing(90);
+    t.map.fire('dragstart');
+    expect(t.glyph).toBe('#i-compass'); // the shape: still turning with you
+    expect(t.button.classList.contains('active')).toBe(false); // the colour: not on you
+  });
+
+  it('comes back heading-up, and squares to north only on the tap after that', async () => {
+    // Two taps, two jobs, in the order the walker wants them: the first is
+    // "take me back", which is no use if it also stops the rotation, and the
+    // second is the one that means "stop turning".
+    const t = await facing(90);
+    t.map.fire('dragstart');
+    const before = t.map.views.length;
+
+    await t.tap();
+    expect(t.map.views).toHaveLength(before + 1);
+    expect(t.map.views[before].center).toEqual(START);
+    expect(t.map.bearing).toBeCloseTo(-90, 0);
+    expect(t.glyph).toBe('#i-compass');
+    expect(t.button.classList.contains('active')).toBe(true);
+
+    await t.tap();
+    expect(t.map.bearing).toBe(0);
+    expect(t.glyph).toBe('#i-locate-on');
+  });
+
+  it('stays north-up when the compass is refused, and keeps the dot', async () => {
+    // The compass is the only thing that failed. Taking the dot away over it
+    // would cost the walker something they had.
+    const t = await boot();
+    t.gps.fix(START);
+    t.compass.deny();
+    await t.tap();
+
+    expect(t.map.bearing).toBe(0);
+    expect(t.glyph).toBe('#i-locate-on');
+    expect(t.dot?.onMap).toBe(true);
+    expect($('toast').textContent).toContain('Compass not available');
   });
 });
 
