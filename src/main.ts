@@ -70,7 +70,7 @@ function applyTheme(): void {
   else root.setAttribute('data-theme', settings.theme);
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', themeIsDark() ? '#0e1310' : '#ffffff');
+    ?.setAttribute('content', themeIsDark() ? '#000000' : '#ffffff');
 }
 
 // Following the OS: react live when it flips between light and dark.
@@ -93,7 +93,7 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
   activeLine = null;
   if (r) {
     activeLine = L.polyline(r.coords, {
-      color: '#c1121f',
+      color: '#d8303c',
       weight: 4,
       opacity: 0.85,
       // A route the router never saw is drawn dashed, the same way the planner
