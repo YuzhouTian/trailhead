@@ -113,7 +113,10 @@ describe('the category table', () => {
     for (const c of POI_CATEGORIES) {
       expect(c.label.length).toBeGreaterThan(0);
       expect(c.plural.length).toBeGreaterThan(0);
-      expect(c.icon.length).toBeGreaterThan(0);
+      // The icon is the id of a `<symbol>` in index.html's sprite, not a
+      // character: emoji rendered differently on every phone. A typo here
+      // draws nothing at all, so insist on the `p-` naming.
+      expect(c.icon).toMatch(/^p-[a-z]+$/);
       expect(c.colour).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });

@@ -166,7 +166,10 @@ function poiMarker(p: Poi): L.Marker {
   const marker = L.marker(p.pos, {
     icon: L.divIcon({
       className: '',
-      html: `<div class="poiMarker" style="border-color:${cat?.colour ?? '#2d6a4f'}">${cat?.icon ?? '•'}</div>`,
+      // The disc is filled with the category colour and the glyph is white, so
+      // a nearby point can never be mistaken for a pin you saved yourself
+      // (white disc, green ring, green glyph).
+      html: `<div class="poiMarker" style="background:${cat?.colour ?? '#2d6a4f'}">${svgUse(cat?.icon ?? 'c-other')}</div>`,
       iconSize: [26, 26],
       iconAnchor: [13, 13]
     })
@@ -178,6 +181,7 @@ function poiMarker(p: Poi): L.Marker {
   const type = p.name === cat?.label ? '' : (cat?.label ?? 'Point');
   marker.bindPopup(
     `<div style="font-size:13px;line-height:1.5">
+      <span class="poiPopIco" style="background:${cat?.colour ?? '#2d6a4f'}">${svgUse(cat?.icon ?? 'c-other')}</span>
       <b>${p.name.replace(/</g, '&lt;')}</b><br>
       ${(type + height + away).replace(/^ · /, '')}<br>${positionText(p.pos)}
     </div>`

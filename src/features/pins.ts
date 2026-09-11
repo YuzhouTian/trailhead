@@ -266,7 +266,7 @@ export function openNewPin(lat: number, lng: number): void {
   ).join('');
   const card = $('pinCard');
   card.innerHTML = `
-    <button class="pc-close" aria-label="Close">&times;</button>
+    <button class="pc-close" aria-label="Close">${svgUse('i-close')}</button>
     <p class="pc-eyebrow">What's here</p>
     <div class="pc-grid">${gridText(lat, lng)}</div>
     <div class="pc-ll">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
@@ -340,7 +340,7 @@ export function openSavedPin(id: string): void {
     typeof pin.ele === 'number' ? `<span class="pc-fact">${svgUse('i-ele')}${Math.round(pin.ele)} m</span>` : '';
   const card = $('pinCard');
   card.innerHTML = `
-    <button class="pc-close" aria-label="Close">&times;</button>
+    <button class="pc-close" aria-label="Close">${svgUse('i-close')}</button>
     <p class="pc-eyebrow">Saved pin</p>
     <div class="pc-title"><span class="ci">${svgUse(catMeta(pin.category).icon)}</span><span class="nm">${pin.name.replace(/</g, '&lt;')}</span></div>
     <div class="pc-grid">${gridText(pin.lat, pin.lng)}</div>

@@ -129,6 +129,12 @@ const peak = (color: string) => symbol(`<path d="M17 14 L23 3 L29 14 Z" fill="${
 const trig = (color: string) =>
   symbol(`<path d="M17 14 L23 4 L29 14 Z" fill="none" stroke="${color}" stroke-width="1.8"/>`);
 
+/** A tent, for the campsite symbol the base maps draw. This used to be a
+ *  typed triangle character on a coloured chip, which rendered at a different
+ *  size and weight on every phone and never matched the tent on the tiles. */
+const tent = (colour: string) =>
+  symbol(`<path d="M23 3 L29 15 H17 Z" fill="${colour}"/>`);
+
 const letterChip = (ch: string, bg: string, fg = '#fff') =>
   symbol(
     `<text x="23" y="13" text-anchor="middle" font-size="11" font-weight="700" fill="${fg}">${ch}</text>`,
@@ -199,7 +205,7 @@ const OSM_GROUPS: Group[] = [
       { swatch: line('#5a5a5a', 2), name: 'Wall', note: 'Dry stone walls are reliable handrails in poor visibility.' },
       { swatch: fence, name: 'Fence' }
     ],
-    footnote: 'OpenStreetMap is the best layer here — surveyors map gates and stiles as points on the path. If a gate is missing, it is missing from the routing data too, which is when the 🧲 freeform toggle helps.'
+    footnote: 'OpenStreetMap is the best layer here — surveyors map gates and stiles as points on the path. If a gate is missing, it is missing from the routing data too, which is when the magnet toggle helps.'
   },
   {
     title: 'Ground and hazards',
@@ -227,7 +233,7 @@ const OSM_GROUPS: Group[] = [
       { swatch: peak('#a0522d'), name: 'Peak', note: 'Shown with name and height where mapped.' },
       { swatch: letterChip('P', '#4a7ebb'), name: 'Car park', note: 'Where the walk usually starts.' },
       { swatch: dot('#8b5a2b', 3), name: 'Cairn or trig point', note: 'Small markers, handy for confirming a summit in mist.' },
-      { swatch: letterChip('▲', '#7a9e3f'), name: 'Campsite / hostel' }
+      { swatch: tent('#7a9e3f'), name: 'Campsite / hostel' }
     ],
     footnote: 'What this layer cannot tell you: OpenStreetMap\'s standard style does not distinguish legal rights of way or show open access land. For "am I allowed here", switch to an OS layer.'
   }
@@ -283,7 +289,7 @@ const TF_GROUPS: Group[] = [
       { swatch: peak('#8b5a2b'), name: 'Peak', note: 'With name and height.' },
       { swatch: symbol('<path d="M17 14 L23 5 L29 14 Z" fill="#8b5a2b"/><rect x="21" y="10" width="4" height="4" fill="#fff"/>'), name: 'Hut, refuge or shelter' },
       { swatch: letterChip('P', '#4a7ebb'), name: 'Car park' },
-      { swatch: letterChip('▲', '#7a9e3f'), name: 'Campsite' }
+      { swatch: tent('#7a9e3f'), name: 'Campsite' }
     ],
     footnote: 'Same OpenStreetMap data as the OSM layer, drawn for walkers and served as sharp double-resolution tiles. It does not label legal rights of way, and small barrier symbols are less prominent than on the plain OSM layer — switch there to check a specific gate or stile.'
   }
@@ -291,8 +297,7 @@ const TF_GROUPS: Group[] = [
 
 // ---------------------------------------------------------------- nearby points
 
-/** The app's own POI markers, drawn the way the map draws them — same two
- *  symbology tokens, so the key cannot drift from the markers it explains. */
+/** Crossed tools: an old mine or adit, as the base map draws it. */
 const mine = (colour: string) =>
   symbol(
     `<g stroke="${colour}" stroke-width="1.5" fill="none">` +
@@ -347,7 +352,7 @@ const FREEMAP_GROUPS: Group[] = [
       { swatch: peak('#6b4a2a'), name: 'Peak', note: 'With name and spot height — Bwlch Glâs draws as 998.' },
       { swatch: mine('#4a4a4a'), name: 'Mine or adit', note: 'Crossed tools. Old workings are common on Welsh and Lakeland hillsides.' },
       { swatch: letterChip('P', '#4a7ebb'), name: 'Car park' },
-      { swatch: letterChip('▲', '#7a9e3f'), name: 'Campsite' }
+      { swatch: tent('#7a9e3f'), name: 'Campsite' }
     ],
     footnote:
       'Covers Europe only — walk off the edge of its data and Trailhead switches you to OpenStreetMap. Gates and stiles are not drawn, so switch to the OSM layer to check a specific crossing.'
@@ -355,10 +360,13 @@ const FREEMAP_GROUPS: Group[] = [
 ];
 
 
+/** The app's own nearby-point marker, drawn exactly as the map draws it:
+ *  the category colour as a filled disc, a white ring, and the same sprite
+ *  symbol the marker uses — so the key cannot drift from what is on the map. */
 const poiChip = (icon: string, colour: string) =>
   sw(
-    `<circle cx="23" cy="9" r="7.5" style="fill:var(--poi-disc)" stroke="${colour}" stroke-width="2"/>` +
-      `<text x="23" y="12.5" text-anchor="middle" font-size="9" style="fill:var(--poi-glyph)">${icon}</text>`
+    `<circle cx="23" cy="9" r="7.6" fill="${colour}" stroke="#fff" stroke-width="1.5"/>` +
+      `<use href="#${icon}" x="18" y="4" width="10" height="10" style="color:#fff"/>`
   );
 
 function nearbyGroup(kinds: readonly string[]): Group | null {

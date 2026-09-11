@@ -20,34 +20,75 @@
   </script>
 </head>
 <body>
-  <!-- Icon sprite: monochrome glyphs that inherit currentColor (recolour per theme / active state). -->
+  <!-- Icon sprite: monochrome glyphs that inherit currentColor (recolour per theme / active state).
+
+       One drawing grammar for the whole set, so nothing looks borrowed from a
+       different app: a 24x24 grid, 2px stroke, round caps and joins, no fill,
+       and about 1.5px of clear space all round so a glyph never touches the
+       edge of its box (icons are shown as small as 13px here, and a path that
+       runs into the edge reads as a smudge at that size).
+
+       Three families share the grid:
+         i-*  interface icons (tabs, buttons)
+         c-*  categories of a pin you saved yourself
+         p-*  categories of a nearby point found on OpenStreetMap
+       Where a saved-pin category and a nearby category mean the same thing the
+       p-* symbol reuses the c-* drawing, so the map key cannot drift from the
+       markers it is explaining. -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <symbol id="i-map" viewBox="0 0 24 24"><path class="gico" d="M12 3 2.6 8 12 13l9.4-5L12 3Z"/><path class="gico" d="M2.6 12.4 12 17.4l9.4-5"/></symbol>
-    <symbol id="i-routes" viewBox="0 0 24 24"><circle class="gico" cx="5.5" cy="18.5" r="2"/><circle class="gico" cx="18.5" cy="5.5" r="2"/><path class="gico" d="M7.2 17C9.5 13.5 15 11 17 7.3"/></symbol>
-    <symbol id="i-plan" viewBox="0 0 24 24"><path class="gico" d="m4.5 19.5 4-1L20 7a1.9 1.9 0 0 0-2.7-2.7L5.8 15.9l-1.3 3.6Z"/><path class="gico" d="m14.5 6.3 3.2 3.2"/></symbol>
-    <symbol id="i-locate" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="4"/><path class="gico" d="M12 2.5v3.2M12 18.3v3.2M2.5 12h3.2M18.3 12h3.2"/></symbol>
-    <symbol id="i-locate-on" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1.9" fill="currentColor"/><path class="gico" d="M12 2.5v3.2M12 18.3v3.2M2.5 12h3.2M18.3 12h3.2"/></symbol>
-    <symbol id="i-compass" viewBox="0 0 24 24"><path class="gico" d="M3.5 11 20.5 4.5 14 20.5l-2.7-7.8L3.5 11z"/></symbol>
-    <symbol id="i-settings" viewBox="0 0 24 24"><path class="gico" d="M4 7h9M17.5 7H20M4 17h2.5M11 17h9"/><circle class="gico" cx="15" cy="7" r="2.3"/><circle class="gico" cx="8.5" cy="17" r="2.3"/></symbol>
-    <symbol id="i-elev" viewBox="0 0 24 24"><path class="gico" d="M3 19h18"/><path class="gico" d="m3 16 5-7 4 4.5 3-4 6 6.5"/></symbol>
-    <symbol id="i-download" viewBox="0 0 24 24"><path class="gico" d="M12 3.5v10m0 0 3.6-3.6M12 13.5 8.4 9.9"/><path class="gico" d="M4.5 16.5V19a1 1 0 0 0 1 1h13a1 1 0 0 0 1-1v-2.5"/></symbol>
-    <symbol id="i-magnet" viewBox="0 0 24 24"><path class="gico" d="M4 19V11a8 8 0 0 1 16 0v8h-5v-8a3 3 0 0 0-6 0v8z"/><path class="gico" d="M4 15h5M15 15h5"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><circle class="gico" cx="11" cy="11" r="7"/><path class="gico" d="m20 20-3.6-3.6"/></symbol>
-    <symbol id="i-sun" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="4"/><path class="gico" d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.4 1.4M17.6 17.6 19 19M19 5l-1.4 1.4M6.4 17.6 5 19"/></symbol>
+    <symbol id="i-map" viewBox="0 0 24 24"><path class="gico" d="M3 6.5 9 4l6 2.5 6-2.5v13.5L15 20l-6-2.5-6 2.5z"/><path class="gico" d="M9 4v13.5M15 6.5V20"/></symbol>
+    <symbol id="i-routes" viewBox="0 0 24 24"><circle class="gico" cx="5.5" cy="18.5" r="2.5"/><circle class="gico" cx="18.5" cy="5.5" r="2.5"/><path class="gico" d="M7.3 16.7C9.5 13.5 14.5 12.5 16.7 7.3"/></symbol>
+    <symbol id="i-plan" viewBox="0 0 24 24"><path class="gico" d="m4 20 1.2-4.2L16.4 4.6a2.2 2.2 0 0 1 3.1 3.1L8.3 18.8z"/><path class="gico" d="m14.6 6.4 3 3"/></symbol>
+    <symbol id="i-locate" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="3.5"/><path class="gico" d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+    <!-- The centre dot is the "you have a fix" tell, so it is a solid fill and
+         carries its own opacity: the duotone rule that tints an active icon
+         must not wash it out. -->
+    <symbol id="i-locate-on" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="3.5"/><circle class="gsolid" cx="12" cy="12" r="1.8" fill="currentColor" fill-opacity="1"/><path class="gico" d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><path class="gico" d="M3.5 11 20.5 4.5 14 20.5l-2.7-7.8z"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path class="gico" d="M4 7h9M18.5 7H20M4 17h3M12.5 17H20"/><circle class="gico" cx="15.5" cy="7" r="2.5"/><circle class="gico" cx="9.5" cy="17" r="2.5"/></symbol>
+    <symbol id="i-elev" viewBox="0 0 24 24"><path class="gico" d="M3 18h18"/><path class="gico" d="m3 15 5.5-7.5 3.5 4 3-4L21 15"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path class="gico" d="M12 4v11m0 0 4-4m-4 4-4-4"/><path class="gico" d="M4 17v1.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V17"/></symbol>
+    <symbol id="i-magnet" viewBox="0 0 24 24"><path class="gico" d="M5 11a7 7 0 0 1 14 0v8h-4.5v-8a2.5 2.5 0 0 0-5 0v8H5z"/><path class="gico" d="M5 15h4.5M14.5 15H19"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle class="gico" cx="11" cy="11" r="6.5"/><path class="gico" d="m20.5 20.5-4.8-4.8"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path class="gico" d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-chevron-right" viewBox="0 0 24 24"><path class="gico" d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path class="gico" d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="4"/><path class="gico" d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path class="gico" d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/></symbol>
-    <symbol id="i-auto" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 0 0 17Z" fill="currentColor"/></symbol>
-    <symbol id="c-summit" viewBox="0 0 24 24"><path class="gico" d="M3 19h18L14 6l-3 5-2-2.5L3 19z"/></symbol>
-    <symbol id="c-viewpoint" viewBox="0 0 24 24"><path class="gico" d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle class="gico" cx="12" cy="12" r="2.4"/></symbol>
-    <symbol id="c-water" viewBox="0 0 24 24"><path class="gico" d="M12 3s6 6.4 6 10a6 6 0 0 1-12 0c0-3.6 6-10 6-10z"/></symbol>
-    <symbol id="c-camp" viewBox="0 0 24 24"><path class="gico" d="M12 4 3.5 20h17L12 4z"/><path class="gico" d="M12 4v16"/></symbol>
-    <symbol id="c-parking" viewBox="0 0 24 24"><rect class="gico" x="4" y="4" width="16" height="16" rx="3"/><path class="gico" d="M9.5 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9.5"/></symbol>
-    <symbol id="c-other" viewBox="0 0 24 24"><path class="gico" d="M6 21V4h11l-2.2 3.2L17 10.5H6"/></symbol>
+    <symbol id="i-auto" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="8.5"/><path class="gsolid" d="M12 3.5a8.5 8.5 0 0 0 0 17Z" fill="currentColor" fill-opacity="1"/></symbol>
     <symbol id="i-ele" viewBox="0 0 24 24"><path class="gico" d="M3 18l6-8.5 4 5 3-4 5 7.5z"/></symbol>
-    <symbol id="i-save" viewBox="0 0 24 24"><path class="gico" d="M5 4h11l3 3v13H5z"/><path class="gico" d="M8 4v5h7M8 20v-6h8v6"/></symbol>
-    <symbol id="i-trash" viewBox="0 0 24 24"><path class="gico" d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></symbol>
-    <symbol id="i-copy" viewBox="0 0 24 24"><rect class="gico" x="9" y="9" width="11" height="11" rx="2"/><path class="gico" d="M5 15V6a2 2 0 0 1 2-2h8"/></symbol>
-    <symbol id="i-share" viewBox="0 0 24 24"><circle class="gico" cx="6" cy="12" r="2.4"/><circle class="gico" cx="18" cy="5.5" r="2.4"/><circle class="gico" cx="18" cy="18.5" r="2.4"/><path class="gico" d="m8.1 10.9 7.8-4.3M8.1 13.1l7.8 4.3"/></symbol>
-    <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 22s7-6.6 7-12A7 7 0 0 0 5 10c0 5.4 7 12 7 12z" fill="currentColor"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></symbol>
+    <symbol id="i-save" viewBox="0 0 24 24"><path class="gico" d="M5 5.5A1.5 1.5 0 0 1 6.5 4H16l4 4v10.5a1.5 1.5 0 0 1-1.5 1.5h-12A1.5 1.5 0 0 1 5 18.5z"/><path class="gico" d="M8 4v5h7M8 20v-6h8v6"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path class="gico" d="M4 7h16M9.5 7V4.5h5V7M6.5 7l.8 12.2a1 1 0 0 0 1 .8h7.4a1 1 0 0 0 1-.8L17.5 7"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect class="gico" x="9" y="9" width="11" height="11" rx="2.5"/><path class="gico" d="M5 15V6.5A2.5 2.5 0 0 1 7.5 4H15"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><circle class="gico" cx="6" cy="12" r="2.5"/><circle class="gico" cx="18" cy="5.5" r="2.5"/><circle class="gico" cx="18" cy="18.5" r="2.5"/><path class="gico" d="m8.2 10.8 7.6-4.1M8.2 13.2l7.6 4.1"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><path class="gsolid" d="M12 22s7-6.6 7-12A7 7 0 0 0 5 10c0 5.4 7 12 7 12z" fill="currentColor" fill-opacity="1"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></symbol>
+
+    <!-- Saved-pin categories -->
+    <symbol id="c-summit" viewBox="0 0 24 24"><path class="gico" d="m3 19 6-11 3.5 5.5L15 10l6 9z"/></symbol>
+    <symbol id="c-viewpoint" viewBox="0 0 24 24"><path class="gico" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle class="gico" cx="12" cy="12" r="2.5"/></symbol>
+    <symbol id="c-water" viewBox="0 0 24 24"><path class="gico" d="M12 3.5s6 6.3 6 10a6 6 0 0 1-12 0c0-3.7 6-10 6-10z"/></symbol>
+    <symbol id="c-camp" viewBox="0 0 24 24"><path class="gico" d="M12 4 3.5 20h17z"/><path class="gico" d="M12 12v8"/></symbol>
+    <symbol id="c-parking" viewBox="0 0 24 24"><rect class="gico" x="4" y="4" width="16" height="16" rx="3.5"/><path class="gico" d="M9.5 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9.5"/></symbol>
+    <symbol id="c-other" viewBox="0 0 24 24"><path class="gico" d="M6 21V4h10l-2 3.5 2 3.5H6"/></symbol>
+
+    <!-- Nearby-point categories (src/poi.ts). One per row of that table. -->
+    <symbol id="p-summit" viewBox="0 0 24 24"><path class="gico" d="m3 19 6-11 3.5 5.5L15 10l6 9z"/></symbol>
+    <symbol id="p-trig" viewBox="0 0 24 24"><path class="gico" d="M12 4 4 19h16z"/><path class="gico" d="M12 4v15"/></symbol>
+    <symbol id="p-viewpoint" viewBox="0 0 24 24"><path class="gico" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle class="gico" cx="12" cy="12" r="2.5"/></symbol>
+    <symbol id="p-water" viewBox="0 0 24 24"><path class="gico" d="M12 3.5s6 6.3 6 10a6 6 0 0 1-12 0c0-3.7 6-10 6-10z"/></symbol>
+    <symbol id="p-waterfall" viewBox="0 0 24 24"><path class="gico" d="M3.5 5.5h17"/><path class="gico" d="M7.5 6.5v7M12 6.5v9M16.5 6.5v7"/><path class="gico" d="M3.5 19c2-1.6 3.6.8 5.6-.8s3.6.8 5.6-.8 3.6.8 5.3-.6"/></symbol>
+    <symbol id="p-shelter" viewBox="0 0 24 24"><path class="gico" d="M4 11 12 4l8 7"/><path class="gico" d="M6.5 9.5V20h11V9.5"/><path class="gico" d="M10 20v-5h4v5"/></symbol>
+    <symbol id="p-camp" viewBox="0 0 24 24"><path class="gico" d="M12 4 3.5 20h17z"/><path class="gico" d="M12 12v8"/></symbol>
+    <symbol id="p-cafe" viewBox="0 0 24 24"><path class="gico" d="M4 8h12v6a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z"/><path class="gico" d="M16 10h2a2 2 0 0 1 0 4h-2M6 21h8"/></symbol>
+    <!-- The international WC sign: two figures, skirt on the right. A toilet
+         drawn in side view reads as the coffee mug next to it at 13px. -->
+    <symbol id="p-toilets" viewBox="0 0 24 24"><circle class="gico" cx="6.5" cy="4.5" r="1.8"/><path class="gico" d="M6.5 9v5.5M4.2 20 6.5 14.5 8.8 20M4.3 10.5h4.4"/><circle class="gico" cx="17.5" cy="4.5" r="1.8"/><path class="gico" d="m17.5 8.5-3 7h6zM17.5 15.5V20"/><path class="gico" d="M12 3.5v17"/></symbol>
+    <symbol id="p-parking" viewBox="0 0 24 24"><rect class="gico" x="4" y="4" width="16" height="16" rx="3.5"/><path class="gico" d="M9.5 16V8h3.2a2.4 2.4 0 0 1 0 4.8H9.5"/></symbol>
+    <symbol id="p-bus" viewBox="0 0 24 24"><rect class="gico" x="4" y="3.5" width="16" height="13.5" rx="2.5"/><path class="gico" d="M4 10.5h16"/><path class="gico" d="M7.5 14h.8M15.7 14h.8"/><path class="gico" d="M7.5 17 6 20.5M16.5 17 18 20.5"/></symbol>
+    <symbol id="p-picnic" viewBox="0 0 24 24"><path class="gico" d="M3 8h18"/><path class="gico" d="m6.5 8-2.5 12M17.5 8l2.5 12M5.2 14h13.6"/></symbol>
+    <symbol id="p-star" viewBox="0 0 24 24"><path class="gico" d="M12 3.5 14.6 9l6 .7-4.5 4 1.3 6-5.4-3.1L6.6 19.7l1.3-6-4.5-4 6-.7z"/></symbol>
+    <symbol id="p-cave" viewBox="0 0 24 24"><path class="gico" d="M3.5 20v-7a8.5 8.5 0 0 1 17 0v7"/><path class="gico" d="M9 20v-3.5a3 3 0 0 1 6 0V20"/></symbol>
+    <symbol id="p-emergency" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="8.5"/><path class="gico" d="M12 7.5v9M7.5 12h9"/></symbol>
   </svg>
 
   <div id="map"></div>
@@ -56,7 +97,7 @@
     <span class="searchIco"><svg viewBox="0 0 24 24"><use href="#i-search"/></svg></span>
     <input type="search" id="searchInput" placeholder="Place, grid ref (NY 215 072) or lat, lng"
            autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" />
-    <button id="searchClear" class="hidden">&times;</button>
+    <button id="searchClear" class="hidden" aria-label="Clear search"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
   </div>
   <div id="searchResults" class="hidden"></div>
 
@@ -80,7 +121,7 @@
       </div>
       <button id="rcChart" title="Elevation profile"><svg viewBox="0 0 24 24"><use href="#i-elev"/></svg></button>
       <button id="rcOffline" title="Download tiles for offline use"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg></button>
-      <button id="rcClose" title="Hide route">&times;</button>
+      <button id="rcClose" title="Hide route" aria-label="Hide route"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
     </div>
     <div id="elevChart" class="hidden"></div>
   </div>

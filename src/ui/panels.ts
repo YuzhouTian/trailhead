@@ -52,7 +52,7 @@ export function hidePanel(): void {
 export function showPanel(html: string): HTMLElement {
   hidePinCard();
   const content = $('panelContent');
-  content.innerHTML = `<button class="closeX" id="panelClose">&times;</button>${html}`;
+  content.innerHTML = `<button class="closeX" id="panelClose" aria-label="Close">${svgUse('i-close')}</button>${html}`;
   $('panel').classList.remove('hidden');
   $('panelClose').addEventListener('click', hidePanel);
   return content;
@@ -160,7 +160,7 @@ export function openSettingsPanel(): void {
     ${POI_CATEGORIES.map(
       (c) => `<div class="row">
         <input type="checkbox" id="poiKind-${c.id}" ${settings.poiKinds.includes(c.id) ? 'checked' : ''}/>
-        <span class="poiSwatch" style="border-color:${c.colour}">${c.icon}</span>
+        <span class="poiSwatch" style="background:${c.colour}">${svgUse(c.icon)}</span>
         <label for="poiKind-${c.id}" style="flex:1">${c.plural}</label>
       </div>`
     ).join('')}
@@ -289,7 +289,7 @@ export function openRoutesPanel(): void {
           <button data-act="load">Load</button>
           <button data-act="share" class="secondary">Share</button>
           <button data-act="gpx" class="secondary">GPX</button>
-          <button data-act="del" class="danger">✕</button>
+          <button data-act="del" class="danger" aria-label="Delete route" title="Delete route">${svgUse('i-trash')}</button>
         </div>
       </div>`
         )
@@ -310,7 +310,7 @@ export function openRoutesPanel(): void {
         </div>
         <div class="rowActs">
           <button data-pact="go">Go</button>
-          <button data-pact="del" class="danger">✕</button>
+          <button data-pact="del" class="danger" aria-label="Delete pin" title="Delete pin">${svgUse('i-trash')}</button>
         </div>
       </div>`
         )

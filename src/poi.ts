@@ -19,6 +19,8 @@ interface PoiCategoryShape {
   readonly label: string;
   /** Plural — the tick list in Settings. */
   readonly plural: string;
+  /** Id of a `<symbol>` in index.html's sprite — the marker, the map key and
+   *  the Settings tick list all draw this same glyph. */
   readonly icon: string;
   /** Marker ring colour. Map symbology, so a fixed colour rather than a theme token. */
   readonly colour: string;
@@ -39,7 +41,7 @@ export const POI_CATEGORIES = [
     id: 'summit',
     label: 'Summit',
     plural: 'Summits',
-    icon: '▲',
+    icon: 'p-summit',
     colour: '#2d6a4f',
     tags: [
       ['natural', 'peak'],
@@ -52,7 +54,7 @@ export const POI_CATEGORIES = [
     id: 'trig',
     label: 'Trig point',
     plural: 'Trig points',
-    icon: '△',
+    icon: 'p-trig',
     colour: '#6b705c',
     tags: [['man_made', 'survey_point']],
     areas: false,
@@ -62,7 +64,7 @@ export const POI_CATEGORIES = [
     id: 'viewpoint',
     label: 'Viewpoint',
     plural: 'Viewpoints',
-    icon: '◉',
+    icon: 'p-viewpoint',
     colour: '#1a73e8',
     tags: [['tourism', 'viewpoint']],
     areas: false,
@@ -72,7 +74,7 @@ export const POI_CATEGORIES = [
     id: 'water',
     label: 'Water source',
     plural: 'Water sources',
-    icon: '💧',
+    icon: 'p-water',
     colour: '#3d9bd0',
     tags: [
       ['natural', 'spring'],
@@ -86,7 +88,7 @@ export const POI_CATEGORIES = [
     id: 'waterfall',
     label: 'Waterfall',
     plural: 'Waterfalls',
-    icon: '≋',
+    icon: 'p-waterfall',
     colour: '#2f7d95',
     tags: [['waterway', 'waterfall']],
     areas: false,
@@ -96,7 +98,7 @@ export const POI_CATEGORIES = [
     id: 'shelter',
     label: 'Shelter or bothy',
     plural: 'Shelters and bothies',
-    icon: '⌂',
+    icon: 'p-shelter',
     colour: '#8b5a2b',
     tags: [
       ['amenity', 'shelter'],
@@ -111,7 +113,7 @@ export const POI_CATEGORIES = [
     id: 'campsite',
     label: 'Campsite',
     plural: 'Campsites',
-    icon: '⛺',
+    icon: 'p-camp',
     colour: '#7a9e3f',
     tags: [
       ['tourism', 'camp_site'],
@@ -124,7 +126,7 @@ export const POI_CATEGORIES = [
     id: 'refreshment',
     label: 'Pub or café',
     plural: 'Pubs and cafés',
-    icon: '☕',
+    icon: 'p-cafe',
     colour: '#b5651d',
     tags: [
       ['amenity', 'pub'],
@@ -138,7 +140,7 @@ export const POI_CATEGORIES = [
     id: 'toilets',
     label: 'Toilets',
     plural: 'Toilets',
-    icon: '🚻',
+    icon: 'p-toilets',
     colour: '#5a6d8c',
     tags: [['amenity', 'toilets']],
     areas: true,
@@ -148,7 +150,7 @@ export const POI_CATEGORIES = [
     id: 'parking',
     label: 'Parking or trailhead',
     plural: 'Parking and trailheads',
-    icon: 'P',
+    icon: 'p-parking',
     colour: '#4a7ebb',
     tags: [
       ['amenity', 'parking'],
@@ -161,7 +163,7 @@ export const POI_CATEGORIES = [
     id: 'transport',
     label: 'Bus stop or station',
     plural: 'Public transport',
-    icon: '🚌',
+    icon: 'p-bus',
     colour: '#7b5ea7',
     tags: [
       ['highway', 'bus_stop'],
@@ -175,7 +177,7 @@ export const POI_CATEGORIES = [
     id: 'picnic',
     label: 'Picnic site',
     plural: 'Picnic sites',
-    icon: '🧺',
+    icon: 'p-picnic',
     colour: '#6a9e4f',
     tags: [
       ['tourism', 'picnic_site'],
@@ -188,7 +190,7 @@ export const POI_CATEGORIES = [
     id: 'landmark',
     label: 'Landmark',
     plural: 'Cairns and landmarks',
-    icon: '★',
+    icon: 'p-star',
     colour: '#a0522d',
     tags: [
       ['historic', 'cairn'],
@@ -205,7 +207,7 @@ export const POI_CATEGORIES = [
     id: 'cave',
     label: 'Cave entrance',
     plural: 'Caves',
-    icon: '∩',
+    icon: 'p-cave',
     colour: '#4d4d4d',
     tags: [['natural', 'cave_entrance']],
     areas: false,
@@ -215,7 +217,7 @@ export const POI_CATEGORIES = [
     id: 'emergency',
     label: 'Emergency point',
     plural: 'Emergency points',
-    icon: '✚',
+    icon: 'p-emergency',
     colour: '#c0392b',
     tags: [
       ['emergency', 'phone'],
