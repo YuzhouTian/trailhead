@@ -71,7 +71,7 @@ function onProfileScrub(scrub: Scrub | null): void {
   if (!scrubMarker) {
     scrubMarker = L.circleMarker(pos, {
       radius: 7,
-      color: '#c1121f',
+      color: '#d8303c',
       weight: 3,
       fillColor: '#fff',
       fillOpacity: 1,
