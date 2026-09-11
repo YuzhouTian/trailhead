@@ -121,9 +121,26 @@ body {
    inheriting currentColor, so one icon recolours for the active tab, a pressed
    button, and either theme. */
 .gico {
-  fill: none; stroke: currentColor; stroke-width: 2;
+  fill: var(--gico-fill, none); fill-opacity: var(--gico-fill-opacity, 1);
+  stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round;
 }
+/* The few parts of an icon that are a solid shape rather than an outline (the
+   dot inside "locating", the filled half of the auto-theme circle, the pin
+   teardrop). They set their own fill rather than reading the variable, so the
+   tint below — which is meant for the outline — cannot wash them out. */
+.gsolid { stroke: none; fill: currentColor; fill-opacity: 1; }
+/* Active tab / active Me button: the outline gets a faint wash of its own
+   colour. That filled-tint look is what marks the selected tab everywhere else
+   on a phone, and it costs no second set of icons.
+   Why a variable on the *button* rather than `button.active .gico { fill: … }`:
+   the icons are `<use>` clones of the sprite, and a browser will not let an
+   outside rule reach into a clone through an ancestor selector — measured in
+   Chrome, the descendant rule changes nothing at all. Inherited values do get
+   in (that is how currentColor already works), and a custom property is an
+   inherited value, so this is the version that actually paints. */
+#bottomBar button.active,
+#btnLocate.active { --gico-fill: currentColor; --gico-fill-opacity: .18; }
 /* An icon sitting inline in a line of text (e.g. pointing at a nav button). */
 .inlineIco { width: 1.05em; height: 1.05em; vertical-align: -0.18em; }
 
@@ -218,10 +235,16 @@ body.planning #btnLocate { display: none; }
 }
 #searchInput::placeholder { color: var(--muted); }
 #searchInput::-webkit-search-cancel-button { display: none; }
+/* Close and clear buttons are a drawn cross, not a typed × — the character
+   sits off-centre in most faces and changes shape between iOS and Windows.
+   The icon is 20px inside a 40px box so it is still an easy target. */
 #searchClear {
-  border: none; background: none; color: var(--muted);
-  font-size: 22px; padding: 4px 14px 6px; cursor: pointer;
+  flex: none;
+  border: none; background: none; color: var(--muted); cursor: pointer;
+  width: 40px; height: 40px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
 }
+#searchClear svg { width: 20px; height: 20px; display: block; }
 #searchResults {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 54px);
@@ -263,19 +286,29 @@ body.planning #searchWrap, body.planning #searchResults { display: none; }
 #statusBanner.arrive { background: var(--notice); color: var(--on-notice); }
 body.planning #statusBanner { display: none; }
 
-/* POI markers — map symbology, deliberately theme-independent so a pin reads
-   the same over any tiles. The ring colour comes from the category table.
-   The glyph colour is set here, not inherited: letting it follow --ink drew a
-   white glyph on the white disc in dark mode. */
+/* Nearby-point markers — map symbology, deliberately theme-independent so a
+   marker reads the same over any tiles. The disc is filled with the category
+   colour (set inline from the category table) and the glyph is white, with a
+   white ring to lift it off busy tiles. That is the opposite way round from a
+   pin you saved yourself (white disc, green ring, green glyph, a size bigger),
+   so at a glance you can tell "something I marked" from "something the map
+   found for me" without reading either label. */
 .poiMarker {
   display: flex; align-items: center; justify-content: center;
   width: 26px; height: 26px;
   border-radius: 50%;
-  background: var(--poi-disc); color: var(--poi-glyph);
-  border: 2px solid #2d6a4f;
+  background: #2d6a4f; color: #fff;
+  border: 1.5px solid #fff;
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
-  font-size: 13px; line-height: 1;
 }
+.poiMarker svg { width: 15px; height: 15px; display: block; }
+/* The same disc, small, at the head of a marker's popup. */
+.poiPopIco {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #2d6a4f; color: #fff; vertical-align: -4px; margin-right: 5px;
+}
+.poiPopIco svg { width: 11px; height: 11px; display: block; }
 
 /* Slide-in panel */
 #panel {
@@ -312,9 +345,12 @@ body.planning #statusBanner { display: none; }
 #panel button.secondary { background: var(--chip); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: #fff; }
 #panel .closeX {
-  position: absolute; top: calc(env(safe-area-inset-top, 0px) + 8px); right: 8px;
-  background: none; color: var(--muted); font-size: 22px; padding: 4px 8px;
+  position: absolute; top: calc(env(safe-area-inset-top, 0px) + 4px); right: 4px;
+  background: none; color: var(--muted);
+  width: 40px; height: 40px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
 }
+#panel .closeX svg { width: 20px; height: 20px; display: block; }
 /* Saved routes and pins. The actions sit on their own row beneath the name:
    sharing one row with four buttons left the name about 45px of 291px — four
    characters — and the panel is capped at min(320px, 85vw), so there was no
@@ -327,9 +363,15 @@ body.planning #statusBanner { display: none; }
   display: flex; align-items: center; gap: 8px; min-width: 0;
 }
 #panel .routeItem .rowActs { display: flex; gap: 6px; }
-/* Share the width evenly, except the delete ✕, which stays a square. */
+/* Share the width evenly, except delete, which stays a 44px square with a
+   bin icon in it — it is the one action you never want to hit by accident, so
+   it does not compete for label space with the others. */
 #panel .routeItem .rowActs button { flex: 1; padding: 8px 4px; }
-#panel .routeItem .rowActs button.danger { flex: 0 0 44px; }
+#panel .routeItem .rowActs button.danger {
+  flex: 0 0 44px; height: 44px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+#panel .routeItem .rowActs button.danger svg { width: 20px; height: 20px; display: block; }
 #panel .routeItem .pinCat { flex: none; display: flex; width: 24px; height: 24px; color: var(--brand); }
 #panel .routeItem .pinCat svg { width: 20px; height: 20px; }
 #panel .routeItem .meta { flex: 1; min-width: 0; }
@@ -339,17 +381,17 @@ body.planning #statusBanner { display: none; }
 }
 #panel .routeItem .meta .sub { font-size: var(--fs-meta); color: var(--muted); }
 #panel .hint { font-size: var(--fs-meta); color: var(--muted); margin: 6px 0; }
-/* The nearby-category tick list: the same white disc the map draws, small
-   enough to sit on a settings row. */
+/* The nearby-category tick list: the same disc the map draws, small enough to
+   sit on a settings row, so ticking a box shows you exactly what will appear. */
 #panel .poiSwatch {
   flex: none;
   display: flex; align-items: center; justify-content: center;
   width: 22px; height: 22px;
   border-radius: 50%;
-  background: var(--poi-disc); color: var(--poi-glyph);
-  border: 2px solid #2d6a4f;
-  font-size: 11px; line-height: 1;
+  background: #2d6a4f; color: #fff;
+  border: 1.5px solid #fff;
 }
+#panel .poiSwatch svg { width: 13px; height: 13px; display: block; }
 #panel .keyRow {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 6px 2px; font-size: var(--fs-body); line-height: 1.35;
@@ -434,7 +476,7 @@ body.planning #statusBanner { display: none; }
 }
 #rcHeader button svg { width: 18px; height: 18px; }
 #rcHeader button.active { background: var(--brand); color: var(--on-accent); }
-#rcClose { font-size: 20px; color: var(--muted); background: none !important; }
+#rcClose { color: var(--muted); background: none !important; }
 #elevChart { touch-action: none; padding-top: 4px; }
 
 /* Pin card (what's here / saved pin) — a bottom sheet above the nav bar */
@@ -450,10 +492,12 @@ body.planning #statusBanner { display: none; }
 }
 body.planning #pinCard { display: none; }
 .pc-close {
-  position: absolute; top: 8px; right: 8px;
-  border: none; background: none; color: var(--muted);
-  font-size: 22px; line-height: 1; padding: 4px 8px; cursor: pointer;
+  position: absolute; top: 4px; right: 4px;
+  border: none; background: none; color: var(--muted); cursor: pointer;
+  width: 40px; height: 40px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
 }
+.pc-close svg { width: 20px; height: 20px; display: block; }
 .pc-eyebrow { font-size: var(--fs-meta); font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
 .pc-title { display: flex; align-items: center; gap: 8px; font-size: var(--fs-title); font-weight: 800; margin: 0 0 3px; padding-right: 26px; }
 .pc-title .ci { display: inline-flex; flex: none; width: 26px; height: 26px; border-radius: 50%; background: var(--accent-soft); color: var(--brand); align-items: center; justify-content: center; }
