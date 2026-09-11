@@ -136,7 +136,7 @@ export function openSettingsPanel(): void {
       <button data-theme="dark"><svg viewBox="0 0 24 24"><use href="#i-moon"/></svg>Dark</button>
       <button data-theme="system"><svg viewBox="0 0 24 24"><use href="#i-auto"/></svg>System</button>
     </div>
-    <p class="hint">Dark dims the map as well as the app. System follows your phone.</p>
+    <p class="hint">Dark keeps the map at full brightness. System follows your phone.</p>
     <hr/>
     <h3>Thunderforest API key</h3>
     <p class="hint">Powers the Outdoors base map. Free "Hobby Project" plan at

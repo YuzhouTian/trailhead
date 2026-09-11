@@ -76,7 +76,7 @@ export function renderProfile(
   const span = Math.max(maxE - minE, 20);
 
   const W = Math.max(container.clientWidth || 360, 280);
-  const H = 110;
+  const H = 120;
   const padL = 38;
   const padR = 10;
   const padT = 10;
@@ -101,22 +101,33 @@ export function renderProfile(
       `<circle cx="${hx}" cy="${y(here.e).toFixed(1)}" r="5" fill="#1a73e8" stroke="#fff" stroke-width="2"/>`;
   }
 
+  // Everything but the "you are here" dot is drawn from theme tokens rather
+  // than fixed greys and greens. The chart lives inside the app's own DOM, so
+  // `var(--…)` resolves here exactly as it does in the stylesheet — and it has
+  // to: the old literal #eee gridlines were near-white lines on a dark card.
+  const labelStyle = 'font-size:12px;font-variant-numeric:tabular-nums';
   container.innerHTML = `
     <svg width="${W}" height="${H}" style="display:block">
-      <line x1="${padL}" y1="${y(maxE)}" x2="${W - padR}" y2="${y(maxE)}" stroke="#eee"/>
-      <line x1="${padL}" y1="${y(midE)}" x2="${W - padR}" y2="${y(midE)}" stroke="#eee"/>
-      <line x1="${padL}" y1="${y(minE)}" x2="${W - padR}" y2="${y(minE)}" stroke="#ddd"/>
-      <text x="${padL - 4}" y="${y(maxE) + 4}" text-anchor="end" font-size="11" fill="#888">${Math.round(maxE)}</text>
-      <text x="${padL - 4}" y="${y(midE) + 4}" text-anchor="end" font-size="11" fill="#888">${midE}</text>
-      <text x="${padL - 4}" y="${y(minE) + 4}" text-anchor="end" font-size="11" fill="#888">${Math.round(minE)}</text>
-      <text x="${W - padR}" y="${H - 4}" text-anchor="end" font-size="11" fill="#888">${formatDistance(dist)}</text>
-      <polygon points="${padL},${y(minE)} ${linePts} ${x(dist).toFixed(1)},${y(minE)}" fill="#2d6a4f22"/>
-      <polyline points="${linePts}" fill="none" stroke="#2d6a4f" stroke-width="2"/>
+      <defs>
+        <linearGradient id="elevFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="var(--brand)" stop-opacity=".22"/>
+          <stop offset="1" stop-color="var(--brand)" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <line x1="${padL}" y1="${y(maxE)}" x2="${W - padR}" y2="${y(maxE)}" stroke="var(--hairline)"/>
+      <line x1="${padL}" y1="${y(midE)}" x2="${W - padR}" y2="${y(midE)}" stroke="var(--hairline)"/>
+      <line x1="${padL}" y1="${y(minE)}" x2="${W - padR}" y2="${y(minE)}" stroke="var(--hairline)"/>
+      <text x="${padL - 4}" y="${y(maxE) + 4}" text-anchor="end" style="${labelStyle}" fill="var(--muted)">${Math.round(maxE)}</text>
+      <text x="${padL - 4}" y="${y(midE) + 4}" text-anchor="end" style="${labelStyle}" fill="var(--muted)">${midE}</text>
+      <text x="${padL - 4}" y="${y(minE) + 4}" text-anchor="end" style="${labelStyle}" fill="var(--muted)">${Math.round(minE)}</text>
+      <text x="${W - padR}" y="${H - 4}" text-anchor="end" style="${labelStyle}" fill="var(--muted)">${formatDistance(dist)}</text>
+      <polygon points="${padL},${y(minE)} ${linePts} ${x(dist).toFixed(1)},${y(minE)}" fill="url(#elevFill)"/>
+      <polyline points="${linePts}" fill="none" stroke="var(--brand)" stroke-width="2"/>
       ${hereMarkup}
       <g class="scrub" style="display:none">
-        <line y1="${padT}" y2="${H - padB}" stroke="#c1121f" stroke-width="1"/>
-        <circle r="4" fill="#c1121f"/>
-        <text y="${padT + 2}" font-size="13" font-weight="600" fill="#c1121f"></text>
+        <line y1="${padT}" y2="${H - padB}" stroke="var(--danger)" stroke-width="1"/>
+        <circle r="4" fill="var(--danger)"/>
+        <text y="${padT + 2}" style="${labelStyle};font-weight:700" fill="var(--danger)"></text>
       </g>
     </svg>`;
 
