@@ -22,6 +22,7 @@ import {
   showNearbyPois
 } from '../features/search';
 import { openSharePanel, pasteSharedRoute } from '../features/sharing';
+import { clearOfflineTiles, formatBytes, offlineUsage } from '../features/storage';
 import { pauseFollow } from '../features/tracking';
 import { formatDistance } from '../geo';
 import { toGpx } from '../gpx';
@@ -29,7 +30,7 @@ import { legendHtml } from '../legend';
 import { applyLayers, map, setOverlayOpacity } from '../map/map';
 import { DEFAULT_POI_KINDS, POI_CATEGORIES } from '../poi';
 import { saveSettings, type SavedRoute, type Settings } from '../state';
-import { $, downloadFile, svgUse, toast } from './dom';
+import { $, downloadFile, hideToast, svgUse, toast } from './dom';
 import { gridText } from './format';
 import { climbText, updateRouteCard } from './routeCard';
 
@@ -166,6 +167,14 @@ export function openSettingsPanel(): void {
     <p class="hint" id="poiKindsNote">${poiKindsNote()}</p>
     <div class="row"><button id="poiKindsReset" class="secondary" style="flex:1">Back to the usual three</button></div>
     <hr/>
+    <h3>Offline maps</h3>
+    <p class="hint">Map saved on this phone: what you downloaded for a route, plus anything the
+    app kept automatically as you looked around.</p>
+    <p class="hint" id="offlineUsage">Checking…</p>
+    <div class="row"><button id="offlineClear" class="danger" style="flex:1">Clear all offline maps</button></div>
+    <p class="hint">Your routes, pins and settings are kept — this clears saved map only. Anything
+    you still want offline needs downloading again from its route card.</p>
+    <hr/>
     <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'} (UTC).
     If this looks old after a deploy, fully close the app from the app switcher and reopen it.</p>
   `);
@@ -228,6 +237,37 @@ export function openSettingsPanel(): void {
   $('poiKindsReset').addEventListener('click', () => {
     settings.poiKinds = [...DEFAULT_POI_KINDS];
     syncPoiKinds();
+  });
+
+  // Read the storage figures now, and again after a clear. Both elements are
+  // grabbed before the first await: the panel can be closed mid-read, and a
+  // reference taken while it was open writes harmlessly into a detached node
+  // rather than throwing on a missing id.
+  const usageEl = $('offlineUsage');
+  const clearBtn = $<HTMLButtonElement>('offlineClear');
+  const showUsage = async () => {
+    const { tiles, bytes } = await offlineUsage();
+    // The byte figure covers everything the app has stored, not the tiles
+    // alone, and it is the browser's own rough estimate — say so, rather than
+    // implying a precision that isn't there.
+    const total = bytes === null ? '' : ` · about ${formatBytes(bytes)} of app data in total`;
+    usageEl.textContent = tiles
+      ? `${tiles.toLocaleString()} map tiles saved${total}`
+      : 'No map saved for offline use yet.';
+  };
+  void showUsage();
+
+  clearBtn.addEventListener('click', async () => {
+    const { tiles } = await offlineUsage();
+    if (!tiles) return toast('There is no saved map to clear');
+    if (!confirm(`Delete all ${tiles.toLocaleString()} saved map tiles? Your routes and pins are kept.`)) return;
+    clearBtn.disabled = true;
+    toast('Clearing offline maps…', 0);
+    const removed = await clearOfflineTiles();
+    hideToast();
+    clearBtn.disabled = false;
+    toast(`Cleared ${removed.toLocaleString()} map tiles`, 4000);
+    void showUsage();
   });
 }
 
