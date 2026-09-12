@@ -71,6 +71,14 @@ export interface StubMap {
   readonly layers: StubLayer[];
   setView(center: StubLatLng, zoom: number, options?: Record<string, unknown>): StubMap;
   getZoom(): number;
+  /**
+   * The element the map is drawn on. Real Leaflet hands out a live <div>, and
+   * the app listens on it for the touches Leaflet's own events do not carry —
+   * so this is a real element too, and a test starts a gesture by dispatching
+   * at it. Replaced by reset(), which is what drops the listeners the last
+   * boot left on it.
+   */
+  getContainer(): HTMLElement;
   setBearing(deg: number): StubMap;
   on(type: string, handler: (e: unknown) => void): StubMap;
   off(type: string, handler: (e: unknown) => void): StubMap;
@@ -117,6 +125,7 @@ export function createLeafletStub(): LeafletStub {
   const bearings: number[] = [];
   const layers: StubLayer[] = [];
   const handlers = new Map<string, ((e: unknown) => void)[]>();
+  let container = document.createElement('div');
 
   const map: StubMap = {
     zoom: DEFAULT_ZOOM,
@@ -124,6 +133,7 @@ export function createLeafletStub(): LeafletStub {
     views,
     bearings,
     layers,
+    getContainer: () => container,
     setView(center, zoom, options = {}) {
       views.push({ center, zoom, options });
       map.zoom = zoom;
@@ -209,6 +219,7 @@ export function createLeafletStub(): LeafletStub {
       bearings.length = 0;
       layers.length = 0;
       handlers.clear();
+      container = document.createElement('div');
       map.zoom = DEFAULT_ZOOM;
       map.bearing = 0;
     }

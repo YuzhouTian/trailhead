@@ -43,6 +43,11 @@ const gpsIcon = L.divIcon({ className: '', html: '<div class="gpsDot"></div>', i
 // kept as the redundancy it is, since one glyph is no worse for having two.
 const LOCATE_ICON = { away: svgUse('i-locate'), follow: svgUse('i-locate-on'), heading: svgUse('i-compass') };
 
+// How far in coming back to your dot zooms, when you were further out than
+// this. Close enough to see which path you are on; matched by the startup
+// recentre in map/map.ts so both landings sit at the same scale.
+const FOLLOW_ZOOM = 15;
+
 // Owned by the app and shared by reference; only read here (the walking pace
 // for the time estimate).
 let settings: Settings;
@@ -56,6 +61,18 @@ let accCircle: L.Circle | null = null;
 let lastFix: LatLng | null = null;
 let lastAccuracy = 0;
 let follow = false;
+/**
+ * Set when following (re)starts and spent by the first fix that acts on it:
+ * the recentre that brings you back may zoom in, and the ones that merely keep
+ * up with you may not.
+ *
+ * Zooming on every fix was the bug. Coming back to your dot from a whole-UK
+ * view has to close the distance or "Me" lands you on a scale that shows you
+ * nothing — but re-applying that floor a second later, and every second
+ * after, meant a walker who zoomed out while being followed had the wider view
+ * taken off them before they could read it.
+ */
+let zoomInOnNextFix = false;
 /**
  * Set when the watch has given up: permission refused, or an error we stopped
  * on. The button then reads as a retry rather than as a toggle, because with no
@@ -235,7 +252,13 @@ function onFix(pos: GeolocationPosition): void {
   }
   // Recentre instantly: fixes arrive every second or so, and queueing a pan
   // animation per fix looks jittery and stalls entirely while backgrounded.
-  if (follow) map.setView(p, Math.max(map.getZoom(), 15), { animate: false });
+  // The zoom is the map's own except on the fix that follows a resume, which
+  // is the one allowed to bring you in.
+  if (follow) {
+    const zoom = zoomInOnNextFix ? Math.max(map.getZoom(), FOLLOW_ZOOM) : map.getZoom();
+    zoomInOnNextFix = false;
+    map.setView(p, zoom, { animate: false });
+  }
   updateBanner();
   onPosition?.();
 }
@@ -394,6 +417,7 @@ function failWatch(): void {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
   watchId = null;
   follow = false;
+  zoomInOnNextFix = false;
   gpsFailed = true;
   stopHeading();
   gpsMarker?.remove();
@@ -421,6 +445,7 @@ function startWatch(): boolean {
   }
   gpsFailed = false;
   follow = true;
+  zoomInOnNextFix = true;
   paintLocate();
   watchId = navigator.geolocation.watchPosition(onFix, (err) => {
     toast(`GPS error: ${err.message} — tap Me to try again`, 5000);
@@ -436,7 +461,10 @@ function startWatch(): boolean {
  */
 function resumeFollow(): void {
   follow = true;
-  if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), 15), { animate: false });
+  // Zoom in now if there is somewhere to zoom in on, and otherwise on the fix
+  // that arrives next — either way once, not once a second.
+  if (lastFix) map.setView(lastFix, Math.max(map.getZoom(), FOLLOW_ZOOM), { animate: false });
+  else zoomInOnNextFix = true;
   paintLocate();
 }
 
@@ -444,7 +472,8 @@ function resumeFollow(): void {
  * Stop auto-recentring, without giving up the fix. Opening a place — a search
  * hit, a pin, a route — means "show me this", and the next fix a second later
  * used to drag the map straight back to you, which is what made opening
- * anything with Me on feel broken. A map drag says the same thing.
+ * anything with Me on feel broken. A drag of the map says the same thing, and
+ * so does a zoom of it — see the two rules wired up in initTracking.
  *
  * Centring is the whole of what stops. The dot, the accuracy circle, the
  * on/off-route banner, the distance still to go and the rotation all stay, so
@@ -462,14 +491,26 @@ function resumeFollow(): void {
 export function pauseFollow(): void {
   if (watchId === null || !follow) return; // not following: nothing to pause
   follow = false;
+  zoomInOnNextFix = false;
   paintLocate();
 }
 
 /**
- * Wire up the Me button and the drag-to-pause rule, and start the watch. The
- * active route arrives as a getter rather than a value: it is reassigned
- * whenever one is planned, loaded or closed, and it belongs to the app rather
- * than to this feature.
+ * How long after a hand lands on the map a zoom still counts as that hand's.
+ * Long enough to cover the slowest of them — a tap of the +/- control zooms
+ * on the click, a frame or two after the finger went down — and short enough
+ * that a zoom arriving later is plainly not what the hand was for.
+ */
+const GESTURE_MS = 700;
+
+/** When a finger, a pointer or a wheel was last on the map itself. */
+let handOnMapAt = 0;
+
+/**
+ * Wire up the Me button and the two look-around-to-pause rules, and start the
+ * watch. The active route arrives as a getter rather than a value: it is
+ * reassigned whenever one is planned, loaded or closed, and it belongs to the
+ * app rather than to this feature.
  */
 export function initTracking(opts: {
   settings: Settings;
@@ -515,6 +556,41 @@ export function initTracking(opts: {
   // through the same door — which is what keeps the button honest about
   // whether the map is still turning with you.
   map.on('dragstart', pauseFollow);
+
+  // A zoom says it too. Pinching out to see where the ridge goes is looking
+  // away from yourself exactly as a drag is, and leaving follow on there was
+  // the worse of the two: the next fix a second later hauled the map back to
+  // the dot *and* threw the zoom away with it — following used to re-assert
+  // its minimum zoom on every fix — so a wider view was not something you
+  // could get at all. See zoomInOnNextFix for the other half of that.
+  //
+  // Zoom is harder to read than a drag, because dragstart is only ever a
+  // thumb while zoomstart is fired by the app's own zooms too — the startup
+  // jump to your area, the clamp after a base layer with a shallower maximum
+  // is chosen, and following's own recentre from a wide view in to 15. Pausing
+  // on those would drop follow with nothing on screen to explain it.
+  //
+  // A hand tells them apart. Every zoom the walker can start — pinch, the
+  // double-tap-drag gesture, the +/- control, a wheel on a desktop — begins
+  // with a touch, pointer or wheel on the map itself, and none of the app's
+  // own zooms do: the Me button, the panels and Settings all sit outside the
+  // map element, and the startup recentre already stands down the moment you
+  // touch the map. So a zoom is yours if your hand was just on the map.
+  //
+  // Getting it wrong is cheap in one direction only. A gesture missed leaves
+  // the map following you, which is where it already was; a recentre mistaken
+  // for a gesture turns Me off for no reason the walker can see. Hence the
+  // short window, and hence reading the hand rather than guessing from the
+  // zoom. Capture and passive: this only ever watches, and must not be
+  // stoppable by a handler closer to the target.
+  const container = map.getContainer();
+  const handOnMap = (): void => { handOnMapAt = Date.now(); };
+  for (const type of ['touchstart', 'pointerdown', 'wheel']) {
+    container.addEventListener(type, handOnMap, { capture: true, passive: true });
+  }
+  map.on('zoomstart', () => {
+    if (Date.now() - handOnMapAt <= GESTURE_MS) pauseFollow();
+  });
 
   // No first tap to wait for: the map is on you from the moment it can be.
   // The startup one-shot in map/map.ts has already asked for permission, so
