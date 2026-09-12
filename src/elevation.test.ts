@@ -140,6 +140,57 @@ describe('renderProfile scrubber', () => {
     expect(again.mock.calls[0][0]).toEqual(dropped);
   });
 
+  it('keeps a finger drag alive across a repaint', () => {
+    const first = vi.fn<(s: Scrub | null) => void>();
+    const container = mount();
+    renderProfile(container, coords, first);
+    const before = measured(container);
+    pointer(before, 'pointerdown', xAt(0.25));
+    const pressed = first.mock.calls[0][0]!;
+
+    // A GPS fix lands mid-drag and the chart is rebuilt under the finger.
+    const again = vi.fn<(s: Scrub | null) => void>();
+    renderProfile(container, coords, again, null, pressed.alongM);
+    const after = measured(container);
+
+    // The finger has not lifted, so its next move is still a scrub.
+    pointer(after, 'pointermove', xAt(0.75));
+
+    expect(visible(container)).toBe(true);
+    const last = again.mock.lastCall![0]!;
+    expect(last.alongM).toBeGreaterThan(pressed.alongM);
+  });
+
+  it('draws on the live chart when iOS keeps sending the drag to the old one', () => {
+    // WebKit routes a touch's events to the element it started on, even after
+    // that element has been thrown away. Those events must not read positions
+    // off a chart that no longer has a box, nor draw on one nobody can see.
+    const first = vi.fn<(s: Scrub | null) => void>();
+    const container = mount();
+    renderProfile(container, coords, first);
+    const old = measured(container);
+    pointer(old, 'pointerdown', xAt(0.25));
+    const pressed = first.mock.calls[0][0]!;
+
+    const again = vi.fn<(s: Scrub | null) => void>();
+    renderProfile(container, coords, again, null, pressed.alongM);
+    measured(container);
+    // Detached: no layout, so its own box reads as empty.
+    old.getBoundingClientRect = () => ({ left: 0, top: 0, width: 0, height: 0 }) as DOMRect;
+
+    pointer(old, 'pointermove', xAt(0.5));
+
+    expect(visible(container)).toBe(true);
+    const last = again.mock.lastCall![0]!;
+    expect(last.alongM).toBeGreaterThan(pressed.alongM);
+    expect(last.alongM).toBeLessThan(pressed.alongM * 3);
+
+    // And lifting on the old chart still ends the drag on the live one.
+    pointer(old, 'pointerup', xAt(0.5));
+    pointer(container.querySelector('svg')!, 'pointermove', xAt(0.9));
+    expect(again.mock.lastCall![0]).toEqual(last);
+  });
+
   it('reports the scrubber gone when the route no longer reaches it', () => {
     const onScrub = vi.fn<(s: Scrub | null) => void>();
     const container = mount();
