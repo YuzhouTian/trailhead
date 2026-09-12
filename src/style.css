@@ -222,7 +222,11 @@ body {
      safe-area strip iOS reserves anyway. */
   border-top: 1px solid var(--hairline);
   padding: 6px 4px calc(env(safe-area-inset-bottom, 0px) + 4px);
-  z-index: 1000;
+  /* Above the sheet's scrim (1090), unlike the rest of the bottom furniture:
+     the bar is how you swap one sheet for another and how you put a sheet
+     away, so it has to stay lit and tappable while a sheet is open. The locate
+     button and the plan bar stay at 1000 and go under the scrim with the map. */
+  z-index: 1095;
 }
 #bottomBar button {
   flex: 1;
@@ -245,6 +249,14 @@ body.planning #bottomBar { display: none; }
    the gap the card itself now sits in above the tab bar — see the sum in
    publishCardLift(). */
 :root { --card-lift: 0px; }
+
+/* The height of the bottom tab bar above the safe-area strip: 6px + 4px padding
+   round a 47px column of icon and label. The bottom sheet rests on top of the
+   bar and has to know where the bar's top edge is, and that is the only place
+   this is used — the other bottom offsets in this file (50, 106, 64, 107) are
+   tuned totals for one piece of furniture each, not the bar's height, so
+   rewriting them in terms of this would say something untrue about them. */
+:root { --bar-h: 57px; }
 
 /* Locate ("Me") — a floating control over the map, not a nav destination.
    Sits above the bottom bar, and rides up above the route card when one shows. */
@@ -402,15 +414,21 @@ body.planning #statusBanner { display: none; }
    of the screen your thumb cannot reach, and it covered the map sideways while
    leaving a useless strip beside it. Coming up from the bottom edge puts the
    whole thing under the thumb and next to the tab bar that opened it.
-   88vh rather than the full height so a sliver of map stays visible — it keeps
-   the sheet reading as something on top of the map that you can dismiss. The
-   dvh line repeats it in the unit that discounts iOS's address bar; browsers
-   that don't know dvh simply ignore it and keep the vh above. */
+   It rests *on top of* the tab bar rather than over it, so the tabs stay
+   visible and tappable: you can swap Map for Settings in one tap, and tapping
+   the tab you are already on puts the sheet away. A sheet that covered the bar
+   would take both of those away and would put settings rows exactly where the
+   tabs used to be, which is a mis-tap waiting to happen on a slope.
+   88vh minus the bar rather than the full height, so a sliver of map stays
+   visible above it — it keeps the sheet reading as something on top of the map
+   that you can dismiss. The dvh lines repeat that in the unit that discounts
+   iOS's address bar; browsers that don't know dvh ignore them and keep the vh. */
 #panel {
   position: fixed;
-  left: 0; right: 0; bottom: 0;
-  max-height: 88vh;
-  max-height: 88dvh;
+  left: 0; right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h));
+  max-height: calc(88vh - env(safe-area-inset-bottom, 0px) - var(--bar-h));
+  max-height: calc(88dvh - env(safe-area-inset-bottom, 0px) - var(--bar-h));
   background: var(--bg);
   border-top: 1px solid var(--hairline);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
@@ -420,9 +438,10 @@ body.planning #statusBanner { display: none; }
      from carrying on into the page behind it. */
   overflow-y: auto;
   overscroll-behavior: contain;
-  /* No padding at the top: the grabber strip below provides it. At the foot,
-     16px clear of the home-indicator strip iOS reserves. */
-  padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  /* No padding at the top: the grabber strip below provides it. A flat 16px at
+     the foot — the tab bar underneath already holds the home-indicator strip
+     clear, so adding the safe area here again would be a second gap. */
+  padding: 0 12px 16px;
 }
 /* The grabber strip. Sticky so the handle stays at the top edge of the sheet
    while a long panel scrolls under it — it is the thing that says "this sheet
@@ -451,9 +470,10 @@ body.planning #statusBanner { display: none; }
     width: 480px;
   }
 }
-/* The backdrop behind the sheet. It sits above every piece of map furniture
-   (search 1050, tab bar and locate button 1000, route card 950) and below the
-   sheet itself, so anything a stray tap could hit is covered. */
+/* The backdrop behind the sheet. It sits above the map and its furniture
+   (search 1050, locate button and plan bar 1000, route card 950) and below both
+   the sheet and the tab bar, so the only things a tap can still reach while a
+   sheet is open are the sheet itself and the tabs. */
 #panelScrim {
   position: fixed; inset: 0;
   background: var(--scrim);

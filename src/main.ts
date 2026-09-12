@@ -218,12 +218,9 @@ initPanels({
 // which is the third way out of a sheet alongside the close icon and the
 // scrim. showPanel()/hidePanel() in ui/panels.ts clear the lit tab, so a sheet
 // closed any other way leaves no tab stranded in the "on" state.
-// Worth knowing: a sheet anchored to the bottom edge sits over the tab bar, and
-// the scrim covers whatever the sheet does not, so in practice a tap aimed at
-// the lit tab lands on one of those two rather than on the button. The sheet
-// still closes and the tab still un-lights — the outcome the tap was after —
-// and this toggle is what runs the moment the button is reachable again (a
-// keyboard press, or if the sheet is ever lifted to sit on top of the bar).
+// This is why the sheet stops above the tab bar and why the bar outranks the
+// scrim (see #panel and #bottomBar in style.css): both are what keep the tab
+// under your thumb while its sheet is up.
 function wireTab(id: string, open: () => void): void {
   const btn = $(id);
   btn.addEventListener('click', () => {
