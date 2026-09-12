@@ -59,6 +59,18 @@ export function getPlan(): RouteResult | null {
   return planResult;
 }
 
+/**
+ * Step out of planning, for a sheet that is about to open over the map.
+ *
+ * Nothing is thrown away: the waypoints, their markers and the dashed line all
+ * stay exactly where they are, and tapping Plan again picks the sketch straight
+ * back up. That is not a concession made for this — it is what leaving Plan has
+ * always done, since only Done and Clear clear a plan.
+ */
+export function endPlanning(): void {
+  if (planning) setPlanning(false);
+}
+
 // ---------------------------------------------------------------- sketching
 
 function setPlanning(on: boolean): void {
@@ -68,6 +80,14 @@ function setPlanning(on: boolean): void {
   $('planBar').classList.toggle('hidden', !on);
   map.getContainer().style.cursor = on ? 'crosshair' : '';
   if (on) {
+    // Put away the sheet one of the other tabs left open. This is one half of
+    // the rule that only ever one of the four tabs is on; showPanel() calls
+    // endPlanning() above for the other half. Leaving the sheet up was not
+    // just untidy: Plan hides the tab bar, and the sheet is anchored to the
+    // bar's top edge, so the abandoned sheet floated 57px above the bottom of
+    // the screen over the plan bar. hidePanel() only un-lights the three sheet
+    // tabs, so the Plan tab lit just above stays lit.
+    hidePanel();
     // Hides the active route line/stats while sketching, but doesn't touch
     // localStorage: entering Plan shouldn't erase a hike that's still live.
     setActiveRoute(null, true, false);
@@ -233,7 +253,10 @@ export function initPlanner(opts: {
   saveRoute: (r: SavedRoute) => void;
   /** Make a route (or none) the active one — same signature as the app's own. */
   setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
-  /** Dismiss the open panel: a GPX import is started from the Routes panel. */
+  /**
+   * Dismiss the open sheet — entering Plan closes whatever was up, and a GPX
+   * import is started from the Routes panel and shouldn't leave it open.
+   */
   hidePanel: () => void;
 }): void {
   settings = opts.settings;

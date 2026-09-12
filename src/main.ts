@@ -214,10 +214,11 @@ initPanels({
 
 // A tab lights up while its sheet is up, and tapping it again puts the sheet
 // away. Before the sheet, tapping the same tab twice silently re-rendered the
-// same screen, which looked like nothing happened; now the tab is a toggle,
-// which is the third way out of a sheet alongside the close icon and the
-// scrim. showPanel()/hidePanel() in ui/panels.ts clear the lit tab, so a sheet
-// closed any other way leaves no tab stranded in the "on" state.
+// same screen, which looked like nothing happened; now the tab is a toggle, and
+// one of four ways out of a sheet — the others being the close button, the
+// scrim, and dragging the sheet down by its handle (ui/sheet.ts).
+// showPanel()/hidePanel() in ui/panels.ts clear the lit tab, so a sheet closed
+// any other way leaves no tab stranded in the "on" state.
 // This is why the sheet stops above the tab bar and why the bar outranks the
 // scrim (see #panel and #bottomBar in style.css): both are what keep the tab
 // under your thumb while its sheet is up.

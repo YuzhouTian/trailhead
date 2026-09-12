@@ -8,12 +8,13 @@
 // which is why this was extracted after all of them rather than before.
 //
 // The one thing it does own is the shell: showPanel() renders HTML into the
-// sheet, wires its close button and raises the scrim behind it; hidePanel()
-// puts both away.
+// sheet and raises the scrim behind it; hidePanel() puts both away. The sheet's
+// own chrome — the grab handle and the close button — lives in index.html and
+// is wired once in initPanels(), because it outlives any one panel.
 
 import { BASE_LAYERS, BROUTER_PROFILES } from '../config';
 import { catMeta, deletePin, getPins, hidePinCard, openSavedPin } from '../features/pins';
-import { updatePlanStats } from '../features/planner';
+import { endPlanning, updatePlanStats } from '../features/planner';
 import { startQrScan } from '../features/qr';
 import {
   clearNearby,
@@ -34,6 +35,7 @@ import { saveSettings, type SavedRoute, type Settings } from '../state';
 import { $, downloadFile, hideToast, svgUse, toast } from './dom';
 import { gridText } from './format';
 import { climbText, updateRouteCard } from './routeCard';
+import { initSheetDrag } from './sheet';
 
 // Owned by the app and shared by reference; the panels are where most of the
 // settings are actually changed.
@@ -45,9 +47,10 @@ let applyTheme: () => void;
 
 // ---------------------------------------------------------------- the shell
 
-// The tab buttons that open a sheet. Plan is deliberately not one of them: its
-// "active" look means "you are drawing a route", not "a sheet is open", so it
-// must survive a sheet opening and closing over the top of it.
+// The tab buttons that open a sheet. Plan is deliberately not one of them: it
+// enters a mode rather than opening a screen, and it is setPlanning() itself
+// that calls hidePanel(), a moment after lighting the Plan tab — sweeping the
+// Plan tab up with the others here would put it straight back out again.
 const SHEET_TABS = ['btnMap', 'btnRoutes', 'btnSettings'];
 
 /** Un-light whichever tab opened the sheet. */
@@ -55,27 +58,43 @@ function clearTabs(): void {
   for (const id of SHEET_TABS) $(id).classList.remove('active');
 }
 
+/** Put the drag gesture back to rest; set by initPanels(). */
+let resetSheetDrag: () => void = () => {};
+
 export function hidePanel(): void {
   $('panel').classList.add('hidden');
   $('panelScrim').classList.add('hidden');
-  // The tab has to stop looking selected however the sheet went away — the
-  // close icon and the scrim both come through here, so doing it once here
-  // covers all three routes (the third is the tab itself, in main.ts).
+  // Every way out of a sheet comes through here — the close button, the scrim,
+  // the tab, a drag, and Plan — so this is the one place that has to leave
+  // things square: no tab left lit, and no half-finished drag transform or
+  // faded scrim for the next sheet to open into.
   clearTabs();
+  resetSheetDrag();
 }
 
-/** Fill the panel with `html`, wire its close button, and show it. */
+/** Fill the panel with `html` and show it. */
 export function showPanel(html: string): HTMLElement {
   hidePinCard();
+  // Only ever one of the four tabs is on, in both directions: Plan puts away an
+  // open sheet, and a sheet opening steps out of Plan. Without this, a sheet
+  // opened mid-sketch sat 57px off the bottom of the screen — it is anchored to
+  // the top edge of a tab bar that Plan has hidden — over a plan bar it had no
+  // business covering. Nothing of the sketch is lost; see endPlanning().
+  endPlanning();
   const content = $('panelContent');
-  content.innerHTML = `<button class="closeX" id="panelClose" aria-label="Close">${svgUse('i-close')}</button>${html}`;
+  content.innerHTML = html;
   // Swapping one sheet for another (Map → Saved, or Map → the map key) leaves
   // the old tab lit unless we clear here too; whoever opened this one lights
   // its own tab afterwards.
   clearTabs();
+  // A panel opened while the last one was still mid-spring would inherit its
+  // transform and sit somewhere down the screen.
+  resetSheetDrag();
   $('panel').classList.remove('hidden');
   $('panelScrim').classList.remove('hidden');
-  $('panelClose').addEventListener('click', hidePanel);
+  // Back to the top: the sheet is reused, so a panel opened after a scrolled
+  // one would otherwise start half way down its own content.
+  $('panel').scrollTop = 0;
   return content;
 }
 
@@ -407,7 +426,14 @@ export function initPanels(opts: {
   deleteRoute = opts.deleteRoute;
   setActiveRoute = opts.setActiveRoute;
   applyTheme = opts.applyTheme;
-  // Wired once, here, rather than on every showPanel — the scrim element is
-  // always there, only its visibility changes.
+  // All wired once, here, rather than on every showPanel: the scrim and the
+  // sheet's header are always in the document, only their visibility changes.
   $('panelScrim').addEventListener('click', hidePanel);
+  $('panelClose').addEventListener('click', hidePanel);
+  resetSheetDrag = initSheetDrag({
+    sheet: $('panel'),
+    handle: $('panelHead'),
+    scrim: $('panelScrim'),
+    close: hidePanel
+  });
 }
