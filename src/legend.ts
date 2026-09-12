@@ -169,7 +169,7 @@ interface Group {
 }
 
 const renderGroup = (g: Group): string =>
-  `<h4 class="keyGroup">${g.title}</h4>` +
+  `<h4 class="secTitle">${g.title}</h4><div class="cells">` +
   g.entries
     .map(
       (e) =>
@@ -178,6 +178,9 @@ const renderGroup = (g: Group): string =>
         }</span></div>`
     )
     .join('') +
+  // The footnote closes the block first: an explanation of what a group of
+  // symbols cannot tell you is about the group, not another symbol in it.
+  `</div>` +
   (g.footnote ? `<p class="hint">${g.footnote}</p>` : '');
 
 // ---------------------------------------------------------------- OpenStreetMap

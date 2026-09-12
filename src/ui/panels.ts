@@ -65,7 +65,7 @@ export function openMapPanel(): void {
     (l) => `<div class="row">
       <input type="radio" name="base" id="base-${l.id}" value="${l.id}" ${settings.baseLayer === l.id ? 'checked' : ''}/>
       <label for="base-${l.id}">${l.name}${
-        l.needsTfKey && !settings.tfKey ? ' <span style="color:var(--danger)">(needs key)</span>' : ''
+        l.needsTfKey && !settings.tfKey ? ' <span class="warn">(needs key)</span>' : ''
       }${l.blurb ? `<span class="keyNote">${l.blurb}</span>` : ''}</label>
     </div>`
   ).join('');
@@ -73,11 +73,10 @@ export function openMapPanel(): void {
     .concat(BASE_LAYERS.map((l) => `<option value="${l.id}" ${settings.overlayLayer === l.id ? 'selected' : ''}>${l.name}</option>`))
     .join('');
   showPanel(`
-    <h3>Base map</h3>
-    ${baseRows}
-    <div class="row"><button id="keyBtn" class="secondary" style="flex:1">Map key — what the symbols mean</button></div>
-    <hr/>
-    <h3>Nearby</h3>
+    <h4 class="secTitle">Base map</h4>
+    <div class="cells">${baseRows}</div>
+    <button id="keyBtn" class="secondary wide">Map key — what the symbols mean</button>
+    <h4 class="secTitle">Nearby</h4>
     <p class="hint">${
       settings.poiKinds.length
         ? `Looks for ${nearbyKindsShort()} from OpenStreetMap, around what you can see —
@@ -85,14 +84,15 @@ export function openMapPanel(): void {
         : 'No categories are ticked — choose what to look for in Settings.'
     }
     Needs signal, and the free map-data servers are sometimes busy — retry if it fails. Tap again to hide.</p>
-    <div class="row"><button id="poiBtn" style="flex:1" ${
+    <button id="poiBtn" class="wide" ${
       settings.poiKinds.length ? '' : 'disabled'
-    }>${nearbyShown() ? 'Hide nearby points' : "What's nearby"}</button></div>
-    <hr/>
-    <h3>Overlay</h3>
-    <div class="row"><select id="overlaySel" style="flex:1">${overlayOpts}</select></div>
-    <div class="row"><label>Opacity</label>
-      <input type="range" id="overlayOp" min="0.1" max="0.9" step="0.1" value="${settings.overlayOpacity}"/>
+    }>${nearbyShown() ? 'Hide nearby points' : "What's nearby"}</button>
+    <h4 class="secTitle">Overlay</h4>
+    <select id="overlaySel">${overlayOpts}</select>
+    <div class="cells">
+      <div class="row"><label>Opacity</label>
+        <input type="range" id="overlayOp" min="0.1" max="0.9" step="0.1" value="${settings.overlayOpacity}"/>
+      </div>
     </div>
   `);
 
@@ -130,51 +130,47 @@ export function openSettingsPanel(): void {
     BROUTER_PROFILES.find((p) => p.id === id)?.desc ?? '';
 
   showPanel(`
-    <h3>Appearance</h3>
+    <h4 class="secTitle">Appearance</h4>
     <div class="themeSeg" id="themeSeg">
       <button data-theme="light"><svg viewBox="0 0 24 24"><use href="#i-sun"/></svg>Light</button>
       <button data-theme="dark"><svg viewBox="0 0 24 24"><use href="#i-moon"/></svg>Dark</button>
       <button data-theme="system"><svg viewBox="0 0 24 24"><use href="#i-auto"/></svg>System</button>
     </div>
     <p class="hint">Dark keeps the map at full brightness. System follows your phone.</p>
-    <hr/>
-    <h3>Thunderforest API key</h3>
+    <h4 class="secTitle">Thunderforest API key</h4>
+    <input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/>
     <p class="hint">Powers the Outdoors base map. Free "Hobby Project" plan at
     thunderforest.com — 150,000 tiles a month, far more than one walker uses.</p>
-    <div class="row"><input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/></div>
-    <hr/>
-    <h3>Routing profile</h3>
-    <div class="row"><select id="profileSel" style="flex:1">${profileOpts}</select></div>
+    <h4 class="secTitle">Routing profile</h4>
+    <select id="profileSel">${profileOpts}</select>
     <p class="hint" id="profileHint">${profileDesc(settings.profile)}</p>
-    <hr/>
-    <h3>Walking speed</h3>
-    <p class="hint">Your pace on the flat. Time estimates add 1 h per 600 m of climb (Naismith's rule).</p>
-    <div class="row">
-      <input type="number" id="speedInput" min="1" max="8" step="0.5" value="${settings.speedKmh}" style="width:70px"/>
-      <label>km/h</label>
+    <h4 class="secTitle">Walking speed</h4>
+    <div class="cells">
+      <div class="row">
+        <input type="number" id="speedInput" class="narrow" min="1" max="8" step="0.5" value="${settings.speedKmh}"/>
+        <label>km/h</label>
+      </div>
     </div>
-    <hr/>
-    <h3>What's nearby</h3>
-    <p class="hint">What the Map tab's "What's nearby" looks for. Only the ticked categories are
-    asked for, so a short list is a faster, more reliable search.</p>
-    ${POI_CATEGORIES.map(
+    <p class="hint">Your pace on the flat. Time estimates add 1 h per 600 m of climb (Naismith's rule).</p>
+    <h4 class="secTitle">What's nearby</h4>
+    <div class="cells">${POI_CATEGORIES.map(
       (c) => `<div class="row">
         <input type="checkbox" id="poiKind-${c.id}" ${settings.poiKinds.includes(c.id) ? 'checked' : ''}/>
         <span class="poiSwatch" style="background:${c.colour}">${svgUse(c.icon)}</span>
-        <label for="poiKind-${c.id}" style="flex:1">${c.plural}</label>
+        <label for="poiKind-${c.id}">${c.plural}</label>
       </div>`
-    ).join('')}
+    ).join('')}</div>
     <p class="hint" id="poiKindsNote">${poiKindsNote()}</p>
-    <div class="row"><button id="poiKindsReset" class="secondary" style="flex:1">Back to the usual three</button></div>
-    <hr/>
-    <h3>Offline maps</h3>
-    <p class="hint">Map saved on this phone: what you downloaded for a route, plus anything the
-    app kept automatically as you looked around.</p>
+    <button id="poiKindsReset" class="secondary wide">Back to the usual three</button>
+    <p class="hint">What the Map tab's "What's nearby" looks for. Only the ticked categories are
+    asked for, so a short list is a faster, more reliable search.</p>
+    <h4 class="secTitle">Offline maps</h4>
     <p class="hint" id="offlineUsage">Checking…</p>
-    <div class="row"><button id="offlineClear" class="danger" style="flex:1">Clear all offline maps</button></div>
-    <p class="hint">Your routes, pins and settings are kept — this clears saved map only. Anything
-    you still want offline needs downloading again from its route card.</p>
-    <hr/>
+    <button id="offlineClear" class="danger wide">Clear all offline maps</button>
+    <p class="hint">Map saved on this phone: what you downloaded for a route, plus anything the
+    app kept automatically as you looked around. Your routes, pins and settings are kept —
+    this clears saved map only. Anything you still want offline needs downloading again from
+    its route card.</p>
     <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'} (UTC).
     If this looks old after a deploy, fully close the app from the app switcher and reopen it.</p>
   `);
@@ -318,15 +314,14 @@ export function openRoutesPanel(): void {
     : '<p class="hint">No pins yet. Long-press the map to drop one.</p>';
 
   const content = showPanel(`
-    <h3>Routes</h3>
+    <h4 class="secTitle">Routes</h4>
     ${items}
-    <hr/>
-    <h3>Pins</h3>
+    <h4 class="secTitle">Pins</h4>
     ${pinItems}
-    <hr/>
-    <div class="row"><button id="scanQr" style="flex:1">Scan route QR</button></div>
-    <div class="row"><button id="pasteRoute" class="secondary" style="flex:1">Paste shared route</button></div>
-    <div class="row"><button id="importBtn" class="secondary" style="flex:1">Import GPX file</button></div>
+    <h4 class="secTitle">Add a route</h4>
+    <button id="scanQr" class="wide">Scan route QR</button>
+    <button id="pasteRoute" class="secondary wide">Paste shared route</button>
+    <button id="importBtn" class="secondary wide">Import GPX file</button>
     <p class="hint">Scan a route's QR straight off another screen, or paste a copied route link.</p>
   `);
   $('scanQr').addEventListener('click', startQrScan);

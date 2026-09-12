@@ -11,6 +11,10 @@
   --bg:      #ffffff;   /* the page ground and the docked bars */
   --surface: #ffffff;   /* floating cards, sheets, search */
   --surface-2:#f2f4f2;  /* inset fields, chips, grouped cells, secondary buttons */
+  /* The one thing that has to lift *off* --surface-2: the selected half of a
+     segmented control. In light that is plain white; in dark it cannot be
+     black (the sheet already is), so it is the one grey above --surface-2. */
+  --surface-3:#ffffff;
   --ink:     #121714;   /* primary text */
   --ink-2:   #4b5450;   /* secondary text: stats lines, sub rows */
   --muted:   #667069;   /* tertiary: placeholders, inactive icons, captions */
@@ -31,8 +35,6 @@
      Me button, which floats over bright tiles and still needs to lift off. */
   --shadow-card: 0 8px 24px rgba(18,23,20,.14), 0 1px 2px rgba(18,23,20,.08);
   --shadow-fab:  0 4px 14px rgba(18,23,20,.22);
-  /* A docked bar casts upward, so it cannot borrow --shadow-card. */
-  --shadow-bar:  0 -2px 8px rgba(18,23,20,.10);
 
   /* Map symbology rather than chrome. These two are deliberately absent from
      the dark blocks below: a marker has to read the same over any tiles, so
@@ -96,6 +98,7 @@
     --bg:      #000000;
     --surface: #000000;
     --surface-2:#141614;
+    --surface-3:#222522;
     --ink:     #ececea;
     --ink-2:   #a8b0ab;
     --muted:   #7d857f;
@@ -111,7 +114,6 @@
     --map-gap: #161816;
     --scrim:   rgba(0,0,0,.6);
     --shadow-card: none;
-    --shadow-bar:  none;
     --shadow-fab:  0 2px 12px rgba(0,0,0,.7);
   }
 }
@@ -119,6 +121,7 @@
   --bg:      #000000;
   --surface: #000000;
   --surface-2:#141614;
+  --surface-3:#222522;
   --ink:     #ececea;
   --ink-2:   #a8b0ab;
   --muted:   #7d857f;
@@ -134,7 +137,6 @@
   --map-gap: #161816;
   --scrim:   rgba(0,0,0,.6);
   --shadow-card: none;
-  --shadow-bar:  none;
   --shadow-fab:  0 2px 12px rgba(0,0,0,.7);
 }
 
@@ -214,8 +216,11 @@ body {
   left: 0; right: 0; bottom: 0;
   display: flex;
   background: var(--bg);
+  /* A hairline, and no shadow. A drop shadow under a docked bar is the one
+     piece of chrome that reads as pasted on: it implies the bar is floating
+     when it is bolted to the bottom of the screen. 56px of content plus the
+     safe-area strip iOS reserves anyway. */
   border-top: 1px solid var(--hairline);
-  box-shadow: var(--shadow-bar);
   padding: 6px 4px calc(env(safe-area-inset-bottom, 0px) + 4px);
   z-index: 1000;
 }
@@ -226,7 +231,7 @@ body {
   color: var(--muted); cursor: pointer; padding: 2px 0;
 }
 #bottomBar button .ico { line-height: 0; }
-#bottomBar button .ico svg { width: 23px; height: 23px; display: block; }
+#bottomBar button .ico svg { width: 24px; height: 24px; display: block; }
 #bottomBar button .lbl { font: var(--t-caption); font-weight: 600; }
 #bottomBar button.active { color: var(--brand); }
 body.planning #bottomBar { display: none; }
@@ -234,21 +239,28 @@ body.planning #bottomBar { display: none; }
 /* How far the bottom-anchored map furniture — the locate button, the scale bar,
    the attribution — has to lift to clear the active-route card. The card's
    height changes with the chart, the remaining line and the screen orientation,
-   so main.ts measures it and publishes it here; each element adds it to its own
-   resting offset. 0 when no card is showing. */
+   so ui/routeCard.ts measures it and publishes it here; each element adds it to
+   its own resting offset. 0 when no card is showing.
+   The published value is the card's height plus a fixed margin, which covers
+   the gap the card itself now sits in above the tab bar — see the sum in
+   publishCardLift(). */
 :root { --card-lift: 0px; }
 
 /* Locate ("Me") — a floating control over the map, not a nav destination.
    Sits above the bottom bar, and rides up above the route card when one shows. */
 #btnLocate {
   position: fixed;
-  right: 14px;
+  /* 12px: the same screen inset as the route card below it and the search bar
+     above, so the three line up down the right-hand edge. */
+  right: 12px;
   /* 106px, not 72px: the scale now occupies 65–83px on this side, so the button
      starts above it. Every px here is thumb reach on a slope, so it is the
      smallest lift that clears the bar. */
   bottom: calc(env(safe-area-inset-bottom, 0px) + 106px + var(--card-lift));
-  width: 48px; height: 48px;
-  border: none; border-radius: 50%;
+  width: 52px; height: 52px;
+  /* The hairline does nothing in light (white on a bright map already reads)
+     but on black it is the only thing separating the button from the tiles. */
+  border: 1px solid var(--hairline); border-radius: 50%;
   background: var(--surface); color: var(--muted);
   box-shadow: var(--shadow-fab);
   display: flex; align-items: center; justify-content: center;
@@ -279,8 +291,9 @@ body.planning #btnLocate { display: none; }
 #searchWrap {
   position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 8px);
-  left: 10px; right: 10px;
+  left: 12px; right: 12px;
   max-width: 520px; margin: 0 auto;
+  height: 48px;
   display: flex; align-items: center;
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -288,17 +301,19 @@ body.planning #btnLocate { display: none; }
   box-shadow: var(--shadow-card);
   z-index: 1050;
 }
-.searchIco { display: flex; align-items: center; padding-left: 13px; color: var(--muted); }
-.searchIco svg { width: 18px; height: 18px; }
+.searchIco { display: flex; align-items: center; padding-left: 14px; color: var(--muted); }
+.searchIco svg { width: 20px; height: 20px; }
 #searchInput {
   flex: 1; min-width: 0;
   border: none; background: none; outline: none;
   color: var(--ink);
-  padding: 11px 6px 11px 10px;
+  padding: 0 6px 0 10px;
   font: var(--t-ui);
   -webkit-appearance: none;
 }
-#searchInput::placeholder { color: var(--muted); }
+/* The prompt is the longest string in the app and has to fit a 390px phone, so
+   it drops a weight below the text you type into the same box. */
+#searchInput::placeholder { color: var(--muted); font-weight: 500; }
 #searchInput::-webkit-search-cancel-button { display: none; }
 /* Close and clear buttons are a drawn cross, not a typed × — the character
    sits off-centre in most faces and changes shape between iOS and Windows.
@@ -312,8 +327,9 @@ body.planning #btnLocate { display: none; }
 #searchClear svg { width: 20px; height: 20px; display: block; }
 #searchResults {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 54px);
-  left: 10px; right: 10px;
+  /* 8px inset + the bar's own 48px + an 8px gap. */
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  left: 12px; right: 12px;
   max-width: 520px; margin: 0 auto;
   background: var(--surface);
   border: 1px solid var(--hairline);
@@ -323,7 +339,9 @@ body.planning #btnLocate { display: none; }
   max-height: 45vh; overflow-y: auto;
 }
 #searchResults .hit {
-  padding: 10px 14px;
+  min-height: 52px;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--hairline);
   cursor: pointer;
 }
@@ -335,9 +353,11 @@ body.planning #searchWrap, body.planning #searchResults { display: none; }
 /* Status banner (on/off route) */
 #statusBanner {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 60px);
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
   left: 50%; transform: translateX(-50%);
-  padding: 8px 14px;
+  height: 40px;
+  display: flex; align-items: center;
+  padding: 0 16px;
   border-radius: var(--r-pill);
   font: var(--t-ui);
   color: var(--on-brand); background: var(--brand);
@@ -386,29 +406,68 @@ body.planning #statusBanner { display: none; }
   box-shadow: var(--shadow-card);
   z-index: 1100;
   overflow-y: auto;
-  padding: calc(env(safe-area-inset-top, 0px) + 14px) 14px 14px;
+  padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px 24px;
 }
-#panel h3 { margin: 4px 0 10px; font: var(--t-title); letter-spacing: var(--ls-title); }
+/* The title of a whole panel ("Share …", "Map key — …"). */
+#panel h3 { margin: 4px 0 12px; font: var(--t-title); letter-spacing: var(--ls-title); }
+/* A section *inside* a panel. A small grey label above a group of rows, rather
+   than a heavy heading with a rule under it: the grouped block below is already
+   doing the separating, so the heading only has to name it. That is also why
+   the <hr>s are gone — two devices were dividing the same thing. */
+#panel .secTitle {
+  margin: 22px 0 8px; padding: 0 4px;
+  font: var(--t-eyebrow); letter-spacing: var(--ls-eyebrow);
+  text-transform: uppercase; color: var(--muted);
+}
+#panel .secTitle:first-of-type { margin-top: 2px; }
+/* A group of settings rows drawn as one block with hairlines between them —
+   the phone-settings idiom. Rows used to float loose on the panel background
+   with nothing tying related ones together. overflow:hidden so the first and
+   last rows inherit the block's corners. */
+#panel .cells {
+  background: var(--surface-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+}
 #panel .row {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 4px; font: var(--t-ui);
+  display: flex; align-items: center; gap: 12px;
+  min-height: 48px; padding: 10px 14px; font: var(--t-ui);
 }
-#panel .row label { flex: 1; }
-#panel hr { border: none; border-top: 1px solid var(--hairline); margin: 10px 0; }
-#panel input[type="text"], #panel input[type="password"], #panel input[type="number"] {
-  width: 100%; padding: 8px; font: var(--t-ui);
-  background: var(--surface-2); color: var(--ink);
-  border: 1px solid var(--hairline); border-radius: var(--r-sm);
+#panel .cells > .row + .row { border-top: 1px solid var(--hairline); }
+/* The label is the target, not the 20px box beside it: tapping anywhere along
+   a 48px row toggles the tick, which is the only way this is usable on a slope.
+   The negative margin pulls the label out over the row's own padding, so its
+   tappable box really is the full height of the row rather than the 28px of
+   text in the middle of it. */
+#panel .row label {
+  flex: 1; align-self: stretch; min-width: 0;
+  margin-block: -10px; padding-block: 10px;
+  display: flex; flex-direction: column; justify-content: center; cursor: pointer;
 }
+#panel .row input[type="checkbox"], #panel .row input[type="radio"] {
+  flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--brand);
+}
+#panel .row input[type="range"] { flex: 1; accent-color: var(--brand); }
+/* A layer that cannot be drawn without a key that has not been entered yet. */
+#panel .warn { color: var(--danger); }
+/* Fields are filled wells with no outline, matching the pin card's name box:
+   on a panel of grouped blocks, a border round every field is a line too many. */
+#panel input[type="text"], #panel input[type="password"], #panel input[type="number"],
 #panel select {
+  width: 100%; height: 48px; padding: 0 14px; font: var(--t-ui);
   background: var(--surface-2); color: var(--ink);
-  border: 1px solid var(--hairline); border-radius: var(--r-sm); padding: 7px;
-  font: var(--t-ui);
+  border: none; border-radius: var(--r-sm); outline: none;
+  -webkit-appearance: none; appearance: none;
 }
+#panel input:focus, #panel select:focus { box-shadow: inset 0 0 0 2px var(--brand); }
+/* The walking-speed box holds one number, with its unit label beside it. */
+#panel input.narrow { width: 88px; flex: none; }
 #panel button {
-  padding: 8px 12px; border: none; border-radius: var(--r-md);
+  height: 48px; padding: 0 16px; border: none; border-radius: var(--r-md);
   background: var(--brand); color: var(--on-brand); font: var(--t-ui); cursor: pointer;
 }
+/* Panel actions run the full width — there is never enough room beside one. */
+#panel button.wide { display: block; width: 100%; margin-bottom: 8px; }
 #panel button.secondary { background: var(--surface-2); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: var(--on-brand); }
 #panel .closeX {
@@ -418,24 +477,32 @@ body.planning #statusBanner { display: none; }
   display: flex; align-items: center; justify-content: center;
 }
 #panel .closeX svg { width: 20px; height: 20px; display: block; }
-/* Saved routes and pins. The actions sit on their own row beneath the name:
-   sharing one row with four buttons left the name about 45px of 291px — four
-   characters — and the panel is capped at min(320px, 85vw), so there was no
-   width to find. Stacking gives the name the full row. */
+/* Saved routes and pins. One cell per item, and the actions sit on their own
+   row beneath the name: sharing one row with four buttons left the name about
+   45px of 291px — four characters — and the panel is capped at
+   min(320px, 85vw), so there was no width to find. Stacking gives the name the
+   full row. */
 #panel .routeItem {
-  display: flex; flex-direction: column; gap: 7px;
-  padding: 10px 4px; border-bottom: 1px solid var(--hairline);
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--surface-2); border-radius: var(--r-md);
+  padding: 12px; margin-bottom: 8px;
 }
 #panel .routeItem .rowMain {
-  display: flex; align-items: center; gap: 8px; min-width: 0;
+  display: flex; align-items: center; gap: 10px; min-width: 0;
 }
-#panel .routeItem .rowActs { display: flex; gap: 6px; }
-/* Share the width evenly, except delete, which stays a 44px square with a
-   bin icon in it — it is the one action you never want to hit by accident, so
-   it does not compete for label space with the others. */
-#panel .routeItem .rowActs button { flex: 1; padding: 8px 4px; }
+#panel .routeItem .rowActs { display: flex; gap: 8px; }
+/* Share the width evenly, except delete, which stays a 44px square with a bin
+   icon in it — it is the one action you never want to hit by accident, so it
+   does not compete for label space with the others. The secondary buttons take
+   the card colour rather than --surface-2, which is now the cell they sit on. */
+#panel .routeItem .rowActs button { flex: 1; height: 44px; padding: 0 4px; }
+#panel .routeItem .rowActs button.secondary {
+  background: var(--surface); color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
 #panel .routeItem .rowActs button.danger {
-  flex: 0 0 44px; height: 44px; padding: 0;
+  flex: 0 0 44px; padding: 0;
+  background: var(--danger-soft); color: var(--danger);
   display: flex; align-items: center; justify-content: center;
 }
 #panel .routeItem .rowActs button.danger svg { width: 20px; height: 20px; display: block; }
@@ -451,7 +518,12 @@ body.planning #statusBanner { display: none; }
 #panel .routeItem .meta .sub {
   font: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--muted);
 }
-#panel .hint { font: var(--t-caption); color: var(--muted); margin: 6px 0; }
+/* Explanatory text sits *under* the group it is about, not inside it — a
+   sentence in a settings row is a row you cannot tap. */
+#panel .hint { font: var(--t-caption); color: var(--muted); margin: 8px 4px 14px; }
+/* The steps in the iOS hand-off, which are prose rather than settings. */
+#panel .steps { font: var(--t-body); padding-left: 20px; margin: 8px 0 12px; }
+#panel .steps li { margin-bottom: 6px; }
 /* The nearby-category tick list: the same white disc the map draws, small
    enough to sit on a settings row. */
 #panel .poiSwatch {
@@ -464,33 +536,34 @@ body.planning #statusBanner { display: none; }
 }
 #panel .poiSwatch svg { width: 13px; height: 13px; display: block; }
 #panel .keyRow {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 6px 2px; font: var(--t-body);
+  display: flex; align-items: flex-start; gap: 12px;
+  min-height: 48px; padding: 11px 14px; font: var(--t-body);
 }
+#panel .cells > .keyRow + .keyRow { border-top: 1px solid var(--hairline); }
 #panel .keyRow svg { margin-top: 1px; }
 #panel .keyRow b { font-weight: 700; }
 #panel .keyNote { display: block; font: var(--t-caption); color: var(--muted); }
-#panel .keyGroup {
-  margin: 14px 0 4px;
-  font: var(--t-eyebrow); letter-spacing: var(--ls-eyebrow); text-transform: uppercase;
-  color: var(--brand);
-  border-bottom: 1px solid var(--hairline); padding-bottom: 3px;
-}
 
-/* Appearance switch (Settings). Selectors are scoped under #panel so they
-   beat the generic `#panel button` fill on the unselected segments. */
+/* Appearance switch (Settings). A track with the selected half raised out of
+   it, the way a phone draws one — not a green fill. Green would make the
+   chosen theme read as an action just taken rather than a state.
+   Selectors are scoped under #panel so they beat the generic `#panel button`
+   fill on the unselected segments. */
 #panel .themeSeg {
-  display: flex; gap: 6px;
+  display: flex; gap: 4px;
   background: var(--surface-2); border-radius: var(--r-md); padding: 4px;
 }
 #panel .themeSeg button {
-  flex: 1; padding: 9px 0; border: none; border-radius: var(--r-sm);
-  background: none; color: var(--muted);
+  flex: 1; height: 44px; padding: 0; border: none; border-radius: var(--r-sm);
+  background: none; color: var(--ink-2);
   font: var(--t-body); cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px;
 }
 #panel .themeSeg button svg { width: 16px; height: 16px; }
-#panel .themeSeg button.sel { background: var(--brand); color: var(--on-brand); }
+#panel .themeSeg button.sel {
+  background: var(--surface-3); color: var(--ink);
+  box-shadow: var(--shadow-card), inset 0 0 0 1px var(--hairline);
+}
 
 /* Plan bar */
 #planBar {
@@ -500,8 +573,8 @@ body.planning #statusBanner { display: none; }
      so the bar's background covers the home-indicator strip. */
   bottom: 0;
   background: var(--bg);
+  /* Hairline, no shadow — same reasoning as the tab bar it replaces. */
   border-top: 1px solid var(--hairline);
-  box-shadow: var(--shadow-bar);
   padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
   z-index: 1000;
 }
@@ -513,31 +586,42 @@ body.planning #statusBanner { display: none; }
 }
 .planBtns { display: flex; gap: 8px; align-items: stretch; }
 .planBtns button {
-  flex: 1; padding: 9px 0; border: none; border-radius: var(--r-md);
+  flex: 1; height: 48px; padding: 0; border: none; border-radius: var(--r-md);
   background: var(--surface-2); color: var(--ink); font: var(--t-ui); cursor: pointer;
 }
 #planDone { background: var(--brand); color: var(--on-brand); }
 #planSnap {
-  flex: 0 0 46px; color: var(--muted);
+  flex: 0 0 48px; color: var(--muted);
   display: flex; align-items: center; justify-content: center;
   transition: background .15s, color .15s;
 }
-#planSnap svg { width: 21px; height: 21px; }
+#planSnap svg { width: 22px; height: 22px; }
 /* Snap on = solid green fill; off = plain grey chip — an unmistakable toggle. */
 #planSnap.active { color: var(--on-brand); background: var(--brand); }
 
-/* Active route card (sits above the bottom bar / plan bar) */
+/* Active route card — a card that floats on the map, not a strip bolted to the
+   screen edge. Edge to edge with a border-top read as a second bottom bar and
+   made the screen feel like three stacked chrome bands; inset by the same 12px
+   as everything else that floats, it reads as one thing sitting over the map.
+   8px above the 56px tab bar; the .abovePlan offset clears the taller plan bar
+   (10 + 22 stats + 8 + 48 buttons + 10 + its 1px border = 99px) instead —
+   measured, not guessed. That sum assumes the plan bar's stats line fits on one
+   line, which it does whenever the card is showing at all: the wrapping
+   two-line version is the "tap the map to add points" hint, and that only
+   appears before there are enough points to draw a card. */
 #routeCard {
   position: fixed;
-  left: 0; right: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 56px);
+  left: 12px; right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  max-width: 440px; margin: 0 auto;
   background: var(--surface);
-  border-top: 1px solid var(--hairline);
-  padding: 6px 10px;
+  border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  box-shadow: var(--shadow-card);
+  padding: 12px;
   z-index: 950;
 }
-#routeCard.abovePlan { bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); }
-#rcHeader { display: flex; align-items: center; gap: 6px; }
+#routeCard.abovePlan { bottom: calc(env(safe-area-inset-bottom, 0px) + 107px); }
+#rcHeader { display: flex; align-items: center; gap: 8px; }
 #rcInfo { flex: 1; min-width: 0; }
 #rcName {
   font: var(--t-ui); font-weight: 700;
@@ -562,18 +646,18 @@ body.planning #statusBanner { display: none; }
 #rcHeader button svg { width: 18px; height: 18px; }
 #rcHeader button.active { background: var(--brand); color: var(--on-brand); }
 #rcClose { color: var(--muted); background: none !important; }
-#elevChart { touch-action: none; padding-top: 4px; }
+#elevChart { touch-action: none; padding-top: 8px; }
 
 /* Pin card (what's here / saved pin) — a bottom sheet above the nav bar */
 #pinCard {
   position: fixed;
-  left: 10px; right: 10px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 66px);
+  left: 12px; right: 12px;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
   max-width: 440px; margin: 0 auto;
   background: var(--surface); color: var(--ink);
   border: 1px solid var(--hairline); border-radius: var(--r-lg);
   box-shadow: var(--shadow-card);
-  z-index: 1000; padding: 14px 15px 13px;
+  z-index: 1000; padding: 16px;
 }
 body.planning #pinCard { display: none; }
 .pc-close {
@@ -603,31 +687,38 @@ body.planning #pinCard { display: none; }
   font: var(--t-caption); font-family: var(--font-mono);
   font-variant-numeric: tabular-nums; color: var(--muted); margin-top: 3px;
 }
-.pc-facts { display: flex; gap: 16px; margin-top: 9px; min-height: 20px; }
+.pc-facts { display: flex; gap: 16px; margin-top: 12px; min-height: 20px; }
 .pc-fact {
   display: flex; align-items: center; gap: 6px;
   font: var(--t-body); font-weight: 600; font-variant-numeric: tabular-nums;
 }
-.pc-fact svg { width: 15px; height: 15px; color: var(--brand); }
+.pc-fact svg { width: 16px; height: 16px; color: var(--brand); }
 .pc-fact.loading { color: var(--muted); font-weight: 500; font-style: italic; }
 .pc-sep { height: 1px; background: var(--hairline); margin: 12px 0; }
+/* The name box is a filled well, not an outlined box: on a card that is itself
+   a floating surface, a border round every field is one line too many. The
+   fill alone says "you can type here". */
 .pc-name {
-  width: 100%; padding: 9px 11px; font: var(--t-ui);
+  width: 100%; height: 48px; padding: 0 14px; font: var(--t-ui);
   background: var(--surface-2); color: var(--ink);
-  border: 1px solid var(--hairline); border-radius: var(--r-md); outline: none;
+  border: none; border-radius: var(--r-md); outline: none;
 }
-.pc-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 11px; }
+.pc-name:focus { box-shadow: inset 0 0 0 2px var(--brand); }
+.pc-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+/* An unselected chip is a filled pill with no outline — the fill is already the
+   shape. --ink-2 rather than --muted: a category you can choose is not a
+   disabled one, and --muted on --surface-2 sails close to 4.5:1. */
 .pc-chip {
-  display: flex; align-items: center; gap: 6px; padding: 7px 11px;
+  display: flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px;
   border-radius: var(--r-pill);
   font: var(--t-body); cursor: pointer;
-  background: var(--surface-2); color: var(--muted); border: 1px solid var(--hairline);
+  background: var(--surface-2); color: var(--ink-2); border: none;
 }
-.pc-chip svg { width: 14px; height: 14px; }
-.pc-chip.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
-.pc-actions { display: flex; gap: 8px; margin-top: 13px; }
+.pc-chip svg { width: 15px; height: 15px; }
+.pc-chip.on { background: var(--brand); color: var(--on-brand); }
+.pc-actions { display: flex; gap: 8px; margin-top: 12px; }
 .pc-actions button {
-  flex: 1; border: none; border-radius: var(--r-md); padding: 11px 0;
+  flex: 1; height: 48px; border: none; border-radius: var(--r-md); padding: 0;
   font: var(--t-ui); font-weight: 700; cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px;
 }
@@ -637,7 +728,11 @@ body.planning #pinCard { display: none; }
    above so it actually wins; a bare `.busy` loses to it and nothing changes. */
 .pc-actions button.busy { background: var(--surface-2); color: var(--muted); }
 .pc-neutral { background: var(--surface-2); color: var(--ink); }
-.pc-danger { background: transparent; color: var(--danger); box-shadow: inset 0 0 0 1.5px var(--danger); flex: 0 0 46px !important; }
+/* Delete is the one action you never want to hit by accident, so it keeps its
+   own square rather than competing for label width. A tinted well instead of
+   the old outlined ring: the ring was the last inset outline left on the card
+   and drew more attention than deleting a pin deserves. */
+.pc-danger { background: var(--danger-soft); color: var(--danger); flex: 0 0 48px !important; }
 
 /* Saved pin marker (category glyph) + the temporary drop pin */
 .savedPin {
@@ -743,7 +838,16 @@ body.planning #pinCard { display: none; }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
   background: var(--surface); color: var(--ink);
 }
-.leaflet-popup-content-wrapper { border-radius: var(--r-md); }
+.leaflet-popup-content-wrapper {
+  border-radius: var(--r-md);
+  /* In dark the popup is black on bright tiles, so its only edge is this. */
+  border: 1px solid var(--hairline);
+}
+/* What a map popup's text is. It used to be an inline font-size string
+   repeated in three feature modules, which is exactly how a type ramp
+   quietly stops being the type ramp. */
+.mapPop { font: var(--t-body); }
+.mapPop .sub { color: var(--muted); font-variant-numeric: tabular-nums; }
 .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
 .leaflet-control-attribution {
   background: color-mix(in srgb, var(--surface) 82%, transparent) !important;

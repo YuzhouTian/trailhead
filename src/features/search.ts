@@ -82,7 +82,7 @@ function showSearchHits(hits: SearchHit[]): void {
       map.setView(hit.pos, Math.max(map.getZoom(), 15), { animate: false });
       searchMarker
         .bindPopup(
-          `<div style="font-size:13px;line-height:1.5"><b>${hit.name.replace(/</g, '&lt;')}</b><br>${positionText(hit.pos)}</div>`,
+          `<div class="mapPop"><b>${hit.name.replace(/</g, '&lt;')}</b><br>${positionText(hit.pos)}</div>`,
           { autoPan: false }
         )
         .openPopup();
@@ -180,7 +180,7 @@ function poiMarker(p: Poi): L.Marker {
   // An unnamed feature is titled with its category, so don't repeat it beneath.
   const type = p.name === cat?.label ? '' : (cat?.label ?? 'Point');
   marker.bindPopup(
-    `<div style="font-size:13px;line-height:1.5">
+    `<div class="mapPop">
       <span class="poiPopIco" style="background:${cat?.colour ?? '#2d6a4f'}">${svgUse(cat?.icon ?? 'c-other')}</span>
       <b>${p.name.replace(/</g, '&lt;')}</b><br>
       ${(type + height + away).replace(/^ · /, '')}<br>${positionText(p.pos)}
