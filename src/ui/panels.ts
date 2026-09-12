@@ -1,4 +1,4 @@
-// The sliding panel and the three things that fill it: Map (base layer, nearby,
+// The bottom sheet and the three things that fill it: Map (base layer, nearby,
 // overlay), Settings (theme, key, routing, pace, nearby categories) and Routes
 // (your saved routes and pins, and the ways of getting more in).
 //
@@ -8,7 +8,8 @@
 // which is why this was extracted after all of them rather than before.
 //
 // The one thing it does own is the shell: showPanel() renders HTML into the
-// panel and wires its close button, hidePanel() puts it away.
+// sheet, wires its close button and raises the scrim behind it; hidePanel()
+// puts both away.
 
 import { BASE_LAYERS, BROUTER_PROFILES } from '../config';
 import { catMeta, deletePin, getPins, hidePinCard, openSavedPin } from '../features/pins';
@@ -44,8 +45,23 @@ let applyTheme: () => void;
 
 // ---------------------------------------------------------------- the shell
 
+// The tab buttons that open a sheet. Plan is deliberately not one of them: its
+// "active" look means "you are drawing a route", not "a sheet is open", so it
+// must survive a sheet opening and closing over the top of it.
+const SHEET_TABS = ['btnMap', 'btnRoutes', 'btnSettings'];
+
+/** Un-light whichever tab opened the sheet. */
+function clearTabs(): void {
+  for (const id of SHEET_TABS) $(id).classList.remove('active');
+}
+
 export function hidePanel(): void {
   $('panel').classList.add('hidden');
+  $('panelScrim').classList.add('hidden');
+  // The tab has to stop looking selected however the sheet went away — the
+  // close icon and the scrim both come through here, so doing it once here
+  // covers all three routes (the third is the tab itself, in main.ts).
+  clearTabs();
 }
 
 /** Fill the panel with `html`, wire its close button, and show it. */
@@ -53,7 +69,12 @@ export function showPanel(html: string): HTMLElement {
   hidePinCard();
   const content = $('panelContent');
   content.innerHTML = `<button class="closeX" id="panelClose" aria-label="Close">${svgUse('i-close')}</button>${html}`;
+  // Swapping one sheet for another (Map → Saved, or Map → the map key) leaves
+  // the old tab lit unless we clear here too; whoever opened this one lights
+  // its own tab afterwards.
+  clearTabs();
   $('panel').classList.remove('hidden');
+  $('panelScrim').classList.remove('hidden');
   $('panelClose').addEventListener('click', hidePanel);
   return content;
 }
@@ -386,4 +407,7 @@ export function initPanels(opts: {
   deleteRoute = opts.deleteRoute;
   setActiveRoute = opts.setActiveRoute;
   applyTheme = opts.applyTheme;
+  // Wired once, here, rather than on every showPanel — the scrim element is
+  // always there, only its visibility changes.
+  $('panelScrim').addEventListener('click', hidePanel);
 }

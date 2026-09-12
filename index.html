@@ -128,7 +128,16 @@
 
   <div id="pinCard" class="hidden"></div>
 
+  <!-- The dimmed backdrop behind an open sheet. It is what makes the sheet feel
+       like a layer over the map rather than part of it, and tapping it is the
+       fastest way to put the sheet away one-handed. -->
+  <div id="panelScrim" class="hidden"></div>
+
   <div id="panel" class="hidden">
+    <!-- The little bar at the top of the sheet. It does not do anything on its
+         own — it is the standard sign that this is a panel that comes up from
+         the bottom edge and goes away again. -->
+    <div id="panelGrab" aria-hidden="true"><span></span></div>
     <div id="panelContent"></div>
   </div>
 
