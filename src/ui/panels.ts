@@ -14,7 +14,7 @@
 
 import { BASE_LAYERS, BROUTER_PROFILES } from '../config';
 import { catMeta, deletePin, getPins, hidePinCard, openSavedPin } from '../features/pins';
-import { updatePlanStats } from '../features/planner';
+import { endPlanning, updatePlanStats } from '../features/planner';
 import { startQrScan } from '../features/qr';
 import {
   clearNearby,
@@ -47,9 +47,10 @@ let applyTheme: () => void;
 
 // ---------------------------------------------------------------- the shell
 
-// The tab buttons that open a sheet. Plan is deliberately not one of them: its
-// "active" look means "you are drawing a route", not "a sheet is open", so it
-// must survive a sheet opening and closing over the top of it.
+// The tab buttons that open a sheet. Plan is deliberately not one of them: it
+// enters a mode rather than opening a screen, and it is setPlanning() itself
+// that calls hidePanel(), a moment after lighting the Plan tab — sweeping the
+// Plan tab up with the others here would put it straight back out again.
 const SHEET_TABS = ['btnMap', 'btnRoutes', 'btnSettings'];
 
 /** Un-light whichever tab opened the sheet. */
@@ -74,6 +75,12 @@ export function hidePanel(): void {
 /** Fill the panel with `html` and show it. */
 export function showPanel(html: string): HTMLElement {
   hidePinCard();
+  // Only ever one of the four tabs is on, in both directions: Plan puts away an
+  // open sheet, and a sheet opening steps out of Plan. Without this, a sheet
+  // opened mid-sketch sat 57px off the bottom of the screen — it is anchored to
+  // the top edge of a tab bar that Plan has hidden — over a plan bar it had no
+  // business covering. Nothing of the sketch is lost; see endPlanning().
+  endPlanning();
   const content = $('panelContent');
   content.innerHTML = html;
   // Swapping one sheet for another (Map → Saved, or Map → the map key) leaves

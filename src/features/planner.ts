@@ -59,6 +59,18 @@ export function getPlan(): RouteResult | null {
   return planResult;
 }
 
+/**
+ * Step out of planning, for a sheet that is about to open over the map.
+ *
+ * Nothing is thrown away: the waypoints, their markers and the dashed line all
+ * stay exactly where they are, and tapping Plan again picks the sketch straight
+ * back up. That is not a concession made for this — it is what leaving Plan has
+ * always done, since only Done and Clear clear a plan.
+ */
+export function endPlanning(): void {
+  if (planning) setPlanning(false);
+}
+
 // ---------------------------------------------------------------- sketching
 
 function setPlanning(on: boolean): void {
@@ -68,13 +80,13 @@ function setPlanning(on: boolean): void {
   $('planBar').classList.toggle('hidden', !on);
   map.getContainer().style.cursor = on ? 'crosshair' : '';
   if (on) {
-    // Plan is a tab like the other three, so it has to put away the sheet one
-    // of them left open — they swap between themselves through showPanel(),
-    // but nothing here goes near it. Leaving it up was not just untidy: Plan
-    // hides the tab bar, and the sheet is anchored to the bar's top edge, so
-    // the abandoned sheet floated 57px above the bottom of the screen over the
-    // plan bar. hidePanel() only un-lights the three sheet tabs, so the Plan
-    // tab we just lit above stays lit.
+    // Put away the sheet one of the other tabs left open. This is one half of
+    // the rule that only ever one of the four tabs is on; showPanel() calls
+    // endPlanning() above for the other half. Leaving the sheet up was not
+    // just untidy: Plan hides the tab bar, and the sheet is anchored to the
+    // bar's top edge, so the abandoned sheet floated 57px above the bottom of
+    // the screen over the plan bar. hidePanel() only un-lights the three sheet
+    // tabs, so the Plan tab lit just above stays lit.
     hidePanel();
     // Hides the active route line/stats while sketching, but doesn't touch
     // localStorage: entering Plan shouldn't erase a hike that's still live.

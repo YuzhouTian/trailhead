@@ -22,11 +22,13 @@
 /** Positions go in and come out as the app writes them: [lat, lng]. */
 export type StubLatLng = [number, number];
 
-/** A marker or a circle: where it is, whether it is drawn, what it was given. */
+/** A marker, circle or line: where it is, whether it is drawn, what it was given. */
 export interface StubLayer {
-  readonly kind: 'marker' | 'circle';
+  readonly kind: 'marker' | 'circle' | 'polyline';
   /** Where it sits now — its constructor position, then each setLatLng. */
   latlng: StubLatLng;
+  /** Lines: every point they were drawn through. Empty for anything else. */
+  readonly coords: StubLatLng[];
   /** Every position it has held, oldest first: the path the app moved it along. */
   readonly track: StubLatLng[];
   /** Circles: radius in metres, from the options or the last setRadius. */
@@ -46,6 +48,11 @@ export interface StubLayer {
   bindPopup(content: (() => string) | string): StubLayer;
   addTo(map: StubMap): StubLayer;
   remove(): StubLayer;
+  /** Leaflet's own shape, which is what the app reads off a dragged marker. */
+  getLatLng(): { lat: number; lng: number };
+  on(type: string, handler: (e: unknown) => void): StubLayer;
+  /** Fire one of this layer's own events — how a test drags a waypoint. */
+  fire(type: string, payload?: Record<string, unknown>): void;
 }
 
 /** One setView call: where the map was told to go, and how. */
@@ -94,6 +101,7 @@ export interface StubL {
   divIcon(options?: Record<string, unknown>): Record<string, unknown>;
   marker(p: StubLatLng, options?: Record<string, unknown>): StubLayer;
   circle(p: StubLatLng, options?: Record<string, unknown>): StubLayer;
+  polyline(coords: StubLatLng[], options?: Record<string, unknown>): StubLayer;
 }
 
 export interface LeafletStub {
@@ -160,10 +168,20 @@ export function createLeafletStub(): LeafletStub {
     }
   };
 
-  function layer(kind: 'marker' | 'circle', p: StubLatLng, options: Record<string, unknown>): StubLayer {
+  function layer(
+    kind: StubLayer['kind'],
+    p: StubLatLng,
+    options: Record<string, unknown>,
+    coords: StubLatLng[] = []
+  ): StubLayer {
+    // A layer's own subscribers, kept per layer rather than per type on the
+    // map: two waypoint markers both listen for 'dragend' and must not hear
+    // each other's.
+    const own = new Map<string, ((e: unknown) => void)[]>();
     const self: StubLayer = {
       kind,
       latlng: p,
+      coords,
       track: [p],
       radius: typeof options.radius === 'number' ? options.radius : null,
       options,
@@ -192,6 +210,14 @@ export function createLeafletStub(): LeafletStub {
         if (i >= 0) layers.splice(i, 1);
         self.onMap = false;
         return self;
+      },
+      getLatLng: () => ({ lat: self.latlng[0], lng: self.latlng[1] }),
+      on(type, handler) {
+        own.set(type, [...(own.get(type) ?? []), handler]);
+        return self;
+      },
+      fire(type, payload = {}) {
+        for (const h of [...(own.get(type) ?? [])]) h({ type, target: self, ...payload });
       }
     };
     created.push(self);
@@ -204,7 +230,10 @@ export function createLeafletStub(): LeafletStub {
       return options;
     },
     marker: (p, options = {}) => layer('marker', p, options),
-    circle: (p, options = {}) => layer('circle', p, options)
+    circle: (p, options = {}) => layer('circle', p, options),
+    // A line has no one position; its first point stands in for one so the
+    // shared layer record keeps the same shape.
+    polyline: (coords, options = {}) => layer('polyline', coords[0] ?? [0, 0], options, coords)
   };
 
   const stub: LeafletStub = {
