@@ -162,10 +162,8 @@ pair('toast', 'light: page ground on ink', '--bg', '--ink');
 pair('toast', 'dark: ink on surface-2', '--ink', '--surface-2');
 
 // --- leaflet furniture --------------------------------------------------
-// The attribution and scale bar are opaque --surface, so what is under them on
-// the map no longer enters into it — that is exactly why they were made opaque.
-pair('map furniture', 'attribution text', '--muted', '--surface');
-pair('map furniture', 'attribution link', '--brand', '--surface');
+// The scale bar is opaque --surface, so what is under it on the map does not
+// enter into it — that is exactly why it was made opaque.
 pair('map furniture', 'scale bar label', '--ink', '--surface');
 pair('map furniture', 'scale bar rule', '--muted', '--surface', 3);
 

@@ -85,9 +85,9 @@ function onProfileScrub(scrub: Scrub | null): void {
 /**
  * How much more than the card's own height the furniture above it has to rise.
  * The card no longer starts at the top of the tab bar: it floats 8px above a
- * 56px bar, while the attribution's resting offset is 50px, so 14px of the
+ * 56px bar, while the scale bar's resting offset is 50px, so 14px of the
  * margin simply buys back the difference and the remaining 10px is the gap you
- * actually see between the card's top edge and the attribution line.
+ * actually see between the card's top edge and the scale bar.
  * Was 12 when the card was an edge-to-edge strip sitting directly on the bar.
  */
 const LIFT_MARGIN = 24;

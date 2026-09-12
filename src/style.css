@@ -249,8 +249,8 @@ body {
 #bottomBar button.active { color: var(--brand); }
 body.planning #bottomBar { display: none; }
 
-/* How far the bottom-anchored map furniture — the locate button, the scale bar,
-   the attribution — has to lift to clear the active-route card. The card's
+/* How far the bottom-anchored map furniture — the locate button and the scale
+   bar — has to lift to clear the active-route card. The card's
    height changes with the chart, the remaining line and the screen orientation,
    so ui/routeCard.ts measures it and publishes it here; each element adds it to
    its own resting offset. 0 when no card is showing.
@@ -262,7 +262,7 @@ body.planning #bottomBar { display: none; }
 /* The height of the bottom tab bar above the safe-area strip: 6px + 4px padding
    round a 47px column of icon and label. The bottom sheet rests on top of the
    bar and has to know where the bar's top edge is, and that is the only place
-   this is used — the other bottom offsets in this file (50, 106, 64, 107) are
+   this is used — the other bottom offsets in this file (50, 90, 64, 107) are
    tuned totals for one piece of furniture each, not the bar's height, so
    rewriting them in terms of this would say something untrue about them. */
 :root { --bar-h: 57px; }
@@ -274,10 +274,11 @@ body.planning #bottomBar { display: none; }
   /* 12px: the same screen inset as the route card below it and the search bar
      above, so the three line up down the right-hand edge. */
   right: 12px;
-  /* 106px, not 72px: the scale now occupies 65–83px on this side, so the button
-     starts above it. Every px here is thumb reach on a slope, so it is the
-     smallest lift that clears the bar. */
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 106px + var(--card-lift));
+  /* 90px, not 72px: the scale occupies 65–84px on this side, so the button
+     starts just above it. Every px here is thumb reach on a slope, so it is the
+     smallest lift that clears the bar. (It was 106px while a credit line sat
+     under the scale and pushed it 16px higher.) */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 90px + var(--card-lift));
   width: 52px; height: 52px;
   /* The hairline does nothing in light (white on a bright map already reads)
      but on black it is the only thing separating the button from the tiles. */
@@ -970,7 +971,7 @@ body.planning #pinCard { display: none; }
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
 
-/* Leaflet popups + attribution follow the theme */
+/* Leaflet popups follow the theme */
 .leaflet-popup-content-wrapper, .leaflet-popup-tip {
   background: var(--surface); color: var(--ink);
 }
@@ -985,30 +986,16 @@ body.planning #pinCard { display: none; }
 .mapPop { font: var(--t-body); }
 .mapPop .sub { color: var(--muted); font-variant-numeric: tabular-nums; }
 .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
-/* Opaque, not the 82% tint it was drawn at. A see-through fill means the real
-   background of this text is 82% of the card colour plus 18% of whatever tile
-   happens to be underneath, and the tile is not ours to choose: over a snow
-   field in dark mode the credit line came out at 3.6:1, and over a dark forest
-   in light mode the link did. Both are under the 4.5:1 a line of 12px text has
-   to meet, and there is no tint that passes everywhere without being opaque in
-   all but name. */
-.leaflet-control-attribution {
-  background: var(--surface) !important;
-  color: var(--muted) !important;
-  /* Leaflet ships this at 12px, which is now the bottom rung of the ramp. */
-  font: var(--t-caption); font-variant-numeric: tabular-nums;
-}
-.leaflet-control-attribution a { color: var(--brand) !important; }
 .leaflet-bar a {
   background: var(--surface); color: var(--ink);
   border-bottom-color: var(--hairline);
 }
 .leaflet-bar a:hover { background: var(--surface-2); }
 
-/* Scale bar — the same fill as the attribution it sits on, so the pair reads as
-   one piece of furniture and neither feels like a card dropped on the map. Both
-   were 82% translucent for a while; see the attribution above for why they are
-   opaque again.
+/* Scale bar. Opaque, not the 82% tint it was once drawn at: a see-through fill
+   means the real background of the label is partly whatever tile is under it,
+   and over a snow field or a dark forest no tint passes 4.5:1 without being
+   opaque in all but name.
    The text-shadow clearing is separate and must stay: Leaflet paints a white
    shadow behind the label, which in dark mode is a white halo behind near-white
    text and reads as badly out of focus. */
@@ -1023,24 +1010,16 @@ body.planning #pinCard { display: none; }
   text-shadow: none;
 }
 
-/* Keep the Leaflet attribution and scale bar visible above the bottom bar,
-   and above the route card when one is showing.
+/* Keep the scale bar visible above the bottom bar, and above the route card
+   when one is showing.
 
    The max() is the point of this rule. The card's lift is measured from the
-   card, and its resting offset was tuned so that the attribution sits ten
-   pixels under the card's top edge — but with no card showing that sum falls
-   back to 50px, which is *less* than the 57px tab bar, and the credit line
-   spent its whole life with its bottom third hidden behind the bar. Taking the
-   larger of the two gives each case the number it actually needs: the card sum
-   while a card is up, and a clean 8px above the bar when none is.
-
-   The scale bar then sits directly on top, one line-height higher, so the two
-   read as one block of furniture. That only works while a credit fits on one
-   line — see the note on `attribution` in config.ts. */
-/* The credit line's real height, measured and republished by map/map.ts. One
-   line of --t-caption is the usual answer and the value here until the map is
-   up; two providers on a narrow phone can make it two. */
-:root { --attr-h: 16px; }
+   card, and its resting offset was tuned so that the bar sits ten pixels under
+   the card's top edge — but with no card showing that sum falls back to 50px,
+   which is *less* than the 57px tab bar, and the bar would spend its life with
+   its foot hidden behind it. Taking the larger of the two gives each case the
+   number it actually needs: the card sum while a card is up, and a clean 8px
+   above the bar when none is. */
 .leaflet-bottom {
   bottom: calc(
     env(safe-area-inset-bottom, 0px) +
@@ -1049,29 +1028,15 @@ body.planning #pinCard { display: none; }
 }
 
 /* The scale is a Leaflet "bottomleft" control, but alone in that corner it read
-   as a stray floating object. It now sits flush on top of the attribution and
-   shares its right edge, so the two read as one block of map furniture rather
-   than two things floating separately: the attribution's own offset plus one
-   line of it, so the scale's foot lands exactly on the credit's head.
-   Being out of the attribution's row also means the two can never collide,
-   whatever width the zoom gives the bar — trimming the credit line alone did
-   not achieve that, since the bar can reach its 120px maximum. */
+   as a stray floating object. It sits against the right-hand edge instead,
+   under the Me button, with the rest of the map furniture. */
 .leaflet-bottom.leaflet-left {
   left: auto;
   right: 0;
-  bottom: calc(
-    env(safe-area-inset-bottom, 0px) + var(--attr-h) +
-    max(50px + var(--card-lift), var(--bar-h) + 8px)
-  );
 }
 /* Leaflet's own 10px control margins would throw those sums out. */
 .leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
-/* Planning hides the Me button, so the scale only has to stay flush on the
-   attribution at its taller plan-mode offset. */
-body.planning .leaflet-bottom.leaflet-left {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 114px + var(--attr-h) + var(--card-lift));
-}
-/* The plan bar is 108px tall, so the old 90px offset left the attribution
+/* The plan bar is 108px tall, so the old 90px offset left the scale bar
    sitting behind it entirely — invisible for as long as Plan mode was open. */
 body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 114px + var(--card-lift)); }
 
