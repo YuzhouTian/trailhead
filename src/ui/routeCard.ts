@@ -83,6 +83,16 @@ function onProfileScrub(scrub: Scrub | null): void {
 }
 
 /**
+ * How much more than the card's own height the furniture above it has to rise.
+ * The card no longer starts at the top of the tab bar: it floats 8px above a
+ * 56px bar, while the attribution's resting offset is 50px, so 14px of the
+ * margin simply buys back the difference and the remaining 10px is the gap you
+ * actually see between the card's top edge and the attribution line.
+ * Was 12 when the card was an edge-to-edge strip sitting directly on the bar.
+ */
+const LIFT_MARGIN = 24;
+
+/**
  * Publish the active-route card's height so the bottom-anchored map furniture
  * can clear it (see --card-lift in style.css). The card is not a fixed size —
  * it grows with the elevation chart and the remaining line, and reflows on
@@ -92,7 +102,7 @@ function onProfileScrub(scrub: Scrub | null): void {
 function publishCardLift(): void {
   const card = $('routeCard');
   const h = card.classList.contains('hidden') ? 0 : card.getBoundingClientRect().height;
-  document.documentElement.style.setProperty('--card-lift', h ? `${Math.round(h) + 12}px` : '0px');
+  document.documentElement.style.setProperty('--card-lift', h ? `${Math.round(h) + LIFT_MARGIN}px` : '0px');
 }
 
 /** Refresh the card from the plan in progress or the active route. */

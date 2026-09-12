@@ -136,12 +136,12 @@ function openHandoffPanel(url: string, name: string): void {
     <h3>Get this route into the app</h3>
     <p class="hint">The route loaded here in the browser, but the home-screen app keeps
     its own separate storage. To hand “${name.replace(/</g, '&lt;')}” over:</p>
-    <ol style="font-size:14px; padding-left:20px; line-height:1.5">
+    <ol class="steps">
       <li>Tap <b>Copy route link</b> below</li>
       <li>Open <b>Trailhead</b> from your home screen</li>
       <li>Tap <svg class="inlineIco" viewBox="0 0 24 24"><use href="#i-routes"/></svg> <b>Routes</b> → <b>Paste shared route</b></li>
     </ol>
-    <div class="row"><button id="handoffCopy" style="flex:1">Copy route link</button></div>
+    <button id="handoffCopy" class="wide">Copy route link</button>
   `);
   $('handoffCopy').addEventListener('click', async () => {
     try {
@@ -239,7 +239,7 @@ export function openSharePanel(r: SavedRoute): void {
         ? '<div class="qrBox" id="qrBox"></div>'
         : '<p class="hint">Route too detailed for a QR code — use the link instead.</p>'
     }
-    <div class="row"><button id="copyLink" style="flex:1">Copy link</button></div>
+    <button id="copyLink" class="wide">Copy link</button>
   `);
   // Sized from the box's real width rather than a number copied out of the
   // stylesheet, so it stays right on any viewport — and never wider than the
@@ -260,7 +260,7 @@ export function openSharePanel(r: SavedRoute): void {
           ? '<p class="hint">Too small to scan at this size.</p>'
           : ''
       }
-       <button id="qrEnlarge" class="secondary">Enlarge to scan</button>`
+       <button id="qrEnlarge" class="secondary wide">Enlarge to scan</button>`
     );
     $('qrEnlarge').addEventListener('click', () => openQrFullscreen(code));
     box.querySelector('svg')?.addEventListener('click', () => openQrFullscreen(code));

@@ -215,8 +215,8 @@ function onFix(pos: GeolocationPosition): void {
     // Built lazily on open (from the latest fix) rather than rebuilt every
     // second, which is wasted work you never see unless the popup is showing.
     gpsMarker.bindPopup(() =>
-      `<div style="font-size:13px;line-height:1.5">${lastFix ? positionText(lastFix) : ''}<br>
-       <span style="color:var(--muted)">±${Math.round(lastAccuracy)} m</span></div>`
+      `<div class="mapPop">${lastFix ? positionText(lastFix) : ''}<br>
+       <span class="sub">±${Math.round(lastAccuracy)} m</span></div>`
     );
     accCircle = L.circle(p, {
       radius: pos.coords.accuracy,
