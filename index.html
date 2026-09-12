@@ -134,10 +134,15 @@
   <div id="panelScrim" class="hidden"></div>
 
   <div id="panel" class="hidden">
-    <!-- The little bar at the top of the sheet. It does not do anything on its
-         own — it is the standard sign that this is a panel that comes up from
-         the bottom edge and goes away again. -->
-    <div id="panelGrab" aria-hidden="true"><span></span></div>
+    <!-- The sheet's own chrome, above whatever panel is loaded into it: the grab
+         handle in the middle and the close button on the right. It stays put
+         while the panel scrolls under it, so the way out of a long panel is in
+         the same place as the way out of a short one. Dragging the handle down
+         throws the sheet away — ui/sheet.ts. -->
+    <div id="panelHead">
+      <span id="panelGrab" aria-hidden="true"></span>
+      <button id="panelClose" class="closeX" aria-label="Close"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
+    </div>
     <div id="panelContent"></div>
   </div>
 

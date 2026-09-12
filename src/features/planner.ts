@@ -68,6 +68,14 @@ function setPlanning(on: boolean): void {
   $('planBar').classList.toggle('hidden', !on);
   map.getContainer().style.cursor = on ? 'crosshair' : '';
   if (on) {
+    // Plan is a tab like the other three, so it has to put away the sheet one
+    // of them left open — they swap between themselves through showPanel(),
+    // but nothing here goes near it. Leaving it up was not just untidy: Plan
+    // hides the tab bar, and the sheet is anchored to the bar's top edge, so
+    // the abandoned sheet floated 57px above the bottom of the screen over the
+    // plan bar. hidePanel() only un-lights the three sheet tabs, so the Plan
+    // tab we just lit above stays lit.
+    hidePanel();
     // Hides the active route line/stats while sketching, but doesn't touch
     // localStorage: entering Plan shouldn't erase a hike that's still live.
     setActiveRoute(null, true, false);
@@ -233,7 +241,10 @@ export function initPlanner(opts: {
   saveRoute: (r: SavedRoute) => void;
   /** Make a route (or none) the active one — same signature as the app's own. */
   setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
-  /** Dismiss the open panel: a GPX import is started from the Routes panel. */
+  /**
+   * Dismiss the open sheet — entering Plan closes whatever was up, and a GPX
+   * import is started from the Routes panel and shouldn't leave it open.
+   */
   hidePanel: () => void;
 }): void {
   settings = opts.settings;

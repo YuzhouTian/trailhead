@@ -443,24 +443,49 @@ body.planning #statusBanner { display: none; }
      clear, so adding the safe area here again would be a second gap. */
   padding: 0 12px 16px;
 }
-/* The grabber strip. Sticky so the handle stays at the top edge of the sheet
-   while a long panel scrolls under it — it is the thing that says "this sheet
-   goes away", and it shouldn't scroll out of sight. */
-#panelGrab {
+/* The sheet's header strip: the grab handle, and the close button on the right.
+   Sticky, so both stay at the top edge while a long panel scrolls under them —
+   they are the two ways out of the sheet, and the panels that most need a way
+   out (Settings, the map key) are exactly the ones long enough to scroll them
+   off if they didn't stick.
+   44px because that is what the close button needs to be a real target; it is
+   also a big enough band of sheet to start a drag on without aiming, which
+   matters more than the 24px of map it costs. */
+#panelHead {
   position: sticky; top: 0; z-index: 1;
-  height: 20px;
+  height: 44px;
   display: flex; align-items: center; justify-content: center;
   background: var(--bg);
+  /* The drag is ours, not the scroll container's: without this the browser
+     takes a downward swipe here as a scroll of the panel and the sheet never
+     moves. Safe because there is nothing on this strip to scroll. */
+  touch-action: none;
 }
-/* The handle itself. Not --surface-3: that is white in the light theme and the
-   sheet under it is white too, so the handle vanished. A dimmed --muted is the
-   one token that reads as a soft grey mark against both a white sheet and a
-   black one. */
-#panelGrab span {
+/* The handle. Not --surface-3: that is white in the light theme and the sheet
+   under it is white too, so the handle vanished. A dimmed --muted is the one
+   token that reads as a soft grey mark against both a white sheet and a black
+   one. */
+#panelGrab {
   width: 40px; height: 5px;
   border-radius: var(--r-pill);
   background: var(--muted); opacity: .35;
 }
+/* Out of the flex flow, so it can sit on the right without pushing the handle
+   off centre; the sticky header is its containing block, so it sticks with it.
+   Same height as the strip, so top:0 is dead centre. */
+#panel .closeX {
+  position: absolute; top: 0; right: 4px;
+  background: none; color: var(--muted);
+  width: 44px; height: 44px; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+#panel .closeX svg { width: 20px; height: 20px; display: block; }
+/* Dragged by a finger, or springing back after one let go. The transform is
+   only applied while one of these is set: a permanent transform on the sheet
+   would make it the containing block for anything fixed inside it, and there is
+   no reason to take that on for a gesture that is idle almost all the time. */
+#panel.dragging, #panel.settling { transform: translateY(var(--sheet-dy, 0px)); }
+#panel.settling { transition: transform .22s ease-out; }
 /* On a wide screen a full-width sheet is a very long line to read, so it
    becomes a centred sheet of a phone-ish width instead. */
 @media (min-width: 700px) {
@@ -469,6 +494,9 @@ body.planning #statusBanner { display: none; }
     transform: translateX(-50%);
     width: 480px;
   }
+  /* A drag has to compose with the centring translate rather than replace it,
+     or the sheet jumps half its width to the right the moment a finger lands. */
+  #panel.dragging, #panel.settling { transform: translate(-50%, var(--sheet-dy, 0px)); }
 }
 /* The backdrop behind the sheet. It sits above the map and its furniture
    (search 1050, locate button and plan bar 1000, route card 950) and below both
@@ -541,16 +569,6 @@ body.planning #statusBanner { display: none; }
 #panel button.wide { display: block; width: 100%; margin-bottom: 8px; }
 #panel button.secondary { background: var(--surface-2); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: var(--on-brand); }
-/* 16px puts the middle of the 40px button on the middle of the panel's <h3>,
-   which sits 20px (the grabber strip) + 4px (its own margin) + half a 24px
-   line down from the top of the sheet. */
-#panel .closeX {
-  position: absolute; top: 16px; right: 4px;
-  background: none; color: var(--muted);
-  width: 40px; height: 40px; padding: 0;
-  display: flex; align-items: center; justify-content: center;
-}
-#panel .closeX svg { width: 20px; height: 20px; display: block; }
 /* Saved routes and pins. One cell per item, and the actions sit on their own
    row beneath the name: sharing one row with four buttons left the name about
    45px of 291px — four characters — and the panel is capped at
