@@ -290,6 +290,8 @@ async function boot(route: SavedRoute | null = null) {
   const card = await import('../ui/routeCard');
   const tracking = await import('./tracking');
   let positions = 0;
+  /** A hand on the map, which is what tells a walker's zoom from the app's. */
+  const hand = (): void => void stub.map.getContainer().dispatchEvent(new Event('touchstart'));
   tracking.initTracking({
     settings: { speedKmh: 4 } as Settings,
     getActiveRoute: () => route,
@@ -323,6 +325,13 @@ async function boot(route: SavedRoute | null = null) {
     /** How many times anything that shows a distance from you was told to refresh. */
     get positions() {
       return positions;
+    },
+    hand,
+    /** Zoom the map the way a thumb does: a hand on it, then the zoomstart
+        Leaflet fires off the back of the gesture. */
+    zoomByHand() {
+      hand();
+      stub.map.fire('zoomstart');
     },
     /** Tap Me and let the handler finish — turning the compass on awaits a
         permission prompt, so the button's work outlives the click itself. */
@@ -425,6 +434,55 @@ describe('following you', () => {
     expect(t.dot?.latlng).toEqual(northOf(START, 40)); // the dot did not
     expect(t.banner.classList.contains('hidden')).toBe(false);
     expect(t.positions).toBe(2);
+  });
+
+  it('stops recentring once you zoom the map, which says the same as a drag', async () => {
+    // Pinching out to see where the ridge goes is looking away from yourself
+    // exactly as a drag is. Leaving follow on there was the worse of the two:
+    // the next fix hauled the map back to the dot and threw the zoom away with
+    // it, so a wider view was not something you could get at all.
+    const t = await boot();
+    t.gps.fix(START);
+    expect(t.map.views).toHaveLength(1);
+
+    t.map.zoom = 12; // you pinched out
+    t.zoomByHand();
+    t.gps.fix(northOf(START, 40));
+
+    expect(t.map.views).toHaveLength(1); // the map stayed where you left it
+    expect(t.map.zoom).toBe(12); // at the scale you chose
+    expect(t.dot?.latlng).toEqual(northOf(START, 40)); // the dot still moved
+    expect(t.button.classList.contains('active')).toBe(false);
+  });
+
+  it('keeps following through a zoom the app made itself', async () => {
+    // zoomstart is fired by the startup jump to your area, by the clamp after
+    // a shallower base layer is chosen, and by following's own recentre. None
+    // of those is you looking away, and dropping follow on them would turn Me
+    // off with nothing on screen to explain why.
+    const t = await boot();
+    t.gps.fix(START);
+
+    t.map.fire('zoomstart'); // no hand anywhere near the map
+    t.gps.fix(TARN);
+
+    expect(t.map.views.map((v) => v.center)).toEqual([START, TARN]);
+    expect(t.button.classList.contains('active')).toBe(true);
+  });
+
+  it('zooms in on the fix that comes to get you, and not on the ones after it', async () => {
+    // The floor belongs to coming back, not to keeping up. Re-applying it
+    // every second is what took a wider view off the walker before they could
+    // read it — so the pause rule above is the fix, and this is the belt to
+    // its braces: even a zoom that slips past the hand test survives.
+    const t = await boot();
+    t.map.zoom = 11;
+    t.gps.fix(START);
+    expect(t.map.views[0].zoom).toBe(15);
+
+    t.map.zoom = 12;
+    t.gps.fix(TARN);
+    expect(t.map.views[1].zoom).toBe(12);
   });
 
   it('does not claim the map is on you before the first fix, or after a drag', async () => {
