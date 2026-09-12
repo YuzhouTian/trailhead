@@ -31,6 +31,17 @@ export interface Scrub {
 }
 
 /**
+ * What a chart's pointer handlers share across repaints: whether a finger is
+ * down, and how to scrub the SVG that is currently on screen. Keyed by the
+ * container because that is the one element that lives longer than a render.
+ */
+interface LiveChart {
+  dragging: boolean;
+  scrubAt: (clientX: number) => void;
+}
+const charts = new WeakMap<HTMLElement, LiveChart>();
+
+/**
  * Render a distance-vs-elevation profile into the container as SVG, with a
  * scrubber that follows a hovering mouse and a pressed finger. `onScrub` fires
  * with the point under the scrubber whenever it moves, and with null when there
@@ -174,26 +185,41 @@ export function renderProfile(
   // A hover is a real scrub, not a preview: the marker stays where the mouse
   // last was, exactly as it stays where a finger lifted, so `onScrub` keeps its
   // single meaning and the caller persists a hovered position like any other.
+  //
+  // The drag itself has to outlive this SVG. On a walk the profile is rebuilt
+  // on every GPS fix — about once a second — and a finger that is mid-drag
+  // when that happens is still down. So the "is a finger pressed" flag and the
+  // current chart's drawing functions live on the container, which survives,
+  // not in this closure, which does not. Two things then work that otherwise
+  // break: the fresh SVG's handlers see the drag is still on, and the handlers
+  // of an SVG that has just been thrown away — which iOS keeps sending the
+  // touch's events to, because WebKit targets a touch at the element it began
+  // on — draw on the chart that is actually on screen instead of reading a
+  // position off a box that no longer exists. The latter was the iPhone bug
+  // where a drag snapped the marker to the end of the route within a second.
   const distanceAt = (clientX: number): number => {
     const rect = svg.getBoundingClientRect();
     const inner = Math.max(rect.width - padL - padR, 1);
     return Math.max(0, Math.min(dist, ((clientX - rect.left - padL) / inner) * dist));
   };
-  let dragging = false;
+  const live = charts.get(container) ?? { dragging: false, scrubAt: () => undefined };
+  live.scrubAt = (clientX) => onScrub?.(place(distanceAt(clientX)));
+  charts.set(container, live);
+
   svg.addEventListener('pointerdown', (e) => {
-    dragging = true;
+    live.dragging = true;
     // Capture is a nicety — without it a drag that wanders off the chart just
     // stops — so environments that lack it degrade rather than throw.
     svg.setPointerCapture?.(e.pointerId);
-    onScrub?.(place(distanceAt(e.clientX)));
+    live.scrubAt(e.clientX);
     e.preventDefault();
   });
   svg.addEventListener('pointermove', (e) => {
-    if (dragging || e.pointerType === 'mouse') onScrub?.(place(distanceAt(e.clientX)));
+    if (live.dragging || e.pointerType === 'mouse') live.scrubAt(e.clientX);
   });
   const endDrag = (e: PointerEvent) => {
     // The scrubber stays where it was dropped; only the drag ends.
-    dragging = false;
+    live.dragging = false;
     if (svg.hasPointerCapture?.(e.pointerId)) svg.releasePointerCapture(e.pointerId);
   };
   svg.addEventListener('pointerup', endDrag);
