@@ -212,9 +212,32 @@ initPanels({
 
 // ---------------------------------------------------------------- navigation
 
-$('btnMap').addEventListener('click', openMapPanel);
-$('btnSettings').addEventListener('click', openSettingsPanel);
-$('btnRoutes').addEventListener('click', openRoutesPanel);
+// A tab lights up while its sheet is up, and tapping it again puts the sheet
+// away. Before the sheet, tapping the same tab twice silently re-rendered the
+// same screen, which looked like nothing happened; now the tab is a toggle,
+// which is the third way out of a sheet alongside the close icon and the
+// scrim. showPanel()/hidePanel() in ui/panels.ts clear the lit tab, so a sheet
+// closed any other way leaves no tab stranded in the "on" state.
+// Worth knowing: a sheet anchored to the bottom edge sits over the tab bar, and
+// the scrim covers whatever the sheet does not, so in practice a tap aimed at
+// the lit tab lands on one of those two rather than on the button. The sheet
+// still closes and the tab still un-lights — the outcome the tap was after —
+// and this toggle is what runs the moment the button is reachable again (a
+// keyboard press, or if the sheet is ever lifted to sit on top of the bar).
+function wireTab(id: string, open: () => void): void {
+  const btn = $(id);
+  btn.addEventListener('click', () => {
+    if (btn.classList.contains('active')) {
+      hidePanel();
+      return;
+    }
+    open();
+    btn.classList.add('active');
+  });
+}
+wireTab('btnMap', openMapPanel);
+wireTab('btnSettings', openSettingsPanel);
+wireTab('btnRoutes', openRoutesPanel);
 map.on('click', () => {
   hidePanel();
   hideSearchResults();

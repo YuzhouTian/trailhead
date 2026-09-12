@@ -396,17 +396,68 @@ body.planning #statusBanner { display: none; }
 }
 .poiPopIco svg { width: 11px; height: 11px; display: block; }
 
-/* Slide-in panel */
+/* Bottom sheet (Map, Saved, Settings, the map key, Share, the hand-off)
+   It used to slide in from the left edge as a 320px drawer, which is a desktop
+   pattern: on a phone held in one hand the far edge of that drawer is the part
+   of the screen your thumb cannot reach, and it covered the map sideways while
+   leaving a useless strip beside it. Coming up from the bottom edge puts the
+   whole thing under the thumb and next to the tab bar that opened it.
+   88vh rather than the full height so a sliver of map stays visible — it keeps
+   the sheet reading as something on top of the map that you can dismiss. The
+   dvh line repeats it in the unit that discounts iOS's address bar; browsers
+   that don't know dvh simply ignore it and keep the vh above. */
 #panel {
   position: fixed;
-  top: 0; left: 0; bottom: 0;
-  width: min(320px, 85vw);
+  left: 0; right: 0; bottom: 0;
+  max-height: 88vh;
+  max-height: 88dvh;
   background: var(--bg);
-  border-right: 1px solid var(--hairline);
-  box-shadow: var(--shadow-card);
+  border-top: 1px solid var(--hairline);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   z-index: 1100;
+  /* Scrolls inside itself — Settings and the map key are both taller than the
+     sheet. overscroll-behavior stops a flick that reaches the end of the list
+     from carrying on into the page behind it. */
   overflow-y: auto;
-  padding: calc(env(safe-area-inset-top, 0px) + 14px) 12px 24px;
+  overscroll-behavior: contain;
+  /* No padding at the top: the grabber strip below provides it. At the foot,
+     16px clear of the home-indicator strip iOS reserves. */
+  padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 16px);
+}
+/* The grabber strip. Sticky so the handle stays at the top edge of the sheet
+   while a long panel scrolls under it — it is the thing that says "this sheet
+   goes away", and it shouldn't scroll out of sight. */
+#panelGrab {
+  position: sticky; top: 0; z-index: 1;
+  height: 20px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+/* The handle itself. Not --surface-3: that is white in the light theme and the
+   sheet under it is white too, so the handle vanished. A dimmed --muted is the
+   one token that reads as a soft grey mark against both a white sheet and a
+   black one. */
+#panelGrab span {
+  width: 40px; height: 5px;
+  border-radius: var(--r-pill);
+  background: var(--muted); opacity: .35;
+}
+/* On a wide screen a full-width sheet is a very long line to read, so it
+   becomes a centred sheet of a phone-ish width instead. */
+@media (min-width: 700px) {
+  #panel {
+    left: 50%; right: auto;
+    transform: translateX(-50%);
+    width: 480px;
+  }
+}
+/* The backdrop behind the sheet. It sits above every piece of map furniture
+   (search 1050, tab bar and locate button 1000, route card 950) and below the
+   sheet itself, so anything a stray tap could hit is covered. */
+#panelScrim {
+  position: fixed; inset: 0;
+  background: var(--scrim);
+  z-index: 1090;
 }
 /* The title of a whole panel ("Share …", "Map key — …"). */
 #panel h3 { margin: 4px 0 12px; font: var(--t-title); letter-spacing: var(--ls-title); }
@@ -470,8 +521,11 @@ body.planning #statusBanner { display: none; }
 #panel button.wide { display: block; width: 100%; margin-bottom: 8px; }
 #panel button.secondary { background: var(--surface-2); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: var(--on-brand); }
+/* 16px puts the middle of the 40px button on the middle of the panel's <h3>,
+   which sits 20px (the grabber strip) + 4px (its own margin) + half a 24px
+   line down from the top of the sheet. */
 #panel .closeX {
-  position: absolute; top: calc(env(safe-area-inset-top, 0px) + 4px); right: 4px;
+  position: absolute; top: 16px; right: 4px;
   background: none; color: var(--muted);
   width: 40px; height: 40px; padding: 0;
   display: flex; align-items: center; justify-content: center;
