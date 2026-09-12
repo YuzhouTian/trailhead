@@ -200,6 +200,19 @@ export function initMap(opts: {
   settings = opts.settings;
   recentreOnStartup(opts.onStartupPosition);
   watchViewport();
+  // Drop Leaflet's own "Leaflet | " prefix. It is BSD-licensed and asks for no
+  // in-UI credit, so it is the one part of that line we can reclaim — the
+  // OpenStreetMap and tile-provider credits are required and stay.
+  map.attributionControl.setPrefix(false);
+  // Every layer here is drawn from OpenStreetMap data, so the credit belongs to
+  // the map rather than to any one layer. Adding it once — instead of writing
+  // it into all three layer definitions — is also what keeps the line to one
+  // line: Leaflet prints each layer's credit, so with an overlay switched on
+  // the old per-layer strings printed "© OpenStreetMap contributors" twice and
+  // the line wrapped, which pushed it down behind the tab bar and left the
+  // scale bar sitting on top of the text.
+  map.attributionControl.addAttribution('&copy; OpenStreetMap contributors');
+
   applyLayers();
 
   // Metric scale bar (bottom-left, above the nav bar) so distance is readable at
@@ -208,8 +221,16 @@ export function initMap(opts: {
   // stacking in style.css, which puts the scale on its own line above it.
   L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(map);
 
-  // Drop Leaflet's own "Leaflet | " prefix. It is BSD-licensed and asks for no
-  // in-UI credit, so it is the one part of that line we can reclaim — the
-  // OpenStreetMap and Thunderforest credits are required and stay verbatim.
-  map.attributionControl.setPrefix(false);
+  // How tall that credit actually is. The scale bar is stacked one credit-line
+  // higher so the two read as a single block (see --attr-h in style.css), and
+  // that only works if the sum knows what "one line" came out as — with two
+  // providers plus an overlay the line can still wrap, and a hard-coded 16px
+  // then puts the scale straight through the middle of the text.
+  const attribEl = map.attributionControl.getContainer();
+  if (attribEl) {
+    new ResizeObserver(() => {
+      const h = Math.round(attribEl.getBoundingClientRect().height);
+      document.documentElement.style.setProperty('--attr-h', `${h}px`);
+    }).observe(attribEl);
+  }
 }
