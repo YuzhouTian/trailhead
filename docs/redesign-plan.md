@@ -341,3 +341,65 @@ and the ramp so future changes stay on it.
    is *used*; it is last and can be dropped without unpicking the rest.
 5. Type moves up one notch across the board. If it feels big on a 390px phone,
    the one place to argue is `--t-ui` 16→15; keep the rest.
+
+---
+
+## 8. As built (written at the end of WP5)
+
+The plan above is the specification as it stood before anyone wrote any code.
+Most of it survived contact with the code unchanged. This section records the
+places where it did not, so that the document and the app agree.
+
+1. **`--muted` in light is `#667069`, not `#727c77`.** The planned value came
+   out at 4.3:1 against white, under the 4.5:1 a caption has to meet. It is
+   used for every caption, placeholder and inactive icon in the app, so it was
+   darkened rather than exempted.
+2. **A third surface, `--surface-3`, exists.** The selected half of the
+   segmented control has to lift *off* `--surface-2`. In light that is plain
+   white; in dark it cannot be black, because the sheet already is — so dark
+   gets the one grey above `--surface-2` (`#222522`).
+3. **`--bar-h` exists** — the height of the tab bar above the safe-area strip.
+   The bottom sheet rests on top of the bar and has to know where its top edge
+   is; the map furniture's offsets now take the larger of their own sum and
+   this, which is what stopped the credit line hiding behind the bar.
+4. **`--attr-h` exists**, republished by `map/map.ts` from a `ResizeObserver` on
+   the credit line, the way `--card-lift` is published from the route card. The
+   scale bar stacks one credit-line above the credit, and that sum has to know
+   what one line actually came out as.
+5. **The type ramp is `font:` shorthands, not `--fs-*`/`--lh-*` pairs.** Two
+   consequences worth remembering: the shorthand resets what it does not
+   mention, so `font-variant-numeric: tabular-nums` must come *after* it in a
+   rule; and letter-spacing is not part of the shorthand, so the steps that
+   want it carry a matching `--ls-*` token.
+6. **Duotone active icons are driven by custom properties on the button**
+   (`--gico-fill` / `--gico-fill-opacity`), not by
+   `button.active .gico { fill: … }`. The icons are `<use>` clones of the
+   sprite, and a descendant selector cannot reach inside a clone — measured in
+   Chrome, that rule changes nothing at all. Inherited values do get in, and a
+   custom property is inherited.
+7. **Chips are 36px**, and so are the route card's header buttons; close
+   buttons are 40px. Those three are the only things under the 44px floor, and
+   they are deliberate.
+8. **The sheet sits on top of the tab bar, not over it** (§5 left this open).
+   The tabs stay visible and tappable, so one tap swaps Map for Settings and
+   tapping the tab you are on puts the sheet away. A sheet that covered the bar
+   would take both of those away and would put settings rows exactly where the
+   tabs had been.
+9. **The sheet's grab handle is `--muted` at 80%, not `--hairline` at 100%.**
+   The hairline is a 10% wash and disappeared against both a white sheet and a
+   black one. 80% is where the handle clears 3:1 in both themes — it is the
+   only thing on screen that says the sheet can be flicked away, so it has to
+   be visible in sunlight.
+10. **`--danger-ink` exists**, a darker red for the one place red is used as a
+    sentence rather than as a fill or a glyph (the "needs key" warning). The
+    fill red is tuned to carry white text on top of it and to match the route
+    line, and at that lightness a run of red words on a grey row is 4.3:1.
+11. **The attribution and scale bar are opaque, not 82% translucent.** A
+    see-through fill means the real background of that text is partly whatever
+    tile happens to be under it, and there is no tint that passes AA over both
+    a snow field and a dark forest without being opaque in all but name.
+12. **The layer credits no longer each carry "© OpenStreetMap contributors".**
+    Every layer here is drawn from OpenStreetMap data, so `map.ts` adds that
+    credit once; Leaflet prints each layer's credit, so the per-layer strings
+    printed it twice as soon as an overlay was switched on, and the line
+    wrapped.

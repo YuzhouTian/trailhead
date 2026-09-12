@@ -25,6 +25,13 @@
   --on-brand:#ffffff;   /* text/icons sitting on a brand fill */
   --danger:  #d8303c;   /* off-route, delete, route line */
   --danger-soft:#fbe9ea;/* tinted danger background */
+  /* Red used as a *sentence*, not as a fill or a glyph. --danger is tuned to
+     carry white text on top of it and to match the red of the route line, and
+     at that lightness a run of red words on the grey of a settings row comes
+     out at 4.3:1 — under the 4.5:1 a paragraph has to meet. This is the same
+     red taken down far enough to read. Dark needs no such adjustment: there
+     the red is already the light half of the pair. */
+  --danger-ink:#c01f2c;
   --notice:  #b0630f;   /* neither good nor bad: arrival, and states like it */
   --on-notice:#ffffff;  /* text sitting on a notice fill */
   --map-gap: #c9d1ca;   /* the colour behind map tiles as they load */
@@ -109,6 +116,7 @@
     --on-brand:#00150b;
     --danger:  #ff5a64;
     --danger-soft:#2a0f12;
+    --danger-ink:#ff5a64;
     --notice:  #f0a850;   /* lifted, like --brand, to hold on the dark ground */
     --on-notice:#1a1000;
     --map-gap: #161816;
@@ -132,6 +140,7 @@
   --on-brand:#00150b;
   --danger:  #ff5a64;
   --danger-soft:#2a0f12;
+  --danger-ink:#ff5a64;
   --notice:  #f0a850;
   --on-notice:#1a1000;
   --map-gap: #161816;
@@ -317,6 +326,11 @@ body.planning #btnLocate { display: none; }
 .searchIco svg { width: 20px; height: 20px; }
 #searchInput {
   flex: 1; min-width: 0;
+  /* Stretch to the full 48px of the pill. Left to itself the input is only as
+     tall as its line — 22px — so the top and bottom thirds of a search bar that
+     *looks* 48px tall did nothing when you tapped them, which on a phone reads
+     as the box being broken rather than as having missed it. */
+  align-self: stretch;
   border: none; background: none; outline: none;
   color: var(--ink);
   padding: 0 6px 0 10px;
@@ -464,11 +478,16 @@ body.planning #statusBanner { display: none; }
 /* The handle. Not --surface-3: that is white in the light theme and the sheet
    under it is white too, so the handle vanished. A dimmed --muted is the one
    token that reads as a soft grey mark against both a white sheet and a black
-   one. */
+   one.
+   .8, not the .35 it was drawn at: the handle is the only thing on screen that
+   says the sheet can be thrown away with a flick, so it has to clear the 3:1
+   that any control-identifying mark has to clear. At .35 it was 1.6:1 — a hint
+   rather than a handle, and invisible in sunlight, which is where this app is
+   read. .8 is the point where both themes pass. */
 #panelGrab {
   width: 40px; height: 5px;
   border-radius: var(--r-pill);
-  background: var(--muted); opacity: .35;
+  background: var(--muted); opacity: .8;
 }
 /* Out of the flex flow, so it can sit on the right without pushing the handle
    off centre; the sticky header is its containing block, so it sticks with it.
@@ -531,6 +550,8 @@ body.planning #statusBanner { display: none; }
 #panel .row {
   display: flex; align-items: center; gap: 12px;
   min-height: 48px; padding: 10px 14px; font: var(--t-ui);
+  /* The containing block for the label's tap overlay below. */
+  position: relative;
 }
 #panel .cells > .row + .row { border-top: 1px solid var(--hairline); }
 /* The label is the target, not the 20px box beside it: tapping anywhere along
@@ -543,12 +564,25 @@ body.planning #statusBanner { display: none; }
   margin-block: -10px; padding-block: 10px;
   display: flex; flex-direction: column; justify-content: center; cursor: pointer;
 }
+/* …and the last of the row that the label still did not cover: the 14px strips
+   directly above and below the tick box itself, and the row's own padding.
+   A label with a `for` toggles its input wherever it is clicked, so an
+   invisible sheet laid over the whole row makes the claim above true — every
+   pixel of a 48px row toggles the tick. Only rows whose label names an input:
+   the opacity and walking-speed rows have bare labels beside a control you
+   drag or type into, and an overlay there would swallow the drag. */
+#panel .row label[for]::before { content: ''; position: absolute; inset: 0; }
 #panel .row input[type="checkbox"], #panel .row input[type="radio"] {
   flex: none; width: 20px; height: 20px; margin: 0; accent-color: var(--brand);
 }
-#panel .row input[type="range"] { flex: 1; accent-color: var(--brand); }
-/* A layer that cannot be drawn without a key that has not been entered yet. */
-#panel .warn { color: var(--danger); }
+/* 44px of grab, not the 16px the browser draws. The track and thumb keep the
+   size the phone gives them; the extra height is invisible padding around them,
+   so a slider dragged with a thumb on a slope is as easy to catch as a button. */
+#panel .row input[type="range"] { flex: 1; height: 44px; accent-color: var(--brand); }
+/* A layer that cannot be drawn without a key that has not been entered yet.
+   --danger-ink rather than --danger: this is red as words on a grey row, which
+   is the one job the fill red is too light for. */
+#panel .warn { color: var(--danger-ink); }
 /* Fields are filled wells with no outline, matching the pin card's name box:
    on a panel of grouped blocks, a border round every field is a line too many. */
 #panel input[type="text"], #panel input[type="password"], #panel input[type="number"],
@@ -559,6 +593,11 @@ body.planning #statusBanner { display: none; }
   -webkit-appearance: none; appearance: none;
 }
 #panel input:focus, #panel select:focus { box-shadow: inset 0 0 0 2px var(--brand); }
+/* Without this the prompt inside a field is whatever grey the browser picks,
+   and the browser picks it from its own idea of the page — on the black sheet
+   Safari draws a dark grey on near-black. The search box already names its own
+   placeholder colour; these are the other three fields. */
+#panel input::placeholder { color: var(--muted); font-weight: 500; }
 /* The walking-speed box holds one number, with its unit label beside it. */
 #panel input.narrow { width: 88px; flex: none; }
 #panel button {
@@ -569,6 +608,11 @@ body.planning #statusBanner { display: none; }
 #panel button.wide { display: block; width: 100%; margin-bottom: 8px; }
 #panel button.secondary { background: var(--surface-2); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: var(--on-brand); }
+/* A button that cannot be pressed has to look it. Author colours beat the
+   browser's own greying-out, so without this rule a disabled button ("What's
+   nearby" with no categories ticked) was a full-strength green button that
+   simply ignored taps. */
+#panel button:disabled { background: var(--surface-2); color: var(--muted); cursor: default; }
 /* Saved routes and pins. One cell per item, and the actions sit on their own
    row beneath the name: sharing one row with four buttons left the name about
    45px of 291px — four characters — and the panel is capped at
@@ -941,8 +985,15 @@ body.planning #pinCard { display: none; }
 .mapPop { font: var(--t-body); }
 .mapPop .sub { color: var(--muted); font-variant-numeric: tabular-nums; }
 .leaflet-container a.leaflet-popup-close-button { color: var(--muted); }
+/* Opaque, not the 82% tint it was drawn at. A see-through fill means the real
+   background of this text is 82% of the card colour plus 18% of whatever tile
+   happens to be underneath, and the tile is not ours to choose: over a snow
+   field in dark mode the credit line came out at 3.6:1, and over a dark forest
+   in light mode the link did. Both are under the 4.5:1 a line of 12px text has
+   to meet, and there is no tint that passes everywhere without being opaque in
+   all but name. */
 .leaflet-control-attribution {
-  background: color-mix(in srgb, var(--surface) 82%, transparent) !important;
+  background: var(--surface) !important;
   color: var(--muted) !important;
   /* Leaflet ships this at 12px, which is now the bottom rung of the ramp. */
   font: var(--t-caption); font-variant-numeric: tabular-nums;
@@ -954,17 +1005,15 @@ body.planning #pinCard { display: none; }
 }
 .leaflet-bar a:hover { background: var(--surface-2); }
 
-/* Scale bar — the same translucent fill as the attribution it now sits on, so
-   the pair reads as one piece of furniture and neither feels like a card
-   dropped on the map. It was opaque while dark mode dimmed the tiles, because
-   a see-through fill muddied the digits against them; that filter is gone, so
-   the tint is safe again. Raise the 82% toward 100% if it ever reads as weak
-   over busy contour detail.
+/* Scale bar — the same fill as the attribution it sits on, so the pair reads as
+   one piece of furniture and neither feels like a card dropped on the map. Both
+   were 82% translucent for a while; see the attribution above for why they are
+   opaque again.
    The text-shadow clearing is separate and must stay: Leaflet paints a white
    shadow behind the label, which in dark mode is a white halo behind near-white
    text and reads as badly out of focus. */
 .leaflet-control-scale-line {
-  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  background: var(--surface);
   color: var(--ink);
   /* The rule itself is the measurement, so it keeps full contrast. */
   border: 2px solid var(--muted); border-top: none;
@@ -975,28 +1024,52 @@ body.planning #pinCard { display: none; }
 }
 
 /* Keep the Leaflet attribution and scale bar visible above the bottom bar,
-   and above the route card when one is showing. */
-.leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 50px + var(--card-lift)); }
+   and above the route card when one is showing.
+
+   The max() is the point of this rule. The card's lift is measured from the
+   card, and its resting offset was tuned so that the attribution sits ten
+   pixels under the card's top edge — but with no card showing that sum falls
+   back to 50px, which is *less* than the 57px tab bar, and the credit line
+   spent its whole life with its bottom third hidden behind the bar. Taking the
+   larger of the two gives each case the number it actually needs: the card sum
+   while a card is up, and a clean 8px above the bar when none is.
+
+   The scale bar then sits directly on top, one line-height higher, so the two
+   read as one block of furniture. That only works while a credit fits on one
+   line — see the note on `attribution` in config.ts. */
+/* The credit line's real height, measured and republished by map/map.ts. One
+   line of --t-caption is the usual answer and the value here until the map is
+   up; two providers on a narrow phone can make it two. */
+:root { --attr-h: 16px; }
+.leaflet-bottom {
+  bottom: calc(
+    env(safe-area-inset-bottom, 0px) +
+    max(50px + var(--card-lift), var(--bar-h) + 8px)
+  );
+}
 
 /* The scale is a Leaflet "bottomleft" control, but alone in that corner it read
    as a stray floating object. It now sits flush on top of the attribution and
    shares its right edge, so the two read as one block of map furniture rather
-   than two things floating separately. 65px = the attribution's own 50px offset
-   plus its 15px height, i.e. directly on top of it with no gap.
+   than two things floating separately: the attribution's own offset plus one
+   line of it, so the scale's foot lands exactly on the credit's head.
    Being out of the attribution's row also means the two can never collide,
    whatever width the zoom gives the bar — trimming the credit line alone did
    not achieve that, since the bar can reach its 120px maximum. */
 .leaflet-bottom.leaflet-left {
   left: auto;
   right: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 65px + var(--card-lift));
+  bottom: calc(
+    env(safe-area-inset-bottom, 0px) + var(--attr-h) +
+    max(50px + var(--card-lift), var(--bar-h) + 8px)
+  );
 }
 /* Leaflet's own 10px control margins would throw those sums out. */
 .leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
 /* Planning hides the Me button, so the scale only has to stay flush on the
-   attribution at its taller plan-mode offset (114 + its 15px height). */
+   attribution at its taller plan-mode offset. */
 body.planning .leaflet-bottom.leaflet-left {
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 129px + var(--card-lift));
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 114px + var(--attr-h) + var(--card-lift));
 }
 /* The plan bar is 108px tall, so the old 90px offset left the attribution
    sitting behind it entirely — invisible for as long as Plan mode was open. */

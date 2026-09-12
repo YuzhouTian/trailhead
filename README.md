@@ -6,9 +6,9 @@ A personal, bloat-free hiking map PWA. No accounts, no paywalls, no tracking —
 routes that follow real paths, and a dot showing where you are.
 
 <p align="center">
-  <img src="docs/screenshot-route.png" alt="The Helvellyn round loaded on the map, with distance, climb, Naismith estimate and an elevation profile" width="330" />
+  <img src="docs/screenshot-route.png" alt="Dark mode: the Helvellyn round drawn on the map, with a card showing distance, climb, a Naismith time estimate and an elevation profile" width="330" />
   &nbsp;&nbsp;
-  <img src="docs/screenshot-pin.png" alt="Long-pressing Helvellyn summit shows its grid reference, height and bearing from you" width="330" />
+  <img src="docs/screenshot-pin.png" alt="Dark mode: long-pressing Helvellyn summit opens a card with its grid reference, height and bearing from you" width="330" />
 </p>
 
 Everything lives on your phone: routes, pins and settings are in `localStorage`, so there is
@@ -18,17 +18,22 @@ the browser.
 
 ## The app in one screen
 
-A full-screen map with a search box on top, a floating locate button, and four tabs:
+A full-screen map with a search box on top, a floating locate button, and four tabs along
+the bottom. Three of the tabs open a **bottom sheet** — a panel that slides up from the tab
+you tapped, scrolls inside itself, and leaves a sliver of map showing above it. Close it by
+tapping the same tab again, the close button, the dimmed map behind it, or by flicking the
+handle at its top edge downwards.
 
 | Tab | What's in it |
 | --- | --- |
-| **Map** | Base layer, the map key, the overlay + opacity slider, and "What's nearby" |
-| **Saved** | Your routes and pins; import GPX, scan a route QR, paste a shared link |
-| **Plan** | Toggles the route planner (tap points on the map) |
-| **Settings** | Theme, Thunderforest key, routing profile, walking speed, nearby categories, build version |
+| **Map** | Sheet: base layer, the map key, the overlay + opacity slider, and "What's nearby" |
+| **Saved** | Sheet: your routes and pins; import GPX, scan a route QR, paste a shared link |
+| **Plan** | No sheet — it turns the map into the route planner (tap points to draw a line) |
+| **Settings** | Sheet: appearance, Thunderforest key, routing profile, walking speed, nearby categories, offline map usage, build version |
 
-When a route is loaded, a card sits above the tabs with its name, stats, what's left of it,
-and buttons to start following it, open the elevation profile, or cache its tiles.
+When a route is loaded, a card floats just above the tabs with its name, stats, what's left
+of it, and buttons to open the elevation profile or cache its tiles. A long-press anywhere
+on the map opens a similar card for that spot.
 
 ## Features
 
@@ -38,8 +43,8 @@ and buttons to start following it, open the elevation profile, or cache its tile
   free [BRouter](https://brouter.de) public server. Waypoints are draggable; Undo and Clear
   are in the plan bar. Distance, climb and a time estimate update as you go. **Done** offers
   to name and save the route; cancelling still leaves it loaded, just unsaved.
-- **Routing profiles** (Settings) — *Mountain hiking* (default; happy with steep, rough,
-  exposed paths), *General hiking* (easier trails), *Trekking* (BRouter's bike-touring
+- **Routing profiles** (Settings) — *General hiking* (default; footpaths and easier trails),
+  *Mountain hiking* (happy with steep, rough, exposed paths), *Trekking* (BRouter's bike-touring
   profile — the useful fallback when the hiking profiles refuse to connect two points), and
   *Shortest*.
 - **Per-leg snap toggle** — the magnet in the plan bar turns snapping off, so the next legs
@@ -103,14 +108,17 @@ and buttons to start following it, open the elevation profile, or cache its tile
 
 ### Maps
 
-- **Base layers** — *OpenStreetMap* (no key, and the only layer that draws individual gates
-  and stiles) and *Outdoors* from Thunderforest (hiking cartography, trails graded by
-  difficulty, terrain shading, retina tiles — needs a [free key](#outdoors-layer-optional)).
+- **Base layers** — *Outdoor* from Freemap (the default: contours, hillshading and crag
+  ticks, sharp all the way to zoom 20, Europe only), *OpenStreetMap* (no key, global, and the
+  only layer that draws individual gates and stiles) and *Outdoors* from Thunderforest
+  (hiking cartography, trails graded by difficulty — needs a
+  [free key](#outdoors-layer-optional)).
 - **Overlay** — either layer can be drawn over the other with an opacity slider.
 - **Map key** — a per-layer legend grouped by the question you're actually asking: can I walk
   it, can I get through, what's the ground like, where's the water. It also says what each
   layer *cannot* show, which matters as much.
-- **Dark mode** — light, dark, or follow the phone. Dark dims the map as well as the app.
+- **Dark mode** — light, dark, or follow the phone. Dark themes the app only: the map keeps
+  full brightness, because the phone is often in dark mode in broad daylight.
 - Distances are shown in **km and miles** together, heights in metres, and there's a metric
   scale bar on the map.
 
@@ -165,6 +173,44 @@ OpenStreetMap needs no key, and place-name search (Photon), routing (BRouter), e
 (Open-Meteo) and nearby points (Overpass) are all keyless too — so the app is fully usable
 with nothing configured at all.
 
+## Design
+
+The look is meant to be a field instrument rather than a web page: read one-handed, on a
+slope, often in sunlight and often with the phone in dark mode in the middle of the day.
+Everything visual is decided in one file, `src/style.css`, at the top:
+
+- **Tokens.** Every colour, radius and text style is a named value in the `:root` blocks.
+  Nothing further down the file writes a colour of its own. Dark mode is those same names
+  given different values — one block, not a second stylesheet. The two deliberate exceptions
+  are map symbology (a marker has to look the same over any tiles, in either theme) and the
+  QR screens (a code has to be black on white to scan, whatever the app looks like).
+- **Six text styles.** Caption, eyebrow, body, UI, title, display — plus a monospace one for
+  the grid reference. Every piece of text picks one of them; nothing invents its own size.
+  Which rung a thing sits on is decided by "do I read this while walking?", which is why the
+  distance-to-go outranks anything in Settings. Anything numeric gets tabular figures so the
+  digits do not jitter as a GPS fix updates.
+- **Four corner radii.** 10 for fields and small buttons, 14 for buttons and list cells, 20
+  for floating cards and sheets, and a full pill for the search bar, chips and the toast.
+- **Dark is true black.** On an OLED phone a black pixel costs no power, so the chrome is
+  `#000000` and the map underneath is the only bright thing on screen. The map itself is
+  **never dimmed** — dark mode follows the phone, the phone is often dark in daylight, and a
+  dimmed map in sunlight is exactly the wrong trade on a hill.
+- **One icon grammar.** Every glyph is drawn on a 24×24 grid with a 2px stroke, round caps
+  and joins, no fill, and a little clear space so nothing touches the edge of its box. They
+  live as a sprite in `index.html` and inherit the current text colour, so one drawing serves
+  both themes and every state. A selected tab fills its outline with a faint wash of its own
+  colour rather than swapping in a second icon.
+- **44px.** Nothing you tap is smaller than 44px in either direction, with three deliberate
+  exceptions: the pin card's category chips and the route card's header buttons are 36px, and
+  close buttons are 40px.
+
+`scripts/contrast-audit.mjs` reads the tokens straight out of the stylesheet and checks every
+text-on-background pair in both themes against the WCAG AA floors (4.5:1 for text, 3:1 for
+icons). Run it with `node scripts/contrast-audit.mjs src/style.css` after changing a colour.
+
+The full specification, including what was considered and rejected, is in
+[`docs/redesign-plan.md`](docs/redesign-plan.md).
+
 ## Develop
 
 ```
@@ -202,7 +248,10 @@ and the marker comes off in the same commit.
 
 | File | What lives there |
 | --- | --- |
-| `src/main.ts` | The app: map, tabs, panels, planner, following, pins, search, offline download |
+| `src/main.ts` | The wiring: starts everything up and connects the pieces below to each other |
+| `src/map/` | The Leaflet map itself: tile layers, the overlay, the viewport quirks |
+| `src/features/` | One file per thing the app does: tracking, planner, pins, search, offline, sharing, QR |
+| `src/ui/` | The screen furniture: the bottom sheet and its panels, the route card, shared helpers |
 | `src/config.ts` | Base layers, BRouter profiles, and the tuning constants (off-route thresholds, offline zooms and caps) |
 | `src/state.ts` | The `localStorage` layer: settings, saved routes, pins, active route |
 | `src/geo.ts` | Distance, bearings, route projection/progress, Naismith, ascent/descent, simplification, tile maths |
@@ -219,6 +268,7 @@ and the marker comes off in the same commit.
 | `src/style.css` | All the styling, including the light/dark tokens and the type scale |
 | `index.html` | The DOM skeleton and the SVG icon sprite |
 | `public/sw.js` | Service worker: app-shell cache + tile cache |
+| `scripts/` | Developer tools that are not part of the app: the contrast audit and the screenshot script |
 
 ## Deploy
 
