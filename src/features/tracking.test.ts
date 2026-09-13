@@ -199,6 +199,7 @@ function stubGeolocation() {
   let onFix: ((p: GeolocationPosition) => void) | null = null;
   let onError: ((e: GeolocationPositionError) => void) | null = null;
   let watchId: number | null = null;
+  let opened = 0;
   const cleared: number[] = [];
   Object.defineProperty(navigator, 'geolocation', {
     configurable: true,
@@ -206,7 +207,7 @@ function stubGeolocation() {
       watchPosition(fix: (p: GeolocationPosition) => void, err: (e: GeolocationPositionError) => void) {
         onFix = fix;
         onError = err;
-        watchId = 1;
+        watchId = ++opened;
         return watchId;
       },
       clearWatch: (id: number) => void cleared.push(id),
@@ -222,9 +223,17 @@ function stubGeolocation() {
     fix(p: LatLng, accuracy = 8) {
       onFix?.({ coords: { latitude: p[0], longitude: p[1], accuracy } } as GeolocationPosition);
     },
-    /** Fail the watch, as a refused permission or a timeout would. */
-    fail(message = 'Timeout expired') {
-      onError?.({ code: 3, message } as GeolocationPositionError);
+    /** How many watches have been opened, restarts included. */
+    get opened() {
+      return opened;
+    },
+    /** Refuse permission, which is the one error the watch gives up on. */
+    deny(message = 'User denied Geolocation') {
+      onError?.({ code: 1, message } as GeolocationPositionError);
+    },
+    /** Lose the signal: a timeout (3) by default, or position unavailable (2). */
+    fail(message = 'Timeout expired', code = 3) {
+      onError?.({ code, message } as GeolocationPositionError);
     }
   };
 }
@@ -580,11 +589,61 @@ describe('turning the map with you', () => {
   });
 });
 
+describe('when the signal is lost', () => {
+  it('keeps the dot, following and the banner where they were', async () => {
+    // A timeout is trees, a building, or a desktop slow to answer — not a
+    // refusal. Taking the dot away over one left Me doing nothing visible.
+    const t = await boot(directions());
+    t.gps.fix(START);
+    t.gps.fail();
+
+    expect(t.dot?.onMap).toBe(true);
+    expect(t.gps.watching).toBe(true);
+    expect(t.button.classList.contains('failed')).toBe(false);
+    expect(t.button.classList.contains('active')).toBe(true);
+    expect(t.tracking.getLastFix()).toEqual(START);
+    expect(t.banner.classList.contains('hidden')).toBe(false);
+    expect($('toast').textContent).toContain('signal lost');
+  });
+
+  it('asks the device again after a pause, and picks up from the next fix', async () => {
+    vi.useFakeTimers();
+    try {
+      const t = await boot();
+      t.gps.fix(START);
+      t.gps.fail('Position unavailable', 2);
+      expect(t.gps.opened).toBe(1);
+
+      vi.advanceTimersByTime(5000);
+      expect(t.gps.opened).toBe(2);
+      expect(t.gps.watching).toBe(true);
+
+      t.gps.fix(TARN);
+      expect(t.dot?.latlng).toEqual(TARN);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('says so once per outage, not on every timeout', async () => {
+    const t = await boot();
+    t.gps.fix(START);
+    t.gps.fail();
+    $('toast').textContent = '';
+    t.gps.fail();
+    expect($('toast').textContent).toBe('');
+
+    t.gps.fix(TARN); // back
+    t.gps.fail(); // and lost again, which is news
+    expect($('toast').textContent).toContain('signal lost');
+  });
+});
+
 describe('when the watch gives up', () => {
   it('takes the dot away and leaves the button reading as a retry', async () => {
     const t = await boot(directions());
     t.gps.fix(START);
-    t.gps.fail('Position unavailable');
+    t.gps.deny();
 
     expect(t.map.layers).toHaveLength(0);
     expect(t.dot?.onMap).toBe(false);
@@ -597,9 +656,9 @@ describe('when the watch gives up', () => {
   it('says what happened rather than going quiet', async () => {
     const t = await boot();
     t.gps.fix(START);
-    t.gps.fail('Position unavailable');
+    t.gps.deny('User denied Geolocation');
     expect($('toast').classList.contains('hidden')).toBe(false);
-    expect($('toast').textContent).toContain('Position unavailable');
+    expect($('toast').textContent).toContain('User denied Geolocation');
   });
 
   it('keeps the last position it knew, so distances to pins survive it', async () => {
@@ -608,7 +667,7 @@ describe('when the watch gives up', () => {
     // you last were.
     const t = await boot();
     t.gps.fix(TARN);
-    t.gps.fail();
+    t.gps.deny();
     expect(t.tracking.getLastFix()).toBeNull();
     expect(t.tracking.getKnownPosition()).toEqual(TARN);
   });
@@ -617,7 +676,7 @@ describe('when the watch gives up', () => {
     const t = await boot(directions());
     t.gps.fix(START);
     expect(t.banner.classList.contains('hidden')).toBe(false);
-    t.gps.fail();
+    t.gps.deny();
     expect(t.banner.classList.contains('hidden')).toBe(true);
   });
 });
