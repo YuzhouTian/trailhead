@@ -11,6 +11,11 @@
 // saves and activates through callbacks, because the saved list and the active
 // route belong to the app.
 
+// Imported up front on purpose, unlike the scanner's jsQR (features/qr.ts). A
+// lazy chunk is only kept for offline use once it has been fetched online, so a
+// lazily loaded encoder would leave Share unable to draw a QR on a hill with no
+// signal — the one place showing a route to the phone next to you matters. It
+// costs about 8 KB gzipped at startup.
 import qrcode from 'qrcode-generator';
 import { computeClimbs, formatDistance, haversine } from '../geo';
 import { routeMixed } from '../routing';

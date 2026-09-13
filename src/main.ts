@@ -40,7 +40,19 @@ import { initRouteCard } from './ui/routeCard';
 // ---------------------------------------------------------------- stored state
 
 const settings = loadSettings();
-let routes = loadRoutes();
+
+/**
+ * The saved routes, read from storage the first time anything asks. That is
+ * every route's full coordinate list, and nothing on the first screen needs it:
+ * the route being followed is stored on its own (see the restore at the bottom),
+ * so the list waits for the Saved tab, a save, or a delete. Parsing it up front
+ * held back the map's first tiles by the time it took, which grows with every
+ * route kept. Go through this rather than `routes` directly.
+ */
+let routes: SavedRoute[] | null = null;
+function getRoutes(): SavedRoute[] {
+  return (routes ??= loadRoutes());
+}
 
 /**
  * Keep a new route. Both ways of acquiring one — planning or importing a GPX
@@ -50,8 +62,9 @@ let routes = loadRoutes();
  * this closes over the variable rather than being handed the array.
  */
 function saveRoute(r: SavedRoute): void {
-  routes.push(r);
-  saveRoutes(routes);
+  const list = getRoutes();
+  list.push(r);
+  saveRoutes(list);
 }
 
 // ---------------------------------------------------------------- theme
@@ -199,10 +212,10 @@ initQr({ hidePanel });
 // which is reassigned on delete, and the theme, which is bootstrap.
 initPanels({
   settings,
-  getRoutes: () => routes,
+  getRoutes,
   deleteRoute: (r) => {
     if (!confirm(`Delete “${r.name}”?`)) return false;
-    routes = routes.filter((x) => x.id !== r.id);
+    routes = getRoutes().filter((x) => x.id !== r.id);
     saveRoutes(routes);
     if (activeRoute?.id === r.id) setActiveRoute(null);
     return true;

@@ -11,6 +11,17 @@
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icon-180.png" />
   <link rel="icon" href="./icon-180.png" />
+  <!-- Start the tile server's DNS, TCP and TLS while the script is still
+       downloading, so the first tile the cache does not have is not also paying
+       for a handshake. No crossorigin attribute: Freemap tiles are requested
+       without CORS (it sends no header), and a preconnect only helps a request
+       whose credentials mode matches it. Thunderforest and OSM are left out on
+       purpose — they are only used when chosen, and an unused connection is
+       wasted battery. BRouter only gets a DNS lookup: routing is minutes away
+       from launch, if it happens at all, and an idle TLS connection is dropped
+       long before then. -->
+  <link rel="preconnect" href="https://outdoor.tiles.freemap.sk" />
+  <link rel="dns-prefetch" href="https://brouter.de" />
   <!-- Set the theme before first paint so a forced light/dark choice doesn't flash the wrong colours. -->
   <script>
     try {

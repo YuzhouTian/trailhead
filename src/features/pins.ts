@@ -39,7 +39,8 @@ const PIN_CATS: { id: PinCategory; label: string; icon: string }[] = [
 /** A category's label and icon, falling back to "Other" for anything unknown. */
 export const catMeta = (id: PinCategory) => PIN_CATS.find((c) => c.id === id) ?? PIN_CATS[5];
 
-let pins = loadPins();
+/** Not read from storage until something asks — see getPins(). */
+let pins: Pin[] | null = null;
 const pinMarkers = new Map<string, L.Marker>();
 let dropMarker: L.Marker | null = null; // the temporary pin for an unsaved point
 let eleAbort: AbortController | null = null; // in-flight elevation lookup
@@ -49,9 +50,14 @@ let cardPoint: LatLng | null = null;
 
 // ---------------------------------------------------------------- the list
 
-/** The saved pins, for the Routes panel to list. Treat as read-only. */
+/**
+ * The saved pins, read from storage on first use. The Routes panel lists them
+ * through this, and everything in this module reaches them through it too, so a
+ * pin saved or deleted before the markers have been drawn (see initPins) still
+ * lands in the real list rather than an empty one. Treat as read-only.
+ */
 export function getPins(): Pin[] {
-  return pins;
+  return (pins ??= loadPins());
 }
 
 /**
@@ -60,10 +66,10 @@ export function getPins(): Pin[] {
  * itself and toasts, the Routes panel just redraws its list.
  */
 export function deletePin(id: string): boolean {
-  const pin = pins.find((p) => p.id === id);
+  const pin = getPins().find((p) => p.id === id);
   if (!pin) return false;
   if (!confirm(`Delete “${pin.name}”?`)) return false;
-  pins = pins.filter((p) => p.id !== id);
+  pins = getPins().filter((p) => p.id !== id);
   savePins(pins);
   renderPinMarkers();
   return true;
@@ -72,7 +78,7 @@ export function deletePin(id: string): boolean {
 function renderPinMarkers(): void {
   for (const m of pinMarkers.values()) m.remove();
   pinMarkers.clear();
-  for (const pin of pins) {
+  for (const pin of getPins()) {
     const m = L.marker([pin.lat, pin.lng], {
       icon: L.divIcon({
         className: '',
@@ -303,8 +309,9 @@ export function openNewPin(lat: number, lng: number): void {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name, category, lat, lng, ele: ele ?? null, createdAt: Date.now()
     };
-    pins.push(pin);
-    savePins(pins);
+    const list = getPins();
+    list.push(pin);
+    savePins(list);
     renderPinMarkers();
     openSavedPin(pin.id);
     toast('Pin saved');
@@ -331,7 +338,7 @@ export function openNewPin(lat: number, lng: number): void {
 
 /** The card for an already-saved pin: reopened by tapping its marker. */
 export function openSavedPin(id: string): void {
-  const pin = pins.find((p) => p.id === id);
+  const pin = getPins().find((p) => p.id === id);
   if (!pin) return;
   hidePinCard();
   flagOpened();
@@ -385,7 +392,16 @@ export function openSharedPin(): boolean {
 
 /** Draw the saved pins and wire up the long-press that drops a new one. */
 export function initPins(): void {
-  renderPinMarkers();
+  // The markers wait until the browser is idle, so reading the pins and building
+  // one marker each is not part of the work that stands between launch and the
+  // map's first tiles; they appear a moment after the map does. Safari has long
+  // gone without requestIdleCallback, hence the plain timeout, which still moves
+  // the work out of the startup script. The one-second cap is so a busy launch
+  // cannot hold them back for long. Anything that needs the list sooner — a tap on Saved, a
+  // save — reads it through getPins() and redraws, so nothing depends on this
+  // having run.
+  if ('requestIdleCallback' in window) requestIdleCallback(renderPinMarkers, { timeout: 1000 });
+  else setTimeout(renderPinMarkers, 0);
 
   // Long-press (or right-click) anywhere to identify and optionally save a spot.
   map.on('contextmenu', (e: L.LeafletMouseEvent) => {
