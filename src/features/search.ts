@@ -7,7 +7,7 @@
 // the map and open the pin card when tapped, and both are ways of saying "show
 // me that", which is why both pause following.
 //
-// The search box's answers are a list you pick from; nearby's are a layer you
+// The search box's answers are a list you pick from; nearby's are layers you
 // toggle. That is the only real difference, and it is not enough to justify two
 // files that would share a position lookup, a card and a pause rule.
 
@@ -16,9 +16,8 @@ import { PLAN_PASS_THROUGH, openNewPin } from './pins';
 import { getLastFix, pauseFollow } from './tracking';
 import { haversine, type LatLng } from '../geo';
 import { map } from '../map/map';
-import { POI_KINDS_ADVISORY, describeKinds, fetchPois, poiCategory, type Poi, type PoiKind } from '../poi';
+import { fetchPois, poiCategory, type Poi, type PoiKind } from '../poi';
 import { search, type SearchHit } from '../search';
-import { type PinCategory, type Settings } from '../state';
 import { $, hideToast, svgUse, toast } from '../ui/dom';
 
 /** How long to wait after the last keystroke before asking. */
@@ -29,13 +28,9 @@ const MIN_QUERY_LENGTH = 2;
 const NEARBY_MIN_RADIUS_M = 800;
 const NEARBY_MAX_RADIUS_M = 12000;
 
-// Owned by the app, shared by reference: which categories nearby looks for.
-let settings: Settings;
-
 let searchAbort: AbortController | null = null;
 let searchTimer: number | undefined;
 let searchMarker: L.Marker | null = null;
-let poiLayer: L.LayerGroup | null = null;
 
 // ---------------------------------------------------------------- search box
 
@@ -99,50 +94,38 @@ function showSearchHits(hits: SearchHit[]): void {
 
 // ---------------------------------------------------------------- nearby POIs
 
-/** Whether the nearby layer is currently on the map — the Map panel's button label. */
-export function nearbyShown(): boolean {
-  return poiLayer !== null;
+// One layer per category, keyed by its id. A category is in here from the
+// moment its chip is ticked — `null` while the query is still out — so the
+// chip reads as on straight away, and unticking mid-search can cancel it.
+const nearby = new Map<PoiKind, { layer: L.LayerGroup | null; abort: AbortController }>();
+
+/** Whether a category is on the map, or on its way — the Map sheet's chips. */
+export function nearbyOn(kind: PoiKind): boolean {
+  return nearby.has(kind);
 }
 
 /**
- * Drop the nearby markers without a toast. The Settings panel calls this when
- * the category ticks change: markers already drawn would no longer match the
- * list, and the Map tab's button asks again with the new selection.
+ * Tick or untick one category. Ticking searches roughly the visible map for
+ * it; unticking drops its markers, and asks nothing. Resolves once the search
+ * is done, by which time the category may have turned itself back off (nothing
+ * found, or the servers were busy) — read `nearbyOn` again afterwards.
  */
-export function clearNearby(): void {
-  poiLayer?.remove();
-  poiLayer = null;
-}
-
-/** Naming a few reads better than a generic count; a long list does not. */
-export function nearbyKindsShort(): string {
-  const n = settings.poiKinds.length;
-  return n <= 4 ? describeKinds(settings.poiKinds) : `${n} categories`;
-}
-
-/** The line under the nearby tick list: what it will search, and any warning. */
-export function poiKindsNote(): string {
-  const n = settings.poiKinds.length;
-  if (!n) return 'Nothing ticked — "What\'s nearby" has nothing to look for.';
-  if (n > POI_KINDS_ADVISORY) {
-    return `${n} categories — a big ask of a free shared server. It should still take seconds, but expect the odd retry.`;
-  }
-  return `Searching for ${describeKinds(settings.poiKinds)}.`;
-}
-
-export async function showNearbyPois(): Promise<void> {
-  if (poiLayer) {
-    poiLayer.remove();
-    poiLayer = null;
-    toast('Nearby points hidden');
+export async function toggleNearby(kind: PoiKind): Promise<void> {
+  const current = nearby.get(kind);
+  if (current) {
+    current.abort.abort();
+    // Still searching: its "Looking for…" toast has no timeout of its own.
+    if (!current.layer) hideToast();
+    current.layer?.remove();
+    nearby.delete(kind);
     return;
   }
-  const kinds = settings.poiKinds;
-  if (!kinds.length) {
-    return toast('No nearby categories are ticked — choose some in Settings', 4500);
-  }
+  const cat = poiCategory(kind);
+  if (!cat) return;
+  const entry = { layer: null as L.LayerGroup | null, abort: new AbortController() };
+  nearby.set(kind, entry);
+
   const centre: LatLng = getLastFix() ?? [map.getCenter().lat, map.getCenter().lng];
-  // Cover roughly the visible map, clamped to something Overpass answers quickly.
   const bounds = map.getBounds();
   const radius = Math.min(
     Math.max(
@@ -151,29 +134,29 @@ export async function showNearbyPois(): Promise<void> {
     ),
     NEARBY_MAX_RADIUS_M
   );
-  toast(`Looking for ${nearbyKindsShort()}…`, 0);
+  const name = cat.plural.toLowerCase();
+  toast(`Looking for ${name}…`, 0);
   try {
-    const pois = await fetchPois(centre, radius, kinds);
+    const pois = await fetchPois(centre, radius, kind, entry.abort.signal);
+    // Unticked while the query was out: it has already been forgotten.
+    if (nearby.get(kind) !== entry) return;
     hideToast();
-    if (!pois.length) return toast('Nothing mapped nearby', 3000);
-    poiLayer = L.layerGroup(pois.map(poiMarker)).addTo(map);
-    toast(`${pois.length} nearby — tap a marker for detail`, 3500);
+    if (!pois.length) {
+      nearby.delete(kind);
+      toast(`No ${name} mapped around here`, 3000);
+      return;
+    }
+    entry.layer = L.layerGroup(pois.map(poiMarker)).addTo(map);
+    toast(`${cat.plural}: ${pois.length} found — tap a marker for detail`, 3500);
   } catch (e) {
+    if (nearby.get(kind) !== entry) return;
+    nearby.delete(kind);
     hideToast();
     // OpenStreetMap's free query servers are shared and often rate-limit or
     // time out; a retry a moment later usually succeeds.
     toast(`Map data servers busy (${(e as Error).message}) — try again in a moment`, 5000);
   }
 }
-
-/** The pin category a nearby point's own category saves as; "Other" if none fits. */
-const PIN_CATEGORY_FOR: Partial<Record<PoiKind, PinCategory>> = {
-  summit: 'summit',
-  viewpoint: 'viewpoint',
-  water: 'water',
-  campsite: 'camp',
-  parking: 'parking'
-};
 
 function poiMarker(p: Poi): L.Marker {
   const cat = poiCategory(p.kind);
@@ -193,7 +176,8 @@ function poiMarker(p: Poi): L.Marker {
   marker.on('click', () =>
     openNewPin(p.pos[0], p.pos[1], {
       name: p.name,
-      category: PIN_CATEGORY_FOR[p.kind] ?? 'other',
+      // Nearby ids are pin category ids, so the point saves as its own kind.
+      category: p.kind,
       ele: p.ele,
       marker: false
     })
@@ -203,11 +187,9 @@ function poiMarker(p: Poi): L.Marker {
 
 // ---------------------------------------------------------------- wiring
 
-/** Wire up the search box. Nearby has no control of its own — the Map panel
- *  calls showNearbyPois() — so only the box needs listeners. */
-export function initSearch(opts: { settings: Settings }): void {
-  settings = opts.settings;
-
+/** Wire up the search box. Nearby has no control of its own — the Map sheet's
+ *  chips call toggleNearby() — so only the box needs listeners. */
+export function initSearch(): void {
   $('searchInput').addEventListener('input', () => {
     const q = ($('searchInput') as HTMLInputElement).value;
     $('searchClear').classList.toggle('hidden', !q);

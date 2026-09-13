@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_POI_KINDS, POI_CATEGORIES } from './poi';
 import {
   loadActiveRoute,
   loadLastView,
@@ -62,15 +61,6 @@ describe('loadSettings', () => {
     expect(s.speedKmh).toBe(4);
     expect(s.tfKey).toBe('');
     expect(s.theme).toBe('system');
-    expect(s.poiKinds).toEqual(DEFAULT_POI_KINDS);
-  });
-
-  it('does not hand out the same array the defaults are built from', () => {
-    // A shared array would let one caller's edit leak into the next load.
-    const a = loadSettings();
-    const b = loadSettings();
-    a.poiKinds.push('trig');
-    expect(b.poiKinds).toEqual(DEFAULT_POI_KINDS);
   });
 
   it('lets a saved value override a default', () => {
@@ -132,7 +122,6 @@ describe('loadSettings', () => {
   it('round trips through saveSettings', () => {
     const s = loadSettings();
     s.speedKmh = 3.2;
-    s.poiKinds = ['summit', 'shelter'];
     saveSettings(s);
     expect(loadSettings()).toEqual(s);
   });
@@ -150,39 +139,12 @@ describe('loadSettings', () => {
     expect(loadSettings().speedKmh).toBe(4);
   });
 
-  describe('poiKinds migration', () => {
-    it('drops categories that no longer exist', () => {
-      store.set(SETTINGS_KEY, JSON.stringify({ poiKinds: ['summit', 'dragons', 'water'] }));
-      expect(loadSettings().poiKinds).toEqual(['summit', 'water']);
-    });
-
-    it('returns them in table order, not the order they were saved in', () => {
-      // The tick list in Settings is rendered from this array, and it should
-      // read the same on every install.
-      const tableOrder = POI_CATEGORIES.map((c) => c.id);
-      const saved = ['transport', 'summit', 'toilets', 'trig'];
-      store.set(SETTINGS_KEY, JSON.stringify({ poiKinds: saved }));
-      const got = loadSettings().poiKinds;
-      expect([...got].sort()).toEqual([...saved].sort());
-      expect(got).toEqual(tableOrder.filter((id) => saved.includes(id)));
-    });
-
-    it('keeps an empty choice empty rather than resurrecting the defaults', () => {
-      // Ticking nothing is a legitimate choice: it turns "What's nearby" off.
-      store.set(SETTINGS_KEY, JSON.stringify({ poiKinds: [] }));
-      expect(loadSettings().poiKinds).toEqual([]);
-    });
-
-    it('falls back to the defaults when the saved value is not a list', () => {
-      store.set(SETTINGS_KEY, JSON.stringify({ poiKinds: 'summit' }));
-      expect(loadSettings().poiKinds).toEqual(DEFAULT_POI_KINDS);
-    });
-
-    it('accepts every id in the table', () => {
-      const all = POI_CATEGORIES.map((c) => c.id);
-      store.set(SETTINGS_KEY, JSON.stringify({ poiKinds: all }));
-      expect(loadSettings().poiKinds).toEqual(all);
-    });
+  it('forgets the nearby tick list an older install saved', () => {
+    // Categories are chosen fresh in the Map sheet now; nothing is on at start.
+    store.set(SETTINGS_KEY, JSON.stringify({ speedKmh: 5, poiKinds: ['summit', 'water'] }));
+    const s = loadSettings();
+    expect(s.speedKmh).toBe(5);
+    expect(s).not.toHaveProperty('poiKinds');
   });
 });
 

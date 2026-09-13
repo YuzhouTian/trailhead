@@ -1,6 +1,5 @@
 import type { LatLng } from './geo';
 import { knownProfile } from './config';
-import { DEFAULT_POI_KINDS, poiCategories, type PoiKind } from './poi';
 
 export interface SavedRoute {
   id: string;
@@ -40,8 +39,6 @@ export interface Settings {
   speedKmh: number;
   /** UI theme: follow the OS, or force light/dark. */
   theme: 'system' | 'light' | 'dark';
-  /** Which categories "What's nearby" searches for. */
-  poiKinds: PoiKind[];
   /**
    * Bumped when a default changes in a way an existing install should follow.
    * Absent on anything saved before base layers were reshuffled.
@@ -99,25 +96,25 @@ export function loadSettings(): Settings {
     speedKmh: 4,
     tfKey: '',
     theme: 'system',
-    poiKinds: [...DEFAULT_POI_KINDS],
     schema: SCHEMA
   };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
     // The overlay and its opacity were retired: all the base maps are the same
     // OpenStreetMap data drawn differently, so blending one over another only
-    // muddied it. Old installs still have both saved; leave them behind rather
-    // than carrying them forward on every save.
-    const { overlayLayer: _layer, overlayOpacity: _opacity, ...kept } =
-      saved && typeof saved === 'object' ? saved : {};
+    // muddied it. The nearby tick list went too: categories are chosen fresh in
+    // the Map sheet. Old installs still have all three saved; leave them behind
+    // rather than carrying them forward on every save.
+    const {
+      overlayLayer: _layer,
+      overlayOpacity: _opacity,
+      poiKinds: _kinds,
+      ...kept
+    } = saved && typeof saved === 'object' ? saved : {};
     const s: Settings = { ...defaults, ...kept };
-    // Categories can be renamed or dropped between releases, so trust the
-    // table over whatever an old install saved.
-    s.poiKinds = Array.isArray(s.poiKinds)
-      ? poiCategories(s.poiKinds).map((c) => c.id)
-      : [...DEFAULT_POI_KINDS];
-    // The same for routing profiles: Trekking and Shortest have gone, and an
-    // install still set to one routes as Standard.
+    // Routing profiles can be dropped between releases (Trekking and Shortest
+    // have gone), so trust the list over whatever an old install saved: one
+    // still set to a dropped profile routes as Standard.
     s.profile = knownProfile(s.profile);
     return migrate(s, saved);
   } catch {

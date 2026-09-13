@@ -10,7 +10,7 @@
  * as much as knowing what it does.
  */
 
-import { poiCategories } from './poi';
+import { POI_CATEGORIES } from './poi';
 
 // ---------------------------------------------------------------- swatches
 
@@ -372,16 +372,12 @@ const poiChip = (icon: string, colour: string) =>
       `<use href="#${icon}" x="18" y="4" width="10" height="10" style="color:#fff"/>`
   );
 
-function nearbyGroup(kinds: readonly string[]): Group | null {
-  const cats = poiCategories(kinds);
-  if (!cats.length) return null;
-  return {
-    title: 'Nearby points',
-    entries: cats.map((c) => ({ swatch: poiChip(c.icon, c.colour), name: c.label })),
-    footnote:
-      'Trailhead\'s own markers, not part of the base map — they appear when you tap "What\'s nearby". Which categories it looks for is a tick list in Settings.'
-  };
-}
+const NEARBY_GROUP: Group = {
+  title: 'Nearby points',
+  entries: POI_CATEGORIES.map((c) => ({ swatch: poiChip(c.icon, c.colour), name: c.label })),
+  footnote:
+    "Trailhead's own markers, not part of the base map — they appear when you tick a category under Nearby in the Map sheet."
+};
 
 // ---------------------------------------------------------------- entry point
 
@@ -391,12 +387,11 @@ const KEYS: Record<string, { title: string; groups: Group[] }> = {
   freemap: { title: 'Outdoor', groups: FREEMAP_GROUPS }
 };
 
-export function legendHtml(layerId: string, nearbyKinds: readonly string[] = []): string {
+export function legendHtml(layerId: string): string {
   const key = KEYS[layerId] ?? KEYS.osm;
-  const nearby = nearbyGroup(nearbyKinds);
   return `
     <h3>Map key — ${key.title}</h3>
     <p class="hint">Symbols are approximations; map styles change over time.</p>
     ${key.groups.map(renderGroup).join('')}
-    ${nearby ? renderGroup(nearby) : ''}`;
+    ${renderGroup(NEARBY_GROUP)}`;
 }
