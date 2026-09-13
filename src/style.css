@@ -494,6 +494,18 @@ body.planning #statusBanner { display: none; }
 /* Out of the flex flow, so it can sit on the right without pushing the handle
    off centre; the sticky header is its containing block, so it sticks with it.
    Same height as the strip, so top:0 is dead centre. */
+/* The tab's name, on the left of the strip — on the same line as the handle
+   and the close button rather than a line below them, so the sheet's header is
+   one row. Out of the flex flow for the same reason as the close button. left:4px
+   so its text lines up with the section labels below (they have 4px padding).
+   The title face, not the eyebrow: an uppercase label directly over another
+   uppercase label ("MAP" over "BASE MAP") reads as a stutter. */
+.sheetTitle {
+  position: absolute; top: 0; left: 4px;
+  margin: 0;
+  font: var(--t-title); line-height: 44px; letter-spacing: var(--ls-title);
+  color: var(--ink);
+}
 #panel .closeX, #planSheet .closeX {
   position: absolute; top: 0; right: 4px;
   background: none; color: var(--muted);

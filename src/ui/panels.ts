@@ -73,7 +73,7 @@ export function hidePanel(): void {
 }
 
 /** Fill the panel with `html` and show it. */
-export function showPanel(html: string): HTMLElement {
+export function showPanel(html: string, title = ''): HTMLElement {
   hidePinCard();
   // Only ever one of the four tabs is on, in both directions: Plan puts away an
   // open sheet, and a sheet opening steps out of Plan. Plan's sheet rests on
@@ -83,6 +83,9 @@ export function showPanel(html: string): HTMLElement {
   endPlanning();
   const content = $('panelContent');
   content.innerHTML = html;
+  // The tab's name, in the header strip. Panels that carry their own <h3>
+  // (the map key, the share sheets) pass none, so they aren't titled twice.
+  $('panelTitle').textContent = title;
   // Swapping one sheet for another (Map → Saved, or Map → the map key) leaves
   // the old tab lit unless we clear here too; whoever opened this one lights
   // its own tab afterwards.
@@ -134,7 +137,7 @@ export function openMapPanel(): void {
         <input type="range" id="overlayOp" min="0.1" max="0.9" step="0.1" value="${settings.overlayOpacity}"/>
       </div>
     </div>
-  `);
+  `, 'Map');
 
   BASE_LAYERS.forEach((l) => {
     $(`base-${l.id}`).addEventListener('change', () => {
@@ -213,7 +216,7 @@ export function openSettingsPanel(): void {
     its route card.</p>
     <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'} (UTC).
     If this looks old after a deploy, fully close the app from the app switcher and reopen it.</p>
-  `);
+  `, 'Settings');
 
   const themeSeg = $('themeSeg');
   const themeBtns = Array.from(themeSeg.querySelectorAll('button')) as HTMLButtonElement[];
@@ -363,7 +366,7 @@ export function openRoutesPanel(): void {
     <button id="pasteRoute" class="secondary wide">Paste shared route</button>
     <button id="importBtn" class="secondary wide">Import GPX file</button>
     <p class="hint">Scan a route's QR straight off another screen, or paste a copied route link.</p>
-  `);
+  `, 'Saved');
   $('scanQr').addEventListener('click', startQrScan);
 
   content.querySelectorAll<HTMLButtonElement>('.routeItem[data-pin] button').forEach((btn) => {

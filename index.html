@@ -136,11 +136,13 @@
 
   <div id="panel" class="hidden">
     <!-- The sheet's own chrome, above whatever panel is loaded into it: the grab
-         handle in the middle and the close button on the right. It stays put
+         tab's name on the left, the handle in the middle and the close button on
+         the right. It stays put
          while the panel scrolls under it, so the way out of a long panel is in
          the same place as the way out of a short one. Dragging the handle down
          throws the sheet away — ui/sheet.ts. -->
     <div id="panelHead">
+      <h2 id="panelTitle" class="sheetTitle"></h2>
       <span id="panelGrab" aria-hidden="true"></span>
       <button id="panelClose" class="closeX" aria-label="Close"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
     </div>
@@ -154,6 +156,7 @@
        features/planner.ts owns it. -->
   <div id="planSheet" class="hidden" aria-label="Plan a route">
     <div id="planHead">
+      <h2 class="sheetTitle">Plan</h2>
       <span id="planGrab" aria-hidden="true"></span>
       <button id="planClose" class="closeX" aria-label="Close"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
     </div>
