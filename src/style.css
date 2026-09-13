@@ -1130,8 +1130,15 @@ body.planning #pinCard { display: none; }
 /* Leaflet's own 10px control margins would throw those sums out. */
 .leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
 /* Plan's sheet rests on the tab bar and has no fixed height, so the scale bar
-   sits 8px above whatever height the planner last measured it at. */
-body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h) + var(--plan-lift) + 8px); }
+   sits 8px above whatever height the planner last measured it at — but only
+   while the sheet actually reaches the right-hand edge. From 700px the sheet is
+   centred at clamp(480px, 50vw, 960px), and the scale keeps its usual corner
+   once there is room for it beside the sheet: at most 136px wide (120px rule,
+   12px padding, 4px border) against a sheet whose right edge is 50vw + 240px
+   up to 960px wide, which clears at 752px. */
+@media (max-width: 759px) {
+  body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h) + var(--plan-lift) + 8px); }
+}
 
 .leaflet-control-zoom { display: none; }
 @media (min-width: 700px) {
