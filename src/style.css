@@ -400,6 +400,35 @@ body.planning #btnLocate { display: none; }
 #statusBanner.arrive { background: var(--notice); color: var(--on-notice); }
 body.planning #statusBanner { display: none; }
 
+/* "Update ready" — a newer deploy is downloaded and one tap moves onto it
+   (features/update.ts). Under the status banner when that is showing, in its
+   place when not, and inked like the toast so it never reads as on/off route. */
+#updatePill {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 112px);
+  left: 50%; transform: translateX(-50%);
+  height: 40px;
+  padding: 0 16px;
+  border: none; border-radius: var(--r-pill);
+  font: var(--t-ui);
+  color: var(--bg); background: var(--ink);
+  box-shadow: var(--shadow-card);
+  z-index: 1000;
+  white-space: nowrap; cursor: pointer;
+}
+#statusBanner.hidden + #updatePill,
+body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) #updatePill {
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--hairline);
+  }
+}
+:root[data-theme="dark"] #updatePill {
+  background: var(--surface-2); color: var(--ink);
+  border: 1px solid var(--hairline);
+}
+
 /* Nearby-point markers — map symbology, deliberately theme-independent so a
    marker reads the same over any tiles. The disc is filled with the category
    colour (set inline from the category table) and the glyph is white, with a

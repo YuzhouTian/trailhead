@@ -215,7 +215,7 @@ export function openSettingsPanel(): void {
     this clears saved map only. Anything you still want offline needs downloading again from
     its route card.</p>
     <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'} (UTC).
-    If this looks old after a deploy, fully close the app from the app switcher and reopen it.</p>
+    A new deploy loads by itself when you open the app, or offers an Update button if you are already using it.</p>
   `, 'Settings');
 
   const themeSeg = $('themeSeg');

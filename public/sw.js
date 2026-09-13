@@ -48,6 +48,62 @@ function tileCacheKey(url) {
   return u.href;
 }
 
+const htmlResponse = (html) =>
+  new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+
+/* Fetch the latest index.html and make it the shell the next load is served.
+   Resolves to its text, or null if the server answered with an error.
+
+   `no-cache` because GitHub Pages marks every file fresh for ten minutes, and
+   a plain fetch would quietly hand back the browser's own copy of the old page
+   for that long — that was a large part of why a deploy took several reopens
+   to appear. `no-cache` still lets an unchanged page come back as a tiny 304.
+
+   The new build's script and stylesheet are cached *before* the shell is
+   swapped over. Swapping first meant a phone that updated its shell and then
+   lost signal opened on a page whose script it had never downloaded: a blank
+   app on a hill. Shared between the launch refresh and the page's own check so
+   the two do not download the same build twice at once. */
+let refreshing = null;
+function refreshShell() {
+  return (refreshing ??= (async () => {
+    const res = await fetch('./index.html', { cache: 'no-cache' });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const cache = await caches.open(STATIC_CACHE);
+    const assets = [...html.matchAll(/(?:src|href)="(\.\/assets\/[^"]+)"/g)].map((m) => m[1]);
+    await Promise.all(
+      assets.map(async (a) => {
+        if (await cache.match(a)) return;
+        const r = await fetch(a);
+        if (!r.ok) throw new Error(`${a}: ${r.status}`);
+        await cache.put(a, r);
+      })
+    );
+    await cache.put('./index.html', htmlResponse(html));
+    return html;
+  })().finally(() => {
+    refreshing = null;
+  }));
+}
+
+/* The page asks this on launch and whenever it comes back to the foreground —
+   an iPhone often only pauses a "closed" app, and resuming loads nothing, so
+   no launch refresh ever runs. Replies with the latest build's entry script;
+   the page compares it with the one it is running. */
+self.addEventListener('message', (event) => {
+  const port = event.ports[0];
+  if (event.data?.type !== 'check-update' || !port) return;
+  event.waitUntil(
+    refreshShell()
+      .catch(() => null)
+      .then((html) => {
+        const m = html && html.match(/<script[^>]*type="module"[^>]*src="([^"]+)"/);
+        port.postMessage({ entry: m ? m[1] : null });
+      })
+  );
+});
+
 /* Hold the tile cache open: every visible tile hits this path, and reopening
    it per request adds latency to the one thing that must feel instant. */
 let tileCachePromise = null;
@@ -87,28 +143,20 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname.includes('brouter')) return;
 
   // Page loads: stale-while-revalidate. Serve the cached shell instantly so the
-  // map paints without waiting on the network, and refresh it in the background
-  // for next launch. A new deploy therefore appears on the next open, not this
-  // one. Falls back to the network on a cold cache, and errors only when both
-  // are unavailable (truly offline first run).
+  // map paints without waiting on the network, and refresh it in the background.
+  // The page then asks (see the message handler) whether that refresh found a
+  // newer build, and reloads onto it. Falls back to the network on a cold
+  // cache, and errors only when both are unavailable (truly offline first run).
   if (req.mode === 'navigate' && url.origin === self.location.origin) {
-    const update = caches.open(STATIC_CACHE).then(async (cache) => {
-      try {
-        const res = await fetch(req);
-        if (res.ok) await cache.put('./index.html', res.clone());
-        return res;
-      } catch {
-        return null;
-      }
-    });
+    const update = refreshShell().catch(() => null);
     // Keep the worker alive until the background refresh finishes.
     event.waitUntil(update);
     event.respondWith(
       caches.open(STATIC_CACHE).then(async (cache) => {
         const cached = (await cache.match('./index.html')) || (await cache.match('./'));
         if (cached) return cached;
-        const res = await update;
-        if (res) return res;
+        const html = await update;
+        if (html) return htmlResponse(html);
         throw new Error('offline');
       })
     );
