@@ -33,8 +33,6 @@ export interface Settings {
   /** Thunderforest key — the Outdoors base layer. */
   tfKey: string;
   baseLayer: string;
-  overlayLayer: string; // '' = none
-  overlayOpacity: number;
   profile: string;
   /** Average walking speed on the flat, km/h (Naismith time estimate). */
   speedKmh: number;
@@ -93,8 +91,6 @@ function migrate(s: Settings, saved: unknown): Settings {
 export function loadSettings(): Settings {
   const defaults: Settings = {
     baseLayer: 'freemap',
-    overlayLayer: '',
-    overlayOpacity: 0.5,
     profile: 'hiking-beta',
     speedKmh: 4,
     tfKey: '',
@@ -103,10 +99,18 @@ export function loadSettings(): Settings {
   };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
-    const s: Settings = { ...defaults, ...saved };
-    // Nearby categories used to be a saved tick list; they are chosen fresh
-    // in the Map sheet now, so don't carry an old install's list forward.
-    delete (s as { poiKinds?: unknown }).poiKinds;
+    // The overlay and its opacity were retired: all the base maps are the same
+    // OpenStreetMap data drawn differently, so blending one over another only
+    // muddied it. The nearby tick list went too: categories are chosen fresh in
+    // the Map sheet. Old installs still have all three saved; leave them behind
+    // rather than carrying them forward on every save.
+    const {
+      overlayLayer: _layer,
+      overlayOpacity: _opacity,
+      poiKinds: _kinds,
+      ...kept
+    } = saved && typeof saved === 'object' ? saved : {};
+    const s: Settings = { ...defaults, ...kept };
     return migrate(s, saved);
   } catch {
     return defaults;

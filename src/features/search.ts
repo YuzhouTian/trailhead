@@ -4,21 +4,21 @@
 // They are one module because they are the same question with the answer
 // arriving differently. Both start from "where are we looking?" — the live GPS
 // fix if there is one, otherwise the middle of the screen — both put markers on
-// the map with the same kind of popup, and both are ways of saying "show me
-// that", which is why both pause following.
+// the map and open the pin card when tapped, and both are ways of saying "show
+// me that", which is why both pause following.
 //
 // The search box's answers are a list you pick from; nearby's are layers you
 // toggle. That is the only real difference, and it is not enough to justify two
-// files that would share a position lookup, a popup format and a pause rule.
+// files that would share a position lookup, a card and a pause rule.
 
 import L from '../leaflet-setup';
-import { getKnownPosition, getLastFix, pauseFollow } from './tracking';
-import { formatDistance, haversine, type LatLng } from '../geo';
+import { PLAN_PASS_THROUGH, openNewPin } from './pins';
+import { getLastFix, pauseFollow } from './tracking';
+import { haversine, type LatLng } from '../geo';
 import { map } from '../map/map';
 import { fetchPois, poiCategory, type Poi, type PoiKind } from '../poi';
 import { search, type SearchHit } from '../search';
 import { $, hideToast, svgUse, toast } from '../ui/dom';
-import { positionText } from '../ui/format';
 
 /** How long to wait after the last keystroke before asking. */
 const SEARCH_DELAY_MS = 400;
@@ -59,33 +59,33 @@ function showSearchHits(hits: SearchHit[]): void {
     el.addEventListener('click', () => {
       const hit = hits[Number(el.dataset.i)];
       searchMarker?.remove();
+      const open = () => openNewPin(hit.pos[0], hit.pos[1], { name: hit.name, marker: false });
       // A divIcon, like every other marker here — Leaflet's default icon needs
       // PNG assets that don't survive bundling and render as a broken box.
       searchMarker = L.marker(hit.pos, {
         icon: L.divIcon({
-          className: '',
+          className: PLAN_PASS_THROUGH,
           html: `<div class="searchPin">${svgUse('i-pin')}</div>`,
           iconSize: [32, 32],
           iconAnchor: [16, 32]
         })
       }).addTo(map);
-      // Centre first and without animation, so the popup's auto-pan can't
-      // animate over the top of it and leave the map where it started. Pause
-      // following before the move, or the next fix pulls the map back off the
-      // place that was just asked for.
+      // Tapping the pin again brings its card back, once it has been closed.
+      searchMarker.on('click', open);
+      // Pause following before the move, or the next fix pulls the map back off
+      // the place that was just asked for.
       pauseFollow();
       map.setView(hit.pos, Math.max(map.getZoom(), 15), { animate: false });
-      // While planning, the sheet covers the bottom of the map, so centre the
-      // place in what is left above it rather than in the whole screen, where
-      // the sheet could land on top of it. --plan-lift is 0 when not planning.
+      open();
+      // Something covers the bottom of the map — the plan sheet while planning,
+      // the card that just opened otherwise — so centre the place in what is
+      // left above it rather than in the whole screen, where it could be hidden.
+      // --plan-lift is 0 when not planning; the card is hidden while planning.
       const lift = parseFloat(document.documentElement.style.getPropertyValue('--plan-lift')) || 0;
-      if (lift) map.panBy([0, lift / 2], { animate: false });
-      searchMarker
-        .bindPopup(
-          `<div class="mapPop"><b>${hit.name.replace(/</g, '&lt;')}</b><br>${positionText(hit.pos)}</div>`,
-          { autoPan: false }
-        )
-        .openPopup();
+      const cardTop = $('pinCard').getBoundingClientRect().top;
+      const mapBox = map.getContainer().getBoundingClientRect();
+      const covered = lift || (cardTop > 0 ? mapBox.bottom - cardTop : 0);
+      if (covered > 0) map.panBy([0, covered / 2], { animate: false });
       hideSearchResults();
       ($('searchInput') as HTMLInputElement).blur();
     });
@@ -162,7 +162,7 @@ function poiMarker(p: Poi): L.Marker {
   const cat = poiCategory(p.kind);
   const marker = L.marker(p.pos, {
     icon: L.divIcon({
-      className: '',
+      className: PLAN_PASS_THROUGH,
       // The disc is filled with the category colour and the glyph is white, so
       // a nearby point can never be mistaken for a pin you saved yourself
       // (white disc, green ring, green glyph).
@@ -171,17 +171,16 @@ function poiMarker(p: Poi): L.Marker {
       iconAnchor: [13, 13]
     })
   });
-  const height = p.ele !== undefined ? ` · ${Math.round(p.ele)} m` : '';
-  const here = getKnownPosition();
-  const away = here ? ` · ${formatDistance(haversine(here, p.pos))} away` : '';
-  // An unnamed feature is titled with its category, so don't repeat it beneath.
-  const type = p.name === cat?.label ? '' : (cat?.label ?? 'Point');
-  marker.bindPopup(
-    `<div class="mapPop">
-      <span class="poiPopIco" style="background:${cat?.colour ?? '#2d6a4f'}">${svgUse(cat?.icon ?? 'c-other')}</span>
-      <b>${p.name.replace(/</g, '&lt;')}</b><br>
-      ${(type + height + away).replace(/^ · /, '')}<br>${positionText(p.pos)}
-    </div>`
+  // OpenStreetMap's height, where it has one, is the surveyed figure for the
+  // feature itself; it beats a terrain-model lookup at the same spot.
+  marker.on('click', () =>
+    openNewPin(p.pos[0], p.pos[1], {
+      name: p.name,
+      // Nearby ids are pin category ids, so the point saves as its own kind.
+      category: p.kind,
+      ele: p.ele,
+      marker: false
+    })
   );
   return marker;
 }
