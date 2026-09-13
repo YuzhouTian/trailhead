@@ -3,12 +3,14 @@ import {
   compassDir,
   computeClimbs,
   cumulativeDistances,
+  distanceParts,
   formatDistance,
   formatDuration,
   haversine,
   latLngToTile,
   naismithHours,
   projectOnPolyline,
+  shortDuration,
   simplifyIndices,
   type LatLng
 } from './geo';
@@ -323,6 +325,26 @@ describe('formatDuration', () => {
     expect(formatDuration(1.999)).toBe('2 h 00 min');
     expect(formatDuration(0.999)).toBe('1 h 00 min');
     expect(formatDuration(0.995)).toBe('1 h 00 min');
+  });
+});
+
+describe('shortDuration', () => {
+  it('drops the "min" after hours, where a stats cell has no room for it', () => {
+    expect(shortDuration(5 + 4 / 60)).toBe('5 h 04');
+  });
+
+  it('keeps it below an hour, where the minutes are the whole figure', () => {
+    expect(shortDuration(0.75)).toBe('45 min');
+  });
+});
+
+describe('distanceParts', () => {
+  it('splits kilometres from miles', () => {
+    expect(distanceParts(13_800)).toEqual(['13.8 km', '8.6 mi']);
+  });
+
+  it('has no miles under a kilometre', () => {
+    expect(distanceParts(600)).toEqual(['600 m', '']);
   });
 });
 

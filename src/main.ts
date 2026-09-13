@@ -12,10 +12,10 @@ import {
   hereAlongM,
   initTracking,
   pauseFollow,
-  remainingText,
   resetRouteProgress,
   setKnownPosition,
-  updateBanner
+  updateBanner,
+  walkProgress
 } from './features/tracking';
 import { initMap, map } from './map/map';
 import {
@@ -144,7 +144,7 @@ initRouteCard({
     return {
       src: planning ? null : activeRoute,
       name: activeRoute?.name ?? '',
-      remaining: planning ? null : remainingText(),
+      progress: planning ? null : walkProgress(),
       hereM: planning ? null : hereAlongM(),
       speedKmh: settings.speedKmh
     };
@@ -167,7 +167,7 @@ initPlanner({ settings, saveRoute, setActiveRoute, hidePanel });
 // An open pin card's distance goes stale the moment you walk, so it is
 // refreshed on each fix. Tracking is the only place that knows one landed, but
 // it has no business knowing about pins — hence the callback.
-initTracking({ settings, getActiveRoute: () => activeRoute, onPosition: refreshCardDistance });
+initTracking({ getActiveRoute: () => activeRoute, onPosition: refreshCardDistance });
 
 // ---------------------------------------------------------------- saved pins
 

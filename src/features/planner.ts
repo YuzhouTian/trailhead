@@ -12,10 +12,11 @@ import L from '../leaflet-setup';
 import { renderProfile } from '../elevation';
 import {
   computeClimbs,
+  distanceParts,
   formatDistance,
-  formatDuration,
   haversine,
   naismithHours,
+  shortDuration,
   type LatLng
 } from '../geo';
 import { parseGpx } from '../gpx';
@@ -144,11 +145,6 @@ function publishPlanLift(): void {
   document.documentElement.style.setProperty('--plan-lift', `${Math.round(h)}px`);
 }
 
-/** "3 h 05" — the time cell has room for the figure, not the unit spelled out. */
-function shortDuration(hours: number): string {
-  return formatDuration(hours).replace(/ h (\d\d) min$/, ' h $1');
-}
-
 /**
  * Bring the sheet up to date with the plan: the three stats cells, the hint
  * under them, and which buttons can be pressed. Exported because the
@@ -158,7 +154,7 @@ function shortDuration(hours: number): string {
 export function updatePlanStats(): void {
   const set = (id: string, text: string) => { $(id).textContent = text; };
   if (planResult) {
-    const [km, mi = ''] = formatDistance(planResult.distanceM).split(' / ');
+    const [km, mi] = distanceParts(planResult.distanceM);
     const est = naismithHours(planResult.distanceM, planResult.ascentM, settings.speedKmh);
     set('planDist', km);
     set('planDistSub', mi);

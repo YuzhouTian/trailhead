@@ -162,6 +162,15 @@ export function formatDistance(m: number): string {
   return `${(m / 1000).toFixed(1)} km / ${(m / 1609.344).toFixed(1)} mi`;
 }
 
+/**
+ * formatDistance in two halves, for a stats cell: the metric figure, and the
+ * miles to put under it — empty under a kilometre, where there are none.
+ */
+export function distanceParts(m: number): [metric: string, miles: string] {
+  const [metric, miles = ''] = formatDistance(m).split(' / ');
+  return [metric, miles];
+}
+
 export function formatDuration(hours: number): string {
   // Round to whole minutes first, then split: rounding the minutes on their own
   // lets a remainder round up to 60 while the hour count stays behind.
@@ -169,6 +178,11 @@ export function formatDuration(hours: number): string {
   const h = Math.floor(total / 60);
   const min = total % 60;
   return h > 0 ? `${h} h ${min.toString().padStart(2, '0')} min` : `${min} min`;
+}
+
+/** "3 h 05" — a stats cell has room for the figure, not the unit spelled out. */
+export function shortDuration(hours: number): string {
+  return formatDuration(hours).replace(/ h (\d\d) min$/, ' h $1');
 }
 
 /** Naismith's rule: pace on the flat plus one hour per 600 m of ascent. */
