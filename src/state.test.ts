@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_POI_KINDS, POI_CATEGORIES } from './poi';
 import {
   loadActiveRoute,
+  loadLastView,
   loadPins,
   loadRoutes,
   loadSettings,
   saveActiveRoute,
+  saveLastView,
   savePins,
   saveRoutes,
   saveSettings,
@@ -33,6 +35,7 @@ const SETTINGS_KEY = 'trailhead.settings';
 const ROUTES_KEY = 'trailhead.routes';
 const PINS_KEY = 'trailhead.pins';
 const ACTIVE_ROUTE_KEY = 'trailhead.activeRoute';
+const LAST_VIEW_KEY = 'trailhead.lastView';
 
 beforeEach(() => store.clear());
 
@@ -258,5 +261,61 @@ describe('loadActiveRoute', () => {
     saveActiveRoute(old);
     expect(loadActiveRoute()).toEqual(old);
     expect(loadActiveRoute()!.descentM).toBeUndefined();
+  });
+});
+
+describe('loadLastView', () => {
+  it('is null on a first run, so the map falls back to the UK view', () => {
+    expect(loadLastView()).toBeNull();
+  });
+
+  it('round trips through saveLastView', () => {
+    saveLastView({ center: [54.4271, -3.2472], zoom: 15 });
+    expect(loadLastView()).toEqual({ center: [54.4271, -3.2472], zoom: 15 });
+  });
+
+  it('stores nothing but the centre and the zoom', () => {
+    saveLastView({ center: [54.4271, -3.2472], zoom: 15 } as never);
+    expect(Object.keys(JSON.parse(store.get(LAST_VIEW_KEY)!)).sort()).toEqual(['center', 'zoom']);
+  });
+
+  it('rejects a centre that is not two finite numbers', () => {
+    // A half-written or hand-edited key must not hand Leaflet a NaN: a wrong
+    // map is recoverable, a broken one is not.
+    for (const center of [null, 'nope', [], [54.4], [54.4, -3.2, 9], ['54.4', '-3.2'], [54.4, null]]) {
+      store.set(LAST_VIEW_KEY, JSON.stringify({ center, zoom: 15 }));
+      expect(loadLastView()).toBeNull();
+    }
+    store.set(LAST_VIEW_KEY, '{"center":[null,null],"zoom":15}');
+    expect(loadLastView()).toBeNull();
+  });
+
+  it('rejects a centre off the globe', () => {
+    store.set(LAST_VIEW_KEY, JSON.stringify({ center: [954.4, -3.2], zoom: 15 }));
+    expect(loadLastView()).toBeNull();
+    store.set(LAST_VIEW_KEY, JSON.stringify({ center: [54.4, -300], zoom: 15 }));
+    expect(loadLastView()).toBeNull();
+  });
+
+  it('rejects a zoom outside the range the layers serve', () => {
+    for (const zoom of [1, 0, -3, 21, 99, 'twelve', null, undefined]) {
+      store.set(LAST_VIEW_KEY, JSON.stringify({ center: [54.4271, -3.2472], zoom }));
+      expect(loadLastView()).toBeNull();
+    }
+  });
+
+  it('keeps the ends of the usable zoom range', () => {
+    for (const zoom of [2, 20]) {
+      saveLastView({ center: [54.4271, -3.2472], zoom });
+      expect(loadLastView()!.zoom).toBe(zoom);
+    }
+  });
+
+  it('is null on garbage rather than throwing', () => {
+    for (const junk of ['null', 'nonsense', '{"center":[54.4,', '[]', '42', '"a string"']) {
+      store.set(LAST_VIEW_KEY, junk);
+      expect(() => loadLastView()).not.toThrow();
+      expect(loadLastView()).toBeNull();
+    }
   });
 });
