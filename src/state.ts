@@ -1,5 +1,4 @@
 import type { LatLng } from './geo';
-import { DEFAULT_POI_KINDS, poiCategories, type PoiKind } from './poi';
 
 export interface SavedRoute {
   id: string;
@@ -41,8 +40,6 @@ export interface Settings {
   speedKmh: number;
   /** UI theme: follow the OS, or force light/dark. */
   theme: 'system' | 'light' | 'dark';
-  /** Which categories "What's nearby" searches for. */
-  poiKinds: PoiKind[];
   /**
    * Bumped when a default changes in a way an existing install should follow.
    * Absent on anything saved before base layers were reshuffled.
@@ -102,17 +99,14 @@ export function loadSettings(): Settings {
     speedKmh: 4,
     tfKey: '',
     theme: 'system',
-    poiKinds: [...DEFAULT_POI_KINDS],
     schema: SCHEMA
   };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
     const s: Settings = { ...defaults, ...saved };
-    // Categories can be renamed or dropped between releases, so trust the
-    // table over whatever an old install saved.
-    s.poiKinds = Array.isArray(s.poiKinds)
-      ? poiCategories(s.poiKinds).map((c) => c.id)
-      : [...DEFAULT_POI_KINDS];
+    // Nearby categories used to be a saved tick list; they are chosen fresh
+    // in the Map sheet now, so don't carry an old install's list forward.
+    delete (s as { poiKinds?: unknown }).poiKinds;
     return migrate(s, saved);
   } catch {
     return defaults;

@@ -667,9 +667,9 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 #panel button.secondary, #planSheet button.secondary { background: var(--surface-2); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: var(--on-brand); }
 /* A button that cannot be pressed has to look it. Author colours beat the
-   browser's own greying-out, so without this rule a disabled button ("What's
-   nearby" with no categories ticked) was a full-strength green button that
-   simply ignored taps. */
+   browser's own greying-out, so without this rule a disabled button (Plan's
+   Undo with nothing to undo) was a full-strength green button that simply
+   ignored taps. */
 #panel button:disabled, #planSheet button:disabled { background: var(--surface-2); color: var(--muted); cursor: default; }
 /* Saved routes and pins. One cell per item, and the actions sit on their own
    row beneath the name: sharing one row with four buttons left the name about
@@ -718,8 +718,8 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 /* The steps in the iOS hand-off, which are prose rather than settings. */
 #panel .steps { font: var(--t-body); padding-left: 20px; margin: 8px 0 12px; }
 #panel .steps li { margin-bottom: 6px; }
-/* The nearby-category tick list: the same white disc the map draws, small
-   enough to sit on a settings row. */
+/* The disc on a nearby chip in the Map sheet: the marker the map draws, small
+   enough to sit inside a chip. */
 #panel .poiSwatch {
   flex: none;
   display: flex; align-items: center; justify-content: center;
@@ -729,6 +729,15 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
   border: 1.5px solid #fff;
 }
 #panel .poiSwatch svg { width: 13px; height: 13px; display: block; }
+/* Nearby chips borrow the pin card's chip, re-scoped under #panel so the
+   generic `#panel button` fill does not paint every chip as selected. The
+   left padding is trimmed so the disc sits as far in as the text would. */
+#panel .nearbyChips { margin-top: 0; }
+#panel .nearbyChips .pc-chip {
+  height: 36px; padding: 0 14px 0 7px; border-radius: var(--r-pill);
+  background: var(--surface-2); color: var(--ink-2); font: var(--t-body);
+}
+#panel .nearbyChips .pc-chip.on { background: var(--brand); color: var(--on-brand); }
 #panel .keyRow {
   display: flex; align-items: flex-start; gap: 12px;
   min-height: 48px; padding: 11px 14px; font: var(--t-body);

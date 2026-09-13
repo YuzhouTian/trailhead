@@ -1,7 +1,7 @@
 /**
  * Talking to Overpass, the OpenStreetMap query service.
  *
- * Two callers with quite different needs — "What's nearby" asks for everything
+ * Two callers with quite different needs — nearby points ask for one category
  * in a box, search asks for the tags of a handful of known ids — but both face
  * the same shared, frequently overloaded servers, so the transport lives here.
  */
