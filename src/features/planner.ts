@@ -133,7 +133,7 @@ function drawChart(): void {
 }
 
 /**
- * Publish the sheet's height for the scale bar and the toast to clear (see
+ * Publish the sheet's height for the toast to clear (see
  * --plan-lift in style.css). The sheet has no fixed height — the hint comes
  * and goes, the naming step is taller, a narrow phone wraps — so it is
  * measured rather than assumed.
