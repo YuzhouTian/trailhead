@@ -1,5 +1,5 @@
 // The bottom sheet and the three things that fill it: Map (base layer, map key,
-// nearby), Settings (theme, key, routing, pace, nearby categories) and Routes
+// nearby), Settings (theme, key, routing, pace, offline maps) and Routes
 // (your saved routes and pins, and the ways of getting more in).
 //
 // This is the last module out of main.ts and the most cross-cutting by nature:
@@ -16,20 +16,14 @@ import { BASE_LAYERS, BROUTER_PROFILES } from '../config';
 import { catMeta, deletePin, getPins, hidePinCard, openSavedPin, sharePin } from '../features/pins';
 import { endPlanning, updatePlanStats } from '../features/planner';
 import { startQrScan } from '../features/qr';
-import {
-  clearNearby,
-  nearbyKindsShort,
-  nearbyShown,
-  poiKindsNote,
-  showNearbyPois
-} from '../features/search';
+import { nearbyOn, toggleNearby } from '../features/search';
 import { openSharePanel, pasteSharedRoute } from '../features/sharing';
 import { clearOfflineTiles, formatBytes, offlineUsage } from '../features/storage';
 import { pauseFollow } from '../features/tracking';
 import { formatDistance } from '../geo';
 import { legendHtml } from '../legend';
 import { applyLayers, map } from '../map/map';
-import { DEFAULT_POI_KINDS, POI_CATEGORIES } from '../poi';
+import { POI_CATEGORIES, type PoiKind } from '../poi';
 import { saveSettings, type SavedRoute, type Settings } from '../state';
 import { $, hideToast, svgUse, toast } from './dom';
 import { gridText } from './format';
@@ -116,16 +110,13 @@ export function openMapPanel(): void {
     <div class="cells">${baseRows}</div>
     <button id="keyBtn" class="secondary wide">Map key — what the symbols mean</button>
     <h4 class="secTitle">Nearby</h4>
-    <p class="hint">${
-      settings.poiKinds.length
-        ? `Looks for ${nearbyKindsShort()} from OpenStreetMap, around what you can see —
-           change what it looks for in Settings.`
-        : 'No categories are ticked — choose what to look for in Settings.'
-    }
-    Needs signal, and the free map-data servers are sometimes busy — retry if it fails. Tap again to hide.</p>
-    <button id="poiBtn" class="wide" ${
-      settings.poiKinds.length ? '' : 'disabled'
-    }>${nearbyShown() ? 'Hide nearby points' : "What's nearby"}</button>
+    <div class="pc-chips nearbyChips">${POI_CATEGORIES.map(
+      (c) => `<button class="pc-chip" data-kind="${c.id}">
+        <span class="poiSwatch" style="background:${c.colour}">${svgUse(c.icon)}</span>${c.plural}
+      </button>`
+    ).join('')}</div>
+    <p class="hint">Shows what OpenStreetMap has around the visible map. Needs signal, and the
+    free servers are sometimes busy — tick it again if one fails.</p>
   `, 'Map');
 
   BASE_LAYERS.forEach((l) => {
@@ -135,11 +126,23 @@ export function openMapPanel(): void {
     });
   });
   $('keyBtn').addEventListener('click', () =>
-    showPanel(legendHtml(settings.baseLayer, settings.poiKinds))
+    showPanel(legendHtml(settings.baseLayer))
   );
-  $('poiBtn').addEventListener('click', () => {
-    hidePanel();
-    showNearbyPois();
+  // Each chip is its own layer. The sheet stays open so several can be ticked;
+  // a chip whose search finds nothing or fails turns itself back off.
+  document.querySelectorAll<HTMLButtonElement>('.nearbyChips .pc-chip').forEach((chip) => {
+    const kind = chip.dataset.kind as PoiKind;
+    const sync = () => {
+      chip.classList.toggle('on', nearbyOn(kind));
+      chip.setAttribute('aria-pressed', String(nearbyOn(kind)));
+    };
+    sync();
+    chip.addEventListener('click', async () => {
+      const done = toggleNearby(kind);
+      sync();
+      await done;
+      sync();
+    });
   });
 }
 
@@ -175,18 +178,6 @@ export function openSettingsPanel(): void {
       </div>
     </div>
     <p class="hint">Your pace on the flat. Time estimates add 1 h per 600 m of climb (Naismith's rule).</p>
-    <h4 class="secTitle">What's nearby</h4>
-    <div class="cells">${POI_CATEGORIES.map(
-      (c) => `<div class="row">
-        <input type="checkbox" id="poiKind-${c.id}" ${settings.poiKinds.includes(c.id) ? 'checked' : ''}/>
-        <span class="poiSwatch" style="background:${c.colour}">${svgUse(c.icon)}</span>
-        <label for="poiKind-${c.id}">${c.plural}</label>
-      </div>`
-    ).join('')}</div>
-    <p class="hint" id="poiKindsNote">${poiKindsNote()}</p>
-    <button id="poiKindsReset" class="secondary wide">Back to the usual three</button>
-    <p class="hint">What the Map tab's "What's nearby" looks for. Only the ticked categories are
-    asked for, so a short list is a faster, more reliable search.</p>
     <h4 class="secTitle">Offline maps</h4>
     <p class="hint" id="offlineUsage">Checking…</p>
     <button id="offlineClear" class="danger wide">Clear all offline maps</button>
@@ -231,31 +222,6 @@ export function openSettingsPanel(): void {
       updatePlanStats();
       updateRouteCard();
     }
-  });
-
-  const syncPoiKinds = () => {
-    POI_CATEGORIES.forEach((c) => {
-      ($(`poiKind-${c.id}`) as HTMLInputElement).checked = settings.poiKinds.includes(c.id);
-    });
-    $('poiKindsNote').textContent = poiKindsNote();
-    // Markers already on the map would no longer match the tick list, so drop
-    // them; the Map tab's button asks again with the new selection.
-    clearNearby();
-    saveSettings(settings);
-  };
-  POI_CATEGORIES.forEach((c) => {
-    $(`poiKind-${c.id}`).addEventListener('change', (e) => {
-      const on = (e.target as HTMLInputElement).checked;
-      settings.poiKinds = on
-        ? // Keep table order, so the toast and the map key read the same way.
-          POI_CATEGORIES.filter((x) => x.id === c.id || settings.poiKinds.includes(x.id)).map((x) => x.id)
-        : settings.poiKinds.filter((id) => id !== c.id);
-      syncPoiKinds();
-    });
-  });
-  $('poiKindsReset').addEventListener('click', () => {
-    settings.poiKinds = [...DEFAULT_POI_KINDS];
-    syncPoiKinds();
   });
 
   // Read the storage figures now, and again after a clear. Both elements are

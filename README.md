@@ -26,10 +26,10 @@ handle at its top edge downwards.
 
 | Tab | What's in it |
 | --- | --- |
-| **Map** | Sheet: base layer, the map key, and "What's nearby" |
+| **Map** | Sheet: base layer, the map key, and nearby-point chips |
 | **Saved** | Sheet: your routes and pins; import GPX, scan a route QR, paste a shared link |
 | **Plan** | No sheet — it turns the map into the route planner (tap points to draw a line) |
-| **Settings** | Sheet: appearance, Thunderforest key, routing profile, walking speed, nearby categories, offline map usage, build version |
+| **Settings** | Sheet: appearance, Thunderforest key, routing profile, walking speed, offline map usage, build version |
 
 When a route is loaded, a card floats just above the tabs with its name, stats, what's left
 of it, and buttons to open the elevation profile or cache its tiles. A long-press anywhere
@@ -104,12 +104,11 @@ nearby point.
   row in Saved — opens the phone's share sheet with the place written out and a link that
   opens it in Trailhead (or copies both where there is no share sheet). Cards show distance
   and compass bearing from you.
-- **What's nearby** (Map tab) — hiking points around the visible map, from OpenStreetMap via
-  Overpass. Fifteen categories to choose from — summits, trig points, viewpoints, water,
-  waterfalls, shelters and bothies, campsites, pubs and cafés, toilets, parking, public
-  transport, picnic sites, cairns and landmarks, caves, emergency points — ticked in Settings
-  and defaulting to summits, viewpoints and water. Only the ticked ones are queried, and each
-  gets its own result quota so a moor full of tors cannot crowd out every spring.
+- **Nearby points** (Map tab) — hiking points around the visible map, from OpenStreetMap via
+  Overpass. Five chips — summits, viewpoints, water, shelters & camps, parking — each its own
+  layer: tick one and only that category is queried, untick it and its markers go. Nothing is
+  on at start, and each category has its own result quota so a moor full of tors cannot crowd
+  out every spring.
 
 ### Maps
 
@@ -149,7 +148,7 @@ The question that actually matters on a hill is what still works with no signal:
 | The app itself (cached shell) | Planning or re-routing (BRouter is server-side) |
 | Map tiles you've viewed or pre-cached | Tiles you never looked at |
 | GPS position, on/off-route banner, progress | Place-name search |
-| Grid references, lat/lng, the search box for both | "What's nearby" (Overpass) |
+| Grid references, lat/lng, the search box for both | Nearby points (Overpass) |
 | Saved routes, pins and settings | Ground height for a new pin (Open-Meteo) |
 | Elevation profile of a loaded route | |
 | Sharing links and QR codes (built on-device) | |
@@ -262,7 +261,7 @@ and the marker comes off in the same commit.
 | `src/routing.ts` | BRouter calls, including mixed snapped/freeform legs |
 | `src/osgb.ts` | OS National Grid references both ways, on-device |
 | `src/search.ts` | Search box resolution: grid ref, lat/lng, then Photon place names with hiking-first ranking |
-| `src/poi.ts` | "What's nearby" — the category table and what each one asks Overpass for |
+| `src/poi.ts` | Nearby points — the category table and what each one asks Overpass for |
 | `src/overpass.ts` | Talking to the Overpass mirrors: staggered requests, first answer wins |
 | `src/elevation.ts` | Point elevation lookup, and the SVG profile chart with its scrubber |
 | `src/legend.ts` | The map key: per-layer legends, drawn as inline SVG swatches |
@@ -296,7 +295,7 @@ ones, so the app's cache never holds more than two builds.
 - The public BRouter server is free and CORS-enabled; be a good citizen (it's one hobbyist
   request at a time, which is exactly what it's for). Offline tile downloads are capped at
   4000 tiles per go to stay within OSM's tile usage policy.
-- Overpass ("What's nearby") is a shared free service that regularly rate-limits or times
+- Overpass (nearby points) is a shared free service that regularly rate-limits or times
   out. The app tries several mirrors; if they're all busy, try again in a minute.
 - Grid references only exist for Great Britain. Elsewhere, cards and lists show decimal
   lat/lng instead.

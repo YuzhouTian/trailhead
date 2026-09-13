@@ -187,11 +187,11 @@ initDetour({ settings, getActiveRoute: () => activeRoute, setActiveRoute });
 
 // ---------------------------------------------------------------- search + nearby
 
-// The search box and "What's nearby" share a module: both start from the same
+// The search box and nearby points share a module: both start from the same
 // "where are we looking?" (the live fix, else the map centre), both drop
-// markers that open the pin card, and both pause following. The Map and Settings
-// panels drive nearby, so it exposes state rather than owning a control.
-initSearch({ settings });
+// markers that open the pin card, and both pause following. The Map sheet's
+// chips drive nearby, so it exposes state rather than owning a control.
+initSearch();
 
 // ---------------------------------------------------------------- sharing + QR
 

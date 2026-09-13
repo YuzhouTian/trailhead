@@ -180,10 +180,7 @@ pair('QR scanner', 'cancel button', '#1a2420', '#ffffff over #000000');
 
 // --- map symbology (theme-independent; checked once) --------------------
 const POI = {
-  summit: '#2d6a4f', trig: '#6b705c', viewpoint: '#1a73e8', water: '#3d9bd0',
-  waterfall: '#2f7d95', shelter: '#8b5a2b', camp: '#7a9e3f', cafe: '#b5651d',
-  toilets: '#5a6d8c', parking: '#4a7ebb', bus: '#7b5ea7', picnic: '#6a9e4f',
-  star: '#a0522d', cave: '#4d4d4d', emergency: '#c0392b'
+  summit: '#2d6a4f', viewpoint: '#1a73e8', water: '#3d9bd0', camp: '#8b5a2b', parking: '#4a7ebb'
 };
 
 const fmt = (n) => n.toFixed(2).padStart(5);

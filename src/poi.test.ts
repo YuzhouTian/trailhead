@@ -1,49 +1,8 @@
+import indexHtml from '../index.html?raw';
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_POI_KINDS,
-  POI_CATEGORIES,
-  POI_KINDS_ADVISORY,
-  describeKinds,
-  poiCategories,
-  poiCategory
-} from './poi';
+import { POI_CATEGORIES, poiCategory } from './poi';
 
 const TABLE_ORDER = POI_CATEGORIES.map((c) => c.id);
-
-describe('poiCategories', () => {
-  it('returns the categories asked for', () => {
-    expect(poiCategories(['summit', 'water']).map((c) => c.id)).toEqual(['summit', 'water']);
-  });
-
-  it('returns them in table order, whatever order they were asked for in', () => {
-    // The tick list in Settings is rendered from this, so it has to be stable.
-    const asked = ['transport', 'summit', 'toilets', 'trig'];
-    expect(poiCategories(asked).map((c) => c.id)).toEqual(
-      TABLE_ORDER.filter((id) => asked.includes(id))
-    );
-  });
-
-  it('ignores ids it does not know', () => {
-    // Old installs can carry categories that have since been renamed or dropped.
-    expect(poiCategories(['summit', 'dragons', 'water']).map((c) => c.id)).toEqual([
-      'summit',
-      'water'
-    ]);
-  });
-
-  it('is empty for no ids and for only unknown ids', () => {
-    expect(poiCategories([])).toEqual([]);
-    expect(poiCategories(['dragons', 'wyverns'])).toEqual([]);
-  });
-
-  it('returns a category once even if asked for twice', () => {
-    expect(poiCategories(['summit', 'summit']).map((c) => c.id)).toEqual(['summit']);
-  });
-
-  it('returns the whole table when asked for everything', () => {
-    expect(poiCategories(TABLE_ORDER).map((c) => c.id)).toEqual(TABLE_ORDER);
-  });
-});
 
 describe('poiCategory', () => {
   it('finds a category by id', () => {
@@ -60,50 +19,10 @@ describe('poiCategory', () => {
   });
 });
 
-describe('describeKinds', () => {
-  it('says "nothing" when nothing is ticked', () => {
-    expect(describeKinds([])).toBe('nothing');
-    expect(describeKinds(['dragons'])).toBe('nothing');
-  });
-
-  it('names a single category on its own', () => {
-    expect(describeKinds(['summit'])).toBe('summits');
-  });
-
-  it('joins two with "and"', () => {
-    expect(describeKinds(['summit', 'viewpoint'])).toBe('summits and viewpoints');
-  });
-
-  it('joins three or more with commas and a final "and"', () => {
-    // The example in the function's own documentation. Note there is no comma
-    // before the "and" — house style, and the phrase reads inside a sentence
-    // in a toast, so it needs to sound spoken.
-    expect(describeKinds(['summit', 'viewpoint', 'water'])).toBe(
-      'summits, viewpoints and water sources'
-    );
-    expect(describeKinds(['summit', 'trig', 'viewpoint', 'water'])).toBe(
-      'summits, trig points, viewpoints and water sources'
-    );
-  });
-
-  it('describes them in table order, not the order they were passed', () => {
-    expect(describeKinds(['water', 'summit'])).toBe('summits and water sources');
-  });
-
-  it('leaves out ids it does not know', () => {
-    expect(describeKinds(['summit', 'dragons', 'water'])).toBe('summits and water sources');
-  });
-
-  it('is all lower case, because it lands mid-sentence', () => {
-    const described = describeKinds(TABLE_ORDER);
-    expect(described).toBe(described.toLowerCase());
-  });
-});
-
 describe('the category table', () => {
   // These are not tests of a function so much as of the table itself: it drives
-  // the Overpass query, the markers, the map key and the Settings list at once,
-  // so a duplicated id or a missing field breaks four things quietly.
+  // the Overpass query, the markers, the map key and the Map sheet's chips at
+  // once, so a duplicated id or a missing field breaks four things quietly.
 
   it('has unique ids', () => {
     expect(new Set(TABLE_ORDER).size).toBe(TABLE_ORDER.length);
@@ -114,9 +33,8 @@ describe('the category table', () => {
       expect(c.label.length).toBeGreaterThan(0);
       expect(c.plural.length).toBeGreaterThan(0);
       // The icon is the id of a `<symbol>` in index.html's sprite, not a
-      // character: emoji rendered differently on every phone. A typo here
-      // draws nothing at all, so insist on the `p-` naming.
-      expect(c.icon).toMatch(/^p-[a-z]+$/);
+      // character: emoji rendered differently on every phone.
+      expect(c.icon).toMatch(/^c-[a-z]+$/);
       expect(c.colour).toMatch(/^#[0-9a-f]{6}$/i);
     }
   });
@@ -139,10 +57,20 @@ describe('the category table', () => {
     }
   });
 
+  it('draws every icon from a symbol that exists in the sprite', () => {
+    // A typo in an icon id draws nothing at all, on the marker, the chip and
+    // the map key alike.
+    for (const c of POI_CATEGORIES) expect(indexHtml).toContain(`<symbol id="${c.icon}"`);
+  });
+
+  it('shares its ids with the saved-pin categories', () => {
+    // So a point found nearby can be saved as a pin of the same kind.
+    const pinCategories = ['summit', 'viewpoint', 'water', 'camp', 'parking', 'other'];
+    for (const id of TABLE_ORDER) expect(pinCategories).toContain(id);
+  });
+
   it('does not let two categories claim the same tag', () => {
-    // Overlap is resolved by table order, which is deliberate for a trig pillar
-    // on a peak — but an accidental duplicate would silently starve the later
-    // category of every feature it was meant to find.
+    // A feature would turn up under both chips, as two markers on one spot.
     const seen = new Map<string, string>();
     for (const c of POI_CATEGORIES) {
       for (const [key, value] of c.tags) {
@@ -151,15 +79,5 @@ describe('the category table', () => {
         seen.set(tag, c.id);
       }
     }
-  });
-
-  it('defaults to categories that are actually in the table', () => {
-    for (const id of DEFAULT_POI_KINDS) expect(TABLE_ORDER).toContain(id);
-  });
-
-  it('sets the advisory threshold below the number of categories', () => {
-    // Otherwise the warning about a slow search could never appear.
-    expect(POI_KINDS_ADVISORY).toBeGreaterThan(0);
-    expect(POI_KINDS_ADVISORY).toBeLessThan(POI_CATEGORIES.length);
   });
 });

@@ -66,7 +66,7 @@ async function makePage(opts) {
     localStorage.setItem('trailhead.pins', JSON.stringify([]));
     localStorage.setItem('trailhead.settings', JSON.stringify({
       baseLayer: 'freemap', overlayLayer: '', overlayOpacity: 0.5, profile: 'hiking-beta',
-      speedKmh: 4, tfKey: '', theme: 'dark', poiKinds: ['summit', 'viewpoint', 'water'], schema: 1
+      speedKmh: 4, tfKey: '', theme: 'dark', schema: 1
     }));
   }, route);
   await page.goto(BASE, { waitUntil: 'load' });
