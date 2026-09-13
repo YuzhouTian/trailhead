@@ -552,12 +552,16 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 #planSheet.dragging, #planSheet.settling { transform: translateY(var(--sheet-dy, 0px)); }
 #panel.settling, #planSheet.settling { transition: transform .22s ease-out; }
 /* On a wide screen a full-width sheet is a very long line to read, so it
-   becomes a centred sheet of a phone-ish width instead. */
+   becomes a centred sheet instead. Half the window rather than a fixed phone
+   width: a flat 480px was a quarter of a full-screen monitor and read as a
+   skinny strip down the middle. Never narrower than 480px (so a small laptop
+   window keeps the width it had), and capped at 960px so rows on a very wide
+   monitor don't stretch into lines you have to track across. */
 @media (min-width: 700px) {
   #panel, #planSheet {
     left: 50%; right: auto;
     transform: translateX(-50%);
-    width: 480px;
+    width: clamp(480px, 50vw, 960px);
   }
   /* A drag has to compose with the centring translate rather than replace it,
      or the sheet jumps half its width to the right the moment a finger lands. */
