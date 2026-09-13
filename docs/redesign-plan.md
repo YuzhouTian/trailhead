@@ -408,3 +408,11 @@ places where it did not, so that the document and the app agree.
     to the map. Items 4 and 12 are history now: `--attr-h` is gone, the layer
     definitions carry no `attribution`, and the scale bar sits where the credit
     did, with the Me button 16px lower to match.
+14. **There is no plan bar; Plan is a sheet** (§4's plan-bar spec is history).
+    Plan opens `#planSheet`, which shares `#panel`'s chrome and rests on the
+    tab bar with Plan lit, but has no scrim, because taps on the map add
+    waypoints. The route card does not show while planning. The sheet carries
+    distance, climb and time as three cells, a Paths / Straight switch (the
+    theme control, reused) in place of the magnet toggle, and a naming step
+    with the elevation profile in place of the browser's `prompt()`. Its
+    height is published as `--plan-lift` for the scale bar and the toast.

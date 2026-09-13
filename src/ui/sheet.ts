@@ -13,8 +13,8 @@
 // thumb already is. The close button, the scrim and the tab toggle all stay.
 //
 // The module owns the gesture and nothing else: it is handed the elements and
-// the app's own close callback, so ui/panels.ts stays the only thing that knows
-// what closing a sheet actually involves.
+// the app's own close callback, so ui/panels.ts (and features/planner.ts, for
+// Plan's sheet) stays the only thing that knows what closing its sheet involves.
 
 /** How far down the sheet has to be let go before it closes rather than springs back. */
 const CLOSE_PX = 110;
@@ -38,7 +38,8 @@ const SETTLE_MS = 220;
  *
  * `scrim` is dimmed in step with the drag so the two read as one movement — a
  * sheet sliding down in front of a backdrop that stays at full strength looks
- * like two unrelated things.
+ * like two unrelated things. Plan's sheet has no scrim (the map behind it has
+ * to stay live), so it is optional.
  *
  * Returns the function that puts the gesture back to rest. hidePanel() has to
  * call it, because the sheet can also go away *under* the gesture — by the
@@ -48,7 +49,7 @@ const SETTLE_MS = 220;
 export function initSheetDrag(opts: {
   sheet: HTMLElement;
   handle: HTMLElement;
-  scrim: HTMLElement;
+  scrim?: HTMLElement;
   close: () => void;
 }): () => void {
   const { sheet, handle, scrim, close } = opts;
@@ -70,7 +71,7 @@ export function initSheetDrag(opts: {
     // on a short panel and a tall one: the backdrop is gone at about the moment
     // the sheet is.
     const travel = sheet.offsetHeight || 1;
-    scrim.style.opacity = String(Math.max(0, 1 - dy / travel));
+    if (scrim) scrim.style.opacity = String(Math.max(0, 1 - dy / travel));
   }
 
   /** Back to rest, leaving nothing behind for the next sheet. */
@@ -78,7 +79,7 @@ export function initSheetDrag(opts: {
     window.clearTimeout(settleTimer);
     sheet.classList.remove('dragging', 'settling');
     sheet.style.removeProperty('--sheet-dy');
-    scrim.style.removeProperty('opacity');
+    scrim?.style.removeProperty('opacity');
     pointerId = null;
     dy = 0;
     velocity = 0;
@@ -129,13 +130,13 @@ export function initSheetDrag(opts: {
       // shut from wherever the finger stopped loses the sense that you threw
       // it somewhere. close() comes back through hidePanel() to reset().
       sheet.style.setProperty('--sheet-dy', `${sheet.offsetHeight}px`);
-      scrim.style.opacity = '0';
+      if (scrim) scrim.style.opacity = '0';
       settleTimer = window.setTimeout(close, SETTLE_MS);
       return;
     }
     // Not far enough, or pushed back up: spring home.
     sheet.style.setProperty('--sheet-dy', '0px');
-    scrim.style.removeProperty('opacity');
+    scrim?.style.removeProperty('opacity');
     settleTimer = window.setTimeout(reset, SETTLE_MS);
   }
 

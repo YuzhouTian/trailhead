@@ -166,3 +166,22 @@ describe('being put back to rest', () => {
     expect(sheet.classList.contains('dragging')).toBe(true);
   });
 });
+
+describe('a sheet with no scrim', () => {
+  // Plan's sheet: the map behind it takes taps, so there is nothing to dim.
+  it('still follows the finger and throws away', () => {
+    // A fresh sheet and handle: the ones above already answer drags with a scrim.
+    const bare = document.createElement('div');
+    const bareHandle = document.createElement('div');
+    bare.appendChild(bareHandle);
+    document.body.appendChild(bare);
+    let bareClosed = 0;
+    initSheetDrag({ sheet: bare, handle: bareHandle, close: () => bareClosed++ });
+    pointer('pointerdown', 0, 0, bareHandle);
+    pointer('pointermove', 160, 400, bareHandle);
+    expect(bare.style.getPropertyValue('--sheet-dy')).toBe('160px');
+    pointer('pointerup', 160, 400, bareHandle);
+    vi.runAllTimers();
+    expect(bareClosed).toBe(1);
+  });
+});

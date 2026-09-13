@@ -49,6 +49,7 @@
     <symbol id="i-elev" viewBox="0 0 24 24"><path class="gico" d="M3 18h18"/><path class="gico" d="m3 15 5.5-7.5 3.5 4 3-4L21 15"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path class="gico" d="M12 4v11m0 0 4-4m-4 4-4-4"/><path class="gico" d="M4 17v1.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V17"/></symbol>
     <symbol id="i-magnet" viewBox="0 0 24 24"><path class="gico" d="M5 11a7 7 0 0 1 14 0v8h-4.5v-8a2.5 2.5 0 0 0-5 0v8H5z"/><path class="gico" d="M5 15h4.5M14.5 15H19"/></symbol>
+    <symbol id="i-straight" viewBox="0 0 24 24"><circle class="gico" cx="5.5" cy="18.5" r="2.5"/><circle class="gico" cx="18.5" cy="5.5" r="2.5"/><path class="gico" d="M7.3 16.7 16.7 7.3"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle class="gico" cx="11" cy="11" r="6.5"/><path class="gico" d="m20.5 20.5-4.8-4.8"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path class="gico" d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-chevron-right" viewBox="0 0 24 24"><path class="gico" d="m9 6 6 6-6 6"/></symbol>
@@ -146,14 +147,47 @@
     <div id="panelContent"></div>
   </div>
 
-  <div id="planBar" class="hidden">
-    <span id="planStats">Tap the map to add points</span>
-    <div class="planBtns">
-      <button id="planSnap" class="active" title="Snap to paths on/off"><svg viewBox="0 0 24 24"><use href="#i-magnet"/></svg></button>
-      <button id="planUndo">Undo</button>
-      <button id="planClear">Clear</button>
-      <button id="planDone">Done</button>
+  <!-- Plan's sheet. The same chrome as the one above — handle, close button,
+       resting on the tab bar — but its own element with no scrim behind it,
+       because Plan wants the map underneath: every tap on it is a waypoint. A
+       shared #panel could not do that, since a tap on the map puts #panel away.
+       features/planner.ts owns it. -->
+  <div id="planSheet" class="hidden" aria-label="Plan a route">
+    <div id="planHead">
+      <span id="planGrab" aria-hidden="true"></span>
+      <button id="planClose" class="closeX" aria-label="Close"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
     </div>
+    <div id="planStats">
+      <div class="planStat"><span class="k">Distance</span><span class="v" id="planDist">—</span><span class="s" id="planDistSub"></span></div>
+      <div class="planStat"><span class="k">Climb</span><span class="v" id="planUp">—</span><span class="s" id="planDown"></span></div>
+      <div class="planStat"><span class="k">Time</span><span class="v" id="planTime">—</span><span class="s" id="planPace"></span></div>
+    </div>
+    <p id="planHint" class="hint" aria-live="polite"></p>
+    <!-- Drawing: how the next points join, and the edits. -->
+    <div id="planDraw">
+      <div class="planCtrls">
+        <div class="themeSeg" role="group" aria-label="How new points join">
+          <button id="planSnapPaths" class="sel" aria-pressed="true"><svg viewBox="0 0 24 24"><use href="#i-magnet"/></svg>Paths</button>
+          <button id="planSnapStraight" aria-pressed="false"><svg viewBox="0 0 24 24"><use href="#i-straight"/></svg>Straight</button>
+        </div>
+        <button id="planUndo" class="secondary">Undo</button>
+        <button id="planClear" class="secondary">Clear</button>
+      </div>
+      <button id="planSave" class="wide">Save route</button>
+    </div>
+    <!-- Naming: what Save route opens, in place of the browser's prompt(). A
+         form, so the keyboard's own return key saves — on every keyboard, which
+         listening for an "Enter" keydown does not manage. -->
+    <form id="planName" class="hidden" novalidate>
+      <div id="planChart"></div>
+      <h4 class="secTitle">Name</h4>
+      <input type="text" id="planNameInput" placeholder="My route" autocomplete="off" enterkeyhint="done" />
+      <div class="planNameActs">
+        <button type="button" id="planBack" class="secondary">Back</button>
+        <button type="submit" id="planSaveConfirm">Save</button>
+      </div>
+      <button type="button" id="planShowOnly" class="link">Show on map without saving</button>
+    </form>
   </div>
 
   <div id="qrScan" class="hidden">
