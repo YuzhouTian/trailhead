@@ -468,14 +468,21 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
    visible above it — it keeps the sheet reading as something on top of the map
    that you can dismiss. The dvh lines repeat that in the unit that discounts
    iOS's address bar; browsers that don't know dvh ignore them and keep the vh.
+   88vh alone ignored the search bar, which sits under the notch: on an iPhone
+   (59px inset, 852px tall) the sheet's top edge landed 13px *over* the bar's
+   foot. So it is also capped to stop --sheet-gap below the bar (8px inset +
+   48px bar = 56px), and whichever limit is shorter wins.
    Plan's sheet (#planSheet) shares all of this chrome — see "Plan sheet" below
    for the one way it differs. */
+:root { --sheet-gap: 32px; }
 #panel, #planSheet {
   position: fixed;
   left: 0; right: 0;
   bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h));
-  max-height: calc(88vh - env(safe-area-inset-bottom, 0px) - var(--bar-h));
-  max-height: calc(88dvh - env(safe-area-inset-bottom, 0px) - var(--bar-h));
+  max-height: calc(min(88vh, 100vh - env(safe-area-inset-top, 0px) - 56px - var(--sheet-gap))
+                   - env(safe-area-inset-bottom, 0px) - var(--bar-h));
+  max-height: calc(min(88dvh, 100dvh - env(safe-area-inset-top, 0px) - 56px - var(--sheet-gap))
+                   - env(safe-area-inset-bottom, 0px) - var(--bar-h));
   background: var(--bg);
   border-top: 1px solid var(--hairline);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
