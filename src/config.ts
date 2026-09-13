@@ -23,19 +23,6 @@ export interface BaseLayerDef {
    * instead.
    */
   cors?: boolean;
-  /**
-   * This layer's own credit, for the line Leaflet prints bottom-right — the
-   * tile provider only. "© OpenStreetMap contributors" is added once by
-   * map.ts and deliberately left out here: every layer in this list is drawn
-   * from OpenStreetMap data, so repeating it per layer only made the line
-   * longer, and printed it twice the moment an overlay was switched on.
-   *
-   * Keep it short. The credit is 12px text on a phone as narrow as 375px, and
-   * the scale bar stacks directly on top of it, so every extra word is width
-   * that has to come from somewhere. Empty for a layer whose only credit is
-   * the OpenStreetMap one.
-   */
-  attribution: string;
   /** Shown under the layer name in the Map panel. */
   blurb?: string;
 }
@@ -47,7 +34,6 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     // No extension and no subdomain; {r} becomes "@2x", which this server
     // renders natively rather than upscaling.
     url: 'https://outdoor.tiles.freemap.sk/{z}/{x}/{y}{r}',
-    attribution: '&copy; Freemap Slovakia',
     maxZoom: 20,
     maxNativeZoom: 20,
     retina: true,
@@ -60,7 +46,6 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     name: 'Outdoors (Thunderforest)',
     // {r} becomes "@2x" on high-density screens.
     url: 'https://tile.thunderforest.com/outdoors/{z}/{x}/{y}{r}.png?apikey={tfKey}',
-    attribution: '&copy; Thunderforest',
     maxZoom: 20,
     maxNativeZoom: 20,
     needsTfKey: true,
@@ -71,7 +56,6 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     id: 'osm',
     name: 'OpenStreetMap',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '',
     maxZoom: 19,
     maxNativeZoom: 19,
     blurb: 'The reference rendering, and the only layer that draws individual gates and stiles. No key, global coverage and the sturdiest servers, which is why it is the fallback.'

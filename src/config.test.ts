@@ -45,16 +45,4 @@ describe('base layers', () => {
       if (l.retina) expect(l.url).toContain('{r}');
     }
   });
-
-  // The credit line is 12px text on a phone as narrow as 375px, with the scale
-  // bar stacked directly on top of it. Let it wrap to a second line and the
-  // pair slides down behind the tab bar and the scale sits on the text.
-  it('keeps every layer credit to the provider, and short', () => {
-    for (const l of BASE_LAYERS) {
-      // map.ts adds the OpenStreetMap credit once, for the whole map. Repeating
-      // it per layer printed it twice the moment an overlay was switched on.
-      expect(l.attribution).not.toMatch(/OpenStreetMap/);
-      expect(l.attribution.length).toBeLessThanOrEqual(30);
-    }
-  });
 });

@@ -403,3 +403,8 @@ places where it did not, so that the document and the app agree.
     credit once; Leaflet prints each layer's credit, so the per-layer strings
     printed it twice as soon as an overlay was switched on, and the line
     wrapped.
+13. **There is no credit line at all** (after #75). Trailhead is a personal
+    app, not one published for others, so the strip along the bottom went back
+    to the map. Items 4 and 12 are history now: `--attr-h` is gone, the layer
+    definitions carry no `attribution`, and the scale bar sits where the credit
+    did, with the Me button 16px lower to match.
