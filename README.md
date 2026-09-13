@@ -280,6 +280,11 @@ publishes to GitHub Pages. Nothing else to do — `git push` is the deploy.
 Settings shows the build timestamp, so you can tell at a glance whether a phone is running
 the latest deploy or a cached older one.
 
+On a phone that already has the app, the service worker downloads a new deploy's page, script
+and stylesheet together before switching over, so the next launch works offline too. It keeps
+that build and the one before it (a running page may still need its files) and deletes older
+ones, so the app's cache never holds more than two builds.
+
 ## Notes / limits
 
 - iOS PWAs only get GPS while the app is open on screen — fine for "where am I?", but this

@@ -1,5 +1,8 @@
 /* Trailhead service worker: offline app shell + map tile cache. */
-const STATIC_CACHE = 'trailhead-static-v1';
+// v2: install now caches the app's script and stylesheet as well as the page,
+// and a deploy evicts the builds before the last one. Bumping drops the old
+// bundles v1 kept forever (one set per deploy, never deleted).
+const STATIC_CACHE = 'trailhead-static-v2';
 // v2: v1 could contain opaque error responses cached as if they were tiles
 // (permanent grey squares) — bumping the name discards them.
 // v3: the default layer moved to Freemap, which sends no CORS header, so its
@@ -7,11 +10,31 @@ const STATIC_CACHE = 'trailhead-static-v1';
 // discards anything the previous rules let through.
 const TILE_CACHE = 'trailhead-tiles-v3';
 
-const PRECACHE = ['./', './index.html', './manifest.webmanifest'];
+/* index.html is not listed: refreshShell stores it together with the files it
+   needs, so there is never a cached page whose script is missing. `./` used to
+   be cached here too, as a second copy of the page that nothing ever refreshed
+   — once its build was evicted it would have opened blank. */
+const PRECACHE = ['./manifest.webmanifest'];
 
+/* Held open for the same reason as the tile cache below: every launch and every
+   script and stylesheet goes through it. */
+let staticCachePromise = null;
+const staticCache = () => (staticCachePromise ??= caches.open(STATIC_CACHE));
+
+/* Install caches the whole app, not just the page. The page's own script and
+   stylesheet are fetched before this worker exists, so nothing else would store
+   them until a later online launch — a first install followed by no signal
+   opened on a blank screen. If the latest build cannot be fetched in full, the
+   install fails and the browser tries again on the next load. */
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting())
+    staticCache()
+      .then((c) => c.addAll(PRECACHE))
+      .then(refreshShell)
+      .then((html) => {
+        if (!html) throw new Error('index.html unavailable');
+        return self.skipWaiting();
+      })
   );
 });
 
@@ -63,14 +86,16 @@ const htmlResponse = (html) =>
    swapped over. Swapping first meant a phone that updated its shell and then
    lost signal opened on a page whose script it had never downloaded: a blank
    app on a hill. Shared between the launch refresh and the page's own check so
-   the two do not download the same build twice at once. */
+   the two do not download the same build twice at once.
+
+   When the shell did change, older builds are evicted (see evictOldBuilds). */
 let refreshing = null;
 function refreshShell() {
   return (refreshing ??= (async () => {
     const res = await fetch('./index.html', { cache: 'no-cache' });
     if (!res.ok) return null;
     const html = await res.text();
-    const cache = await caches.open(STATIC_CACHE);
+    const cache = await staticCache();
     const assets = [...html.matchAll(/(?:src|href)="(\.\/assets\/[^"]+)"/g)].map((m) => m[1]);
     await Promise.all(
       assets.map(async (a) => {
@@ -80,11 +105,52 @@ function refreshShell() {
         await cache.put(a, r);
       })
     );
+    const previous = await cache.match('./index.html');
+    const previousHtml = previous ? await previous.text() : null;
     await cache.put('./index.html', htmlResponse(html));
+    // Cleanup only: a failure here must not undo an update that already landed.
+    if (previousHtml !== html) await evictOldBuilds(cache, [html, previousHtml]).catch(() => {});
     return html;
   })().finally(() => {
     refreshing = null;
   }));
+}
+
+const ASSETS_URL = new URL('./assets/', self.location).href;
+
+/* Relative file names quoted in a page, script or stylesheet: the page's
+   `./assets/…` src and href, and the `./name-hash.js` a script imports lazily
+   (the QR decoder is named nowhere else, so it has to be found here). */
+const referencedFiles = (text, base) =>
+  [...text.matchAll(/["'(](\.\/[\w./-]+\.(?:js|css|png|jpe?g|svg|webp|woff2?))["')]/g)].map(
+    (m) => new URL(m[1], base).href
+  );
+
+/* Delete every cached file under assets/ that neither the new build nor the one
+   before it refers to, directly or through a script it loads. Vite names each
+   file after a hash of its contents, so without this every deploy left a full
+   copy of the app behind for good.
+
+   The build before is kept because a page may still be running it. A launch
+   is served the cached (old) page while this refresh runs, so that page's
+   script and stylesheet requests can arrive after the eviction. And an app
+   brought back to the foreground finds the deploy and offers "Update ready",
+   but until that is tapped it is the old script, which can still lazily load
+   its own copy of the QR decoder — already removed from the server by the
+   deploy. Two builds at most, a few hundred KB. Nothing outside assets/ (the
+   page, the manifest, the icons) is ever touched. */
+async function evictOldBuilds(cache, shells) {
+  const keep = new Set();
+  const pending = shells.filter(Boolean).flatMap((html) => referencedFiles(html, self.location.href));
+  while (pending.length) {
+    const url = pending.pop();
+    if (keep.has(url)) continue;
+    keep.add(url);
+    const hit = /\.(js|css)$/.test(url) && (await cache.match(url));
+    if (hit) pending.push(...referencedFiles(await hit.text(), url));
+  }
+  const stale = (await cache.keys()).filter((r) => r.url.startsWith(ASSETS_URL) && !keep.has(r.url));
+  await Promise.all(stale.map((r) => cache.delete(r)));
 }
 
 /* The page asks this on launch and whenever it comes back to the foreground —
@@ -152,8 +218,8 @@ self.addEventListener('fetch', (event) => {
     // Keep the worker alive until the background refresh finishes.
     event.waitUntil(update);
     event.respondWith(
-      caches.open(STATIC_CACHE).then(async (cache) => {
-        const cached = (await cache.match('./index.html')) || (await cache.match('./'));
+      staticCache().then(async (cache) => {
+        const cached = await cache.match('./index.html');
         if (cached) return cached;
         const html = await update;
         if (html) return htmlResponse(html);
@@ -166,7 +232,7 @@ self.addEventListener('fetch', (event) => {
   // Other same-origin files (hashed JS/CSS, icons): stale-while-revalidate.
   if (url.origin === self.location.origin) {
     event.respondWith(
-      caches.open(STATIC_CACHE).then(async (cache) => {
+      staticCache().then(async (cache) => {
         const cached = await cache.match(req);
         const network = fetch(req)
           .then((res) => {
