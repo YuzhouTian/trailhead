@@ -80,6 +80,11 @@ function showSearchHits(hits: SearchHit[]): void {
       // place that was just asked for.
       pauseFollow();
       map.setView(hit.pos, Math.max(map.getZoom(), 15), { animate: false });
+      // While planning, the sheet covers the bottom of the map, so centre the
+      // place in what is left above it rather than in the whole screen, where
+      // the sheet could land on top of it. --plan-lift is 0 when not planning.
+      const lift = parseFloat(document.documentElement.style.getPropertyValue('--plan-lift')) || 0;
+      if (lift) map.panBy([0, lift / 2], { animate: false });
       searchMarker
         .bindPopup(
           `<div class="mapPop"><b>${hit.name.replace(/</g, '&lt;')}</b><br>${positionText(hit.pos)}</div>`,
