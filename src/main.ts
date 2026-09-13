@@ -7,6 +7,7 @@ import { initPlanner, isPlanning } from './features/planner';
 import { initQr } from './features/qr';
 import { hideSearchResults, initSearch } from './features/search';
 import { importSharedRoute, initSharing } from './features/sharing';
+import { initUpdates } from './features/update';
 import {
   hereAlongM,
   initTracking,
@@ -263,3 +264,4 @@ initOffline({ settings, getActiveRoute: () => activeRoute });
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js');
 }
+initUpdates();

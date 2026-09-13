@@ -139,6 +139,14 @@ export const EN_ROUTE_THRESHOLD_M = 300;
  */
 export const ARRIVAL_M = 30;
 
+/**
+ * How long (ms) after opening the app a newly found deploy may reload it
+ * without asking, provided the screen has not been touched. Long enough to
+ * cover downloading the new build on weak signal; after it, or after a touch,
+ * an "Update ready" button appears instead.
+ */
+export const UPDATE_AUTO_RELOAD_MS = 10_000;
+
 /** Zoom levels pre-cached by the offline download. */
 export const OFFLINE_ZOOMS = [12, 13, 14, 15, 16];
 /** Corridor half-width in tiles around the route at each zoom. */
