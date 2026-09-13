@@ -26,7 +26,6 @@ import {
 import { map } from '../map/map';
 import { type SavedRoute } from '../state';
 import { $, svgUse, toast } from '../ui/dom';
-import { positionText } from '../ui/format';
 import { updateRouteCard, type WalkProgress } from '../ui/routeCard';
 
 const gpsIcon = L.divIcon({ className: '', html: '<div class="gpsDot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
@@ -54,7 +53,6 @@ let watchId: number | null = null;
 let gpsMarker: L.Marker | null = null;
 let accCircle: L.Circle | null = null;
 let lastFix: LatLng | null = null;
-let lastAccuracy = 0;
 let follow = false;
 /**
  * Set when following (re)starts and spent by the first fix that acts on it:
@@ -275,16 +273,13 @@ function onFix(pos: GeolocationPosition): void {
   signalLost = false;
   lastFix = p;
   lastKnownPos = p;
-  lastAccuracy = pos.coords.accuracy;
   if (!gpsMarker) {
-    gpsMarker = L.marker(p, { icon: gpsIcon }).addTo(map);
-    // Tap your own dot for the grid reference to read out to mountain rescue.
-    // Built lazily on open (from the latest fix) rather than rebuilt every
-    // second, which is wasted work you never see unless the popup is showing.
-    gpsMarker.bindPopup(() =>
-      `<div class="mapPop">${lastFix ? positionText(lastFix) : ''}<br>
-       <span class="sub">±${Math.round(lastAccuracy)} m</span></div>`
-    );
+    // Taps go straight through the dot to the map. Where you are standing is
+    // exactly where you want a planned route to start, so a tap there while
+    // planning has to add a waypoint rather than land on a marker; and a
+    // long-press on it opens the pin card like anywhere else, which is how you
+    // get a grid reference to read out to mountain rescue.
+    gpsMarker = L.marker(p, { icon: gpsIcon, interactive: false }).addTo(map);
     accCircle = L.circle(p, {
       radius: pos.coords.accuracy,
       color: '#1a73e8',

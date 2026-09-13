@@ -58,8 +58,6 @@ describe('loadSettings', () => {
   it('gives a fresh install its defaults', () => {
     const s = loadSettings();
     expect(s.baseLayer).toBe('freemap');
-    expect(s.overlayLayer).toBe('');
-    expect(s.overlayOpacity).toBe(0.5);
     expect(s.profile).toBe('hiking-beta');
     expect(s.speedKmh).toBe(4);
     expect(s.tfKey).toBe('');
@@ -82,6 +80,17 @@ describe('loadSettings', () => {
     expect(s.theme).toBe('dark');
     // Keys the old install never wrote still get their defaults.
     expect(s.profile).toBe('hiking-beta');
+  });
+
+  it('drops the retired overlay settings an old install saved', () => {
+    store.set(SETTINGS_KEY, JSON.stringify({ overlayLayer: 'osm', overlayOpacity: 0.7, speedKmh: 5 }));
+    const s = loadSettings();
+    expect(s).not.toHaveProperty('overlayLayer');
+    expect(s).not.toHaveProperty('overlayOpacity');
+    expect(s.speedKmh).toBe(5);
+    // And they stay gone once the settings are written back.
+    saveSettings(s);
+    expect(JSON.parse(store.get(SETTINGS_KEY)!)).not.toHaveProperty('overlayLayer');
   });
 
   describe('base layer migration', () => {
