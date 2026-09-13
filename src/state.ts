@@ -35,8 +35,6 @@ export interface Settings {
   /** Thunderforest key — the Outdoors base layer. */
   tfKey: string;
   baseLayer: string;
-  overlayLayer: string; // '' = none
-  overlayOpacity: number;
   profile: string;
   /** Average walking speed on the flat, km/h (Naismith time estimate). */
   speedKmh: number;
@@ -97,8 +95,6 @@ function migrate(s: Settings, saved: unknown): Settings {
 export function loadSettings(): Settings {
   const defaults: Settings = {
     baseLayer: 'freemap',
-    overlayLayer: '',
-    overlayOpacity: 0.5,
     profile: knownProfile(null),
     speedKmh: 4,
     tfKey: '',
@@ -108,7 +104,13 @@ export function loadSettings(): Settings {
   };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}');
-    const s: Settings = { ...defaults, ...saved };
+    // The overlay and its opacity were retired: all the base maps are the same
+    // OpenStreetMap data drawn differently, so blending one over another only
+    // muddied it. Old installs still have both saved; leave them behind rather
+    // than carrying them forward on every save.
+    const { overlayLayer: _layer, overlayOpacity: _opacity, ...kept } =
+      saved && typeof saved === 'object' ? saved : {};
+    const s: Settings = { ...defaults, ...kept };
     // Categories can be renamed or dropped between releases, so trust the
     // table over whatever an old install saved.
     s.poiKinds = Array.isArray(s.poiKinds)

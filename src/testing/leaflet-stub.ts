@@ -37,15 +37,8 @@ export interface StubLayer {
   readonly options: Record<string, unknown>;
   /** True between addTo() and remove() — whether it is on the map right now. */
   onMap: boolean;
-  /**
-   * What bindPopup was handed. Call it to read what the popup would say — the
-   * app builds its popups lazily on open, so this is the only way to see the
-   * text without opening one.
-   */
-  popup: (() => string) | null;
   setLatLng(p: StubLatLng): StubLayer;
   setRadius(m: number): StubLayer;
-  bindPopup(content: (() => string) | string): StubLayer;
   addTo(map: StubMap): StubLayer;
   remove(): StubLayer;
   /** Leaflet's own shape, which is what the app reads off a dragged marker. */
@@ -186,7 +179,6 @@ export function createLeafletStub(): LeafletStub {
       radius: typeof options.radius === 'number' ? options.radius : null,
       options,
       onMap: false,
-      popup: null,
       setLatLng(next) {
         self.latlng = next;
         self.track.push(next);
@@ -194,10 +186,6 @@ export function createLeafletStub(): LeafletStub {
       },
       setRadius(m) {
         self.radius = m;
-        return self;
-      },
-      bindPopup(content) {
-        self.popup = typeof content === 'function' ? content : () => content;
         return self;
       },
       addTo() {

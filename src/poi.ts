@@ -15,7 +15,7 @@ type TagMatch = readonly [key: string, value: string];
 /** The shape of a row in the table below; `PoiCategory` is what you get out. */
 interface PoiCategoryShape {
   readonly id: string;
-  /** Singular — the marker popup, the map key, and the name of an unnamed feature. */
+  /** Singular — the map key, and the name of an unnamed feature. */
   readonly label: string;
   /** Plural — the tick list in Settings. */
   readonly plural: string;

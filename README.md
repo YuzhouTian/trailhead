@@ -26,14 +26,15 @@ handle at its top edge downwards.
 
 | Tab | What's in it |
 | --- | --- |
-| **Map** | Sheet: base layer, the map key, the overlay + opacity slider, and "What's nearby" |
+| **Map** | Sheet: base layer, the map key, and "What's nearby" |
 | **Saved** | Sheet: your routes and pins; import GPX, scan a route QR, paste a shared link |
 | **Plan** | No sheet — it turns the map into the route planner (tap points to draw a line) |
 | **Settings** | Sheet: appearance, Thunderforest key, routing profile, walking speed, nearby categories, offline map usage, build version |
 
 When a route is loaded, a card floats just above the tabs with its name, stats, what's left
 of it, and buttons to open the elevation profile or cache its tiles. A long-press anywhere
-on the map opens a similar card for that spot.
+on the map opens a similar card for that spot, and so does tapping a search result or a
+nearby point.
 
 ## Features
 
@@ -57,7 +58,7 @@ on the map opens a similar card for that spot.
 - **Naismith time estimates** — your flat-ground pace plus an hour per 600 m of climb. Set
   your speed in Settings (default 4 km/h) and every estimate in the app follows it.
 - **GPX import/export** — import a track from any other app (Saved → Import GPX file); export
-  any saved route with the GPX button on its row.
+  any saved route from its Share sheet (Saved → Share → Export GPX file).
 - Routing needs signal. If the router is unreachable the plan falls back to a dashed
   straight-line route rather than failing.
 
@@ -88,8 +89,10 @@ on the map opens a similar card for that spot.
 
 ### Knowing where you are
 
-- **Grid reference popups** — long-press anywhere (or tap your own GPS dot) for an OS grid
-  reference, decimal lat/lng, ground height and accuracy. This is the mountain-rescue case:
+- **What's-here card** — long-press anywhere (your own GPS dot included) for an OS grid
+  reference, decimal lat/lng, ground height, and distance and bearing from you. Tapping a
+  search result or a nearby point opens the same card, already named, so you can save it or
+  get directions to it. This is the mountain-rescue case:
   something to read out over the phone when you need to say exactly where you are. Grid refs
   are computed on-device (`src/osgb.ts`, WGS84 → OSGB36 via a Helmert transform), so they
   work with no signal.
@@ -101,8 +104,10 @@ on the map opens a similar card for that spot.
   the Chilterns summit beats the four Coombe Hill Roads that happen to be closer. Rows read
   "Summit · 260 m · Buckinghamshire · 52 km away": what it is, how high, where, how far.
 - **Saved pins** — drop a pin, name it, tag it (summit / viewpoint / water / camp / parking /
-  other) and it's kept with its grid ref and height. Any pin can be copied as text or shared
-  as a link. Cards show distance and compass bearing from you.
+  other) and it's kept with its grid ref and height. **Share** — on the card, or on the pin's
+  row in Saved — opens the phone's share sheet with the place written out and a link that
+  opens it in Trailhead (or copies both where there is no share sheet). Cards show distance
+  and compass bearing from you.
 - **What's nearby** (Map tab) — hiking points around the visible map, from OpenStreetMap via
   Overpass. Fifteen categories to choose from — summits, trig points, viewpoints, water,
   waterfalls, shelters and bothies, campsites, pubs and cafés, toilets, parking, public
@@ -117,7 +122,6 @@ on the map opens a similar card for that spot.
   only layer that draws individual gates and stiles) and *Outdoors* from Thunderforest
   (hiking cartography, trails graded by difficulty — needs a
   [free key](#outdoors-layer-optional)).
-- **Overlay** — either layer can be drawn over the other with an opacity slider.
 - **Map key** — a per-layer legend grouped by the question you're actually asking: can I walk
   it, can I get through, what's the ground like, where's the water. It also says what each
   layer *cannot* show, which matters as much.
@@ -128,7 +132,7 @@ on the map opens a similar card for that spot.
 
 ### Sharing and offline
 
-- **Route sharing** — every saved route makes a link and a QR code. Planned routes travel as
+- **Route sharing** — every saved route makes a link, a QR code and a GPX file. Planned routes travel as
   their waypoints (a few hundred bytes; the receiver re-routes them), imported tracks as a
   simplified track. Opening the link saves and loads the route.
 - **In-app QR scanning** — Saved → Scan route QR uses the camera to read a route QR straight
@@ -253,7 +257,7 @@ and the marker comes off in the same commit.
 | File | What lives there |
 | --- | --- |
 | `src/main.ts` | The wiring: starts everything up and connects the pieces below to each other |
-| `src/map/` | The Leaflet map itself: tile layers, the overlay, the viewport quirks |
+| `src/map/` | The Leaflet map itself: tile layers, the viewport quirks |
 | `src/features/` | One file per thing the app does: tracking, planner, pins, search, offline, sharing, QR |
 | `src/ui/` | The screen furniture: the bottom sheet and its panels, the route card, shared helpers |
 | `src/config.ts` | Base layers, BRouter profiles, and the tuning constants (off-route thresholds, offline zooms and caps) |
@@ -298,7 +302,7 @@ ones, so the app's cache never holds more than two builds.
   4000 tiles per go to stay within OSM's tile usage policy.
 - Overpass ("What's nearby") is a shared free service that regularly rate-limits or times
   out. The app tries several mirrors; if they're all busy, try again in a minute.
-- Grid references only exist for Great Britain. Elsewhere, cards and popups show decimal
+- Grid references only exist for Great Britain. Elsewhere, cards and lists show decimal
   lat/lng instead.
 - Storage is per-browser. The home-screen app and Safari keep separate copies, which is why
   shared routes need the clipboard hand-off rather than just opening.

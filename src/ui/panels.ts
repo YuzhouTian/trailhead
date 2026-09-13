@@ -1,5 +1,5 @@
-// The bottom sheet and the three things that fill it: Map (base layer, nearby,
-// overlay), Settings (theme, key, routing, pace, nearby categories) and Routes
+// The bottom sheet and the three things that fill it: Map (base layer, map key,
+// nearby), Settings (theme, key, routing, pace, nearby categories) and Routes
 // (your saved routes and pins, and the ways of getting more in).
 //
 // This is the last module out of main.ts and the most cross-cutting by nature:
@@ -13,7 +13,7 @@
 // is wired once in initPanels(), because it outlives any one panel.
 
 import { BASE_LAYERS, BROUTER_PROFILES } from '../config';
-import { catMeta, deletePin, getPins, hidePinCard, openSavedPin } from '../features/pins';
+import { catMeta, deletePin, getPins, hidePinCard, openSavedPin, sharePin } from '../features/pins';
 import { endPlanning, updatePlanStats } from '../features/planner';
 import { startQrScan } from '../features/qr';
 import {
@@ -27,12 +27,11 @@ import { openSharePanel, pasteSharedRoute } from '../features/sharing';
 import { clearOfflineTiles, formatBytes, offlineUsage } from '../features/storage';
 import { pauseFollow } from '../features/tracking';
 import { formatDistance } from '../geo';
-import { toGpx } from '../gpx';
 import { legendHtml } from '../legend';
-import { applyLayers, map, setOverlayOpacity } from '../map/map';
+import { applyLayers, map } from '../map/map';
 import { DEFAULT_POI_KINDS, POI_CATEGORIES } from '../poi';
 import { saveSettings, type SavedRoute, type Settings } from '../state';
-import { $, downloadFile, hideToast, svgUse, toast } from './dom';
+import { $, hideToast, svgUse, toast } from './dom';
 import { gridText } from './format';
 import { climbText, updateRouteCard } from './routeCard';
 import { initSheetDrag } from './sheet';
@@ -112,9 +111,6 @@ export function openMapPanel(): void {
       }${l.blurb ? `<span class="keyNote">${l.blurb}</span>` : ''}</label>
     </div>`
   ).join('');
-  const overlayOpts = ['<option value="">None</option>']
-    .concat(BASE_LAYERS.map((l) => `<option value="${l.id}" ${settings.overlayLayer === l.id ? 'selected' : ''}>${l.name}</option>`))
-    .join('');
   showPanel(`
     <h4 class="secTitle">Base map</h4>
     <div class="cells">${baseRows}</div>
@@ -130,13 +126,6 @@ export function openMapPanel(): void {
     <button id="poiBtn" class="wide" ${
       settings.poiKinds.length ? '' : 'disabled'
     }>${nearbyShown() ? 'Hide nearby points' : "What's nearby"}</button>
-    <h4 class="secTitle">Overlay</h4>
-    <select id="overlaySel">${overlayOpts}</select>
-    <div class="cells">
-      <div class="row"><label>Opacity</label>
-        <input type="range" id="overlayOp" min="0.1" max="0.9" step="0.1" value="${settings.overlayOpacity}"/>
-      </div>
-    </div>
   `, 'Map');
 
   BASE_LAYERS.forEach((l) => {
@@ -144,15 +133,6 @@ export function openMapPanel(): void {
       settings.baseLayer = l.id;
       applyLayers();
     });
-  });
-  $('overlaySel').addEventListener('change', (e) => {
-    settings.overlayLayer = (e.target as HTMLSelectElement).value;
-    applyLayers();
-  });
-  $('overlayOp').addEventListener('input', (e) => {
-    settings.overlayOpacity = parseFloat((e.target as HTMLInputElement).value);
-    setOverlayOpacity(settings.overlayOpacity);
-    saveSettings(settings);
   });
   $('keyBtn').addEventListener('click', () =>
     showPanel(legendHtml(settings.baseLayer, settings.poiKinds))
@@ -327,7 +307,6 @@ export function openRoutesPanel(): void {
         <div class="rowActs">
           <button data-act="load">Load</button>
           <button data-act="share" class="secondary">Share</button>
-          <button data-act="gpx" class="secondary">GPX</button>
           <button data-act="del" class="danger" aria-label="Delete route" title="Delete route">${svgUse('i-trash')}</button>
         </div>
       </div>`
@@ -349,6 +328,7 @@ export function openRoutesPanel(): void {
         </div>
         <div class="rowActs">
           <button data-pact="go">Go</button>
+          <button data-pact="share" class="secondary">Share</button>
           <button data-pact="del" class="danger" aria-label="Delete pin" title="Delete pin">${svgUse('i-trash')}</button>
         </div>
       </div>`
@@ -379,6 +359,8 @@ export function openRoutesPanel(): void {
         pauseFollow(); // the pin is the point of the tap; don't let a fix drag us off it
         map.setView([pin.lat, pin.lng], Math.max(map.getZoom(), 15));
         openSavedPin(pin.id);
+      } else if (btn.dataset.pact === 'share') {
+        void sharePin(pin);
       } else if (deletePin(pin.id)) {
         openRoutesPanel(); // redraw the list without it
       }
@@ -398,8 +380,6 @@ export function openRoutesPanel(): void {
         hidePanel();
       } else if (act === 'share') {
         openSharePanel(r);
-      } else if (act === 'gpx') {
-        downloadFile(`${r.name}.gpx`, toGpx(r.name, r.coords), 'application/gpx+xml');
       } else if (act === 'del' && deleteRoute(r)) {
         openRoutesPanel(); // redraw the list without it
       }

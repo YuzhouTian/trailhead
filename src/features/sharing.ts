@@ -1,6 +1,7 @@
 // Sending a route to someone else, and receiving one. Both ends of the #r=
-// link: openSharePanel() writes one as a QR code and a copyable URL,
-// importSharedRoute() and pasteSharedRoute() read one back.
+// link: openSharePanel() writes one as a QR code and a copyable URL, beside a
+// GPX file of the same route; importSharedRoute() and pasteSharedRoute() read
+// one back.
 //
 // A share carries either waypoints (compact, and re-routed on arrival so it
 // follows the receiver's own paths) or raw coordinates. importParsed() is where
@@ -19,6 +20,7 @@
 import qrcode from 'qrcode-generator';
 import { knownProfile } from '../config';
 import { computeClimbs, formatDistance, haversine } from '../geo';
+import { toGpx } from '../gpx';
 import { routeMixed } from '../routing';
 import {
   buildShareUrl,
@@ -27,7 +29,7 @@ import {
   type ParsedShare
 } from '../share';
 import { type SavedRoute, type Settings } from '../state';
-import { $, hideToast, toast } from '../ui/dom';
+import { $, downloadFile, hideToast, toast } from '../ui/dom';
 
 /** Below about three screen pixels a camera can no longer resolve one module,
     and the code is decoration. The share panel is only ~292px wide, so a dense
@@ -226,7 +228,7 @@ function openQrFullscreen(qr: QrCode): void {
   document.body.appendChild(el);
 }
 
-/** The share sheet for a saved route: a QR to scan, and a link to copy. */
+/** The share sheet for a saved route: a QR to scan, a link to copy, a GPX file to export. */
 export function openSharePanel(r: SavedRoute): void {
   const url = buildShareUrl(r, settings.profile);
   let qr: QrCode | null = null;
@@ -244,9 +246,10 @@ export function openSharePanel(r: SavedRoute): void {
     ${
       qr
         ? '<div class="qrBox" id="qrBox"></div>'
-        : '<p class="hint">Route too detailed for a QR code — use the link instead.</p>'
+        : '<p class="hint">Route too detailed for a QR code — use the link or the GPX file instead.</p>'
     }
     <button id="copyLink" class="wide">Copy link</button>
+    <button id="exportGpx" class="secondary wide">Export GPX file</button>
   `);
   // Sized from the box's real width rather than a number copied out of the
   // stylesheet, so it stays right on any viewport — and never wider than the
@@ -280,6 +283,11 @@ export function openSharePanel(r: SavedRoute): void {
       prompt('Copy the link:', url);
     }
   });
+  // The file carries the whole line however long it is, so it is also the way
+  // out for a route too detailed for a QR code.
+  $('exportGpx').addEventListener('click', () =>
+    downloadFile(`${r.name}.gpx`, toGpx(r.name, r.coords), 'application/gpx+xml')
+  );
 }
 
 // ---------------------------------------------------------------- wiring

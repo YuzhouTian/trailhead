@@ -1,7 +1,7 @@
 // Saved pins: the places you drop on the map and keep. A long-press opens the
 // "what's here" card — grid ref, height, how far away it is — and naming it
-// saves it; tapping a saved pin's marker opens it again to copy, share or
-// delete.
+// saves it; tapping a saved pin's marker opens it again to share or delete it.
+// A search hit or a nearby point opens the same card, with its name filled in.
 //
 // Almost self-contained. It reads where you are through tracking's accessors
 // rather than owning any GPS state of its own, and asks the planner whether a
@@ -23,6 +23,16 @@ import { formatGridRef } from '../osgb';
 import { loadPins, savePins, type Pin, type PinCategory } from '../state';
 import { $, svgUse, toast } from '../ui/dom';
 import { gridText } from '../ui/format';
+
+/**
+ * The class on a place marker — a saved pin, a search pin, a nearby point —
+ * that lets a tap fall through it to the map while planning (see style.css).
+ * A marker catches its taps, and while you are drawing a route, a tap on a
+ * summit means "go via here", not "tell me about it"; the card is hidden while
+ * planning anyway. The plan's own waypoint markers don't carry it: those are
+ * dragged.
+ */
+export const PLAN_PASS_THROUGH = 'planPassThrough';
 
 /** How long a long-press keeps swallowing clicks — see flagOpened(). */
 const JUST_OPENED_MS = 350;
@@ -81,7 +91,7 @@ function renderPinMarkers(): void {
   for (const pin of getPins()) {
     const m = L.marker([pin.lat, pin.lng], {
       icon: L.divIcon({
-        className: '',
+        className: PLAN_PASS_THROUGH,
         html: `<div class="savedPin">${svgUse(catMeta(pin.category).icon)}</div>`,
         iconSize: [28, 28],
         iconAnchor: [14, 14]
@@ -154,9 +164,19 @@ function hydrateDistance(card: HTMLElement, lat: number, lng: number): void {
   );
 }
 
-// ---------------------------------------------------------------- copy / share
+// ---------------------------------------------------------------- share
 
-async function copyPin(p: { name?: string; lat: number; lng: number; ele?: number | null }): Promise<void> {
+/**
+ * Share a place through the phone's share sheet: the place written out (name,
+ * grid ref, lat/lng, height) for whoever reads it without the app, and a #p=
+ * link that opens it in Trailhead for whoever has it.
+ *
+ * With no share sheet, or one that fails for any reason other than you backing
+ * out of it, both go on the clipboard instead, with prompt() as the last
+ * resort. `name` is optional because a spot you have only just long-pressed
+ * may not have one yet; the link then carries the grid reference.
+ */
+export async function sharePin(p: { name?: string; lat: number; lng: number; ele?: number | null }): Promise<void> {
   const grid = formatGridRef(p.lat, p.lng, 4);
   const lines = [];
   if (p.name) lines.push(p.name);
@@ -164,21 +184,23 @@ async function copyPin(p: { name?: string; lat: number; lng: number; ele?: numbe
   lines.push(`${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}`);
   if (typeof p.ele === 'number') lines.push(`${Math.round(p.ele)} m`);
   const text = lines.join('\n');
+  const label = p.name || gridText(p.lat, p.lng);
+  const url = `${location.origin}${location.pathname}#p=${p.lat.toFixed(5)},${p.lng.toFixed(5)},${encodeURIComponent(label)}`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: label, text, url });
+      return;
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return; // you closed the sheet
+    }
+  }
+  const both = `${text}\n${url}`;
   try {
-    await navigator.clipboard.writeText(text);
+    await navigator.clipboard.writeText(both);
     toast('Copied');
   } catch {
-    prompt('Copy:', text);
-  }
-}
-
-async function sharePin(p: Pin): Promise<void> {
-  const url = `${location.origin}${location.pathname}#p=${p.lat.toFixed(5)},${p.lng.toFixed(5)},${encodeURIComponent(p.name)}`;
-  try {
-    await navigator.clipboard.writeText(url);
-    toast('Pin link copied');
-  } catch {
-    prompt('Copy the link:', url);
+    prompt('Copy:', both);
   }
 }
 
@@ -250,22 +272,44 @@ function flagOpened(): void {
   setTimeout(() => { pinCardJustOpened = false; }, JUST_OPENED_MS);
 }
 
+/** What a caller already knows about a place, to start its card with. */
+export interface NewPinOptions {
+  /** Put in the name box: a search hit's name, a mapped feature's, a shared pin's. */
+  name?: string;
+  /** The chip lit to begin with; "Other" if not given. */
+  category?: PinCategory;
+  /** A height already known (OpenStreetMap's), so there is nothing to look up. */
+  ele?: number;
+  /**
+   * Whether to drop the red pin. Off for a place that already has a marker of
+   * its own — the search pin, a nearby point's disc — which a second pin on top
+   * would only hide.
+   */
+  marker?: boolean;
+}
+
 /** The card for a fresh point: identify, name, tag, and save it. */
-export function openNewPin(lat: number, lng: number): void {
+export function openNewPin(lat: number, lng: number, opts: NewPinOptions = {}): void {
   hidePinCard();
   flagOpened();
   cardPoint = [lat, lng];
-  dropMarker = L.marker([lat, lng], {
-    icon: L.divIcon({
-      className: '',
-      html: `<div class="dropPin">${svgUse('i-pin')}</div>`,
-      iconSize: [32, 32],
-      iconAnchor: [16, 32]
-    })
-  }).addTo(map);
+  if (opts.marker !== false) {
+    dropMarker = L.marker([lat, lng], {
+      icon: L.divIcon({
+        className: '',
+        html: `<div class="dropPin">${svgUse('i-pin')}</div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 32]
+      })
+    }).addTo(map);
+  }
 
-  let category: PinCategory = 'other';
-  let ele: number | null | undefined; // undefined = still loading
+  let category: PinCategory = opts.category ?? 'other';
+  let ele: number | null | undefined = opts.ele; // undefined = still loading
+  const eleHtml =
+    typeof ele === 'number'
+      ? `<span class="pc-fact">${svgUse('i-ele')}${Math.round(ele)} m</span>`
+      : `<span class="pc-fact loading" id="pcEle">${svgUse('i-ele')}…</span>`;
 
   const chips = PIN_CATS.map(
     (c) => `<button class="pc-chip${c.id === category ? ' on' : ''}" data-cat="${c.id}">${svgUse(c.icon)}${c.label}</button>`
@@ -276,21 +320,23 @@ export function openNewPin(lat: number, lng: number): void {
     <p class="pc-eyebrow">What's here</p>
     <div class="pc-grid">${gridText(lat, lng)}</div>
     <div class="pc-ll">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
-    <div class="pc-facts"><span class="pc-fact loading" id="pcEle">${svgUse('i-ele')}…</span>${distFactHtml(lat, lng)}</div>
+    <div class="pc-facts">${eleHtml}${distFactHtml(lat, lng)}</div>
     <div class="pc-sep"></div>
     <input class="pc-name" id="pcName" placeholder="Name this spot" autocomplete="off" />
     <div class="pc-chips">${chips}</div>
     ${directionsRow('pcDirections', false)}
     <div class="pc-actions">
       <button class="pc-primary" id="pcSave">${svgUse('i-save')}Save pin</button>
-      <button class="pc-neutral" id="pcCopy">${svgUse('i-copy')}Copy</button>
+      <button class="pc-neutral" id="pcShare">${svgUse('i-share')}Share</button>
     </div>`;
   card.classList.remove('hidden');
+  const nameEl = $<HTMLInputElement>('pcName');
+  if (opts.name) nameEl.value = opts.name;
 
   // Routing to a spot shouldn't make you name it first — but if you have
   // started to, that name is better than the grid reference.
   wireDirections('pcDirections', () => ({
-    name: ($('pcName') as HTMLInputElement).value.trim() || gridText(lat, lng),
+    name: nameEl.value.trim() || gridText(lat, lng),
     lat,
     lng
   }));
@@ -302,9 +348,11 @@ export function openNewPin(lat: number, lng: number): void {
       card.querySelectorAll('.pc-chip').forEach((x) => x.classList.toggle('on', x === b));
     })
   );
-  $('pcCopy').addEventListener('click', () => copyPin({ lat, lng, ele: ele ?? null }));
+  $('pcShare').addEventListener('click', () =>
+    sharePin({ name: nameEl.value.trim(), lat, lng, ele: ele ?? null })
+  );
   $('pcSave').addEventListener('click', () => {
-    const name = ($('pcName') as HTMLInputElement).value.trim() || catMeta(category).label;
+    const name = nameEl.value.trim() || catMeta(category).label;
     const pin: Pin = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       name, category, lat, lng, ele: ele ?? null, createdAt: Date.now()
@@ -323,10 +371,11 @@ export function openNewPin(lat: number, lng: number): void {
   hydrateDistance(card, lat, lng);
 
   const eleEl = card.querySelector<HTMLElement>('#pcEle');
+  if (!eleEl) return; // the place came with its height
   eleAbort = new AbortController();
   fetchElevation(lat, lng, eleAbort.signal).then((m) => {
     ele = m;
-    if (!eleEl || !eleEl.isConnected) return;
+    if (!eleEl.isConnected) return;
     if (typeof m === 'number') {
       eleEl.classList.remove('loading');
       eleEl.innerHTML = `${svgUse('i-ele')}${Math.round(m)} m`;
@@ -355,7 +404,6 @@ export function openSavedPin(id: string): void {
     <div class="pc-facts">${eleHtml}${distFactHtml(pin.lat, pin.lng)}</div>
     ${directionsRow('pcDirections', true)}
     <div class="pc-actions">
-      <button class="pc-neutral" id="pcCopy">${svgUse('i-copy')}Copy</button>
       <button class="pc-neutral" id="pcShare">${svgUse('i-share')}Share</button>
       <button class="pc-danger" id="pcDel" aria-label="Delete pin">${svgUse('i-trash')}</button>
     </div>`;
@@ -365,7 +413,6 @@ export function openSavedPin(id: string): void {
   hydrateDistance(card, pin.lat, pin.lng);
 
   card.querySelector('.pc-close')!.addEventListener('click', hidePinCard);
-  $('pcCopy').addEventListener('click', () => copyPin(pin));
   $('pcShare').addEventListener('click', () => sharePin(pin));
   $('pcDel').addEventListener('click', () => {
     if (!deletePin(pin.id)) return;
@@ -384,9 +431,7 @@ export function openSharedPin(): boolean {
   history.replaceState(null, '', location.pathname + location.search);
   pauseFollow(); // a shared pin is somewhere else by definition
   map.setView([lat, lng], Math.max(map.getZoom(), 15));
-  openNewPin(lat, lng);
-  const nameEl = document.getElementById('pcName') as HTMLInputElement | null;
-  if (nameEl && m[3]) nameEl.value = decodeURIComponent(m[3]);
+  openNewPin(lat, lng, { name: m[3] ? decodeURIComponent(m[3]) : undefined });
   return true;
 }
 
