@@ -391,17 +391,14 @@ describe('the dot', () => {
     expect(t.accuracy?.radius).toBe(6);
   });
 
-  it('reads out the latest position when tapped, not the one it was built at', async () => {
-    // The popup is built lazily on open for exactly this reason — a grid ref
-    // for where you stood an hour ago is worse than none at all.
+  it('lets taps through to the map underneath', async () => {
+    // Where you stand is where a planned route starts, so a tap on your own dot
+    // has to reach the map and add a waypoint, not stop at the marker. The grid
+    // reference for mountain rescue comes from a long-press there instead.
     const t = await boot();
     t.gps.fix(START, 5);
-    const first = t.dot?.popup?.();
-    t.gps.fix(TARN, 5);
-    const later = t.dot?.popup?.();
-    expect(first).toBeTruthy();
-    expect(later).not.toBe(first);
-    expect(later).toContain('±5 m');
+    expect(t.dot?.options.interactive).toBe(false);
+    expect(t.accuracy?.options.interactive).toBe(false);
   });
 });
 

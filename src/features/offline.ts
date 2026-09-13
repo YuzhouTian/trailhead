@@ -74,8 +74,7 @@ export function initOffline(opts: {
     if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) {
       return toast('Offline caching only works in the installed (built) app', 5000);
     }
-    const defs = [layerDef(settings.baseLayer), settings.overlayLayer ? layerDef(settings.overlayLayer) : undefined]
-      .filter(usable);
+    const defs = [layerDef(settings.baseLayer)].filter(usable);
     // Carry each layer's CORS support alongside its URLs: how the tile is
     // fetched, and whether the result can be checked, differ per layer.
     let urls = defs.flatMap((d) =>

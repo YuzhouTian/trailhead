@@ -63,7 +63,6 @@ let settings: Settings;
 // ---------------------------------------------------------------- tile layers
 
 let baseTiles: L.TileLayer | null = null;
-let overlayTiles: L.TileLayer | null = null;
 
 export function layerDef(id: string): BaseLayerDef | undefined {
   return BASE_LAYERS.find((l) => l.id === id);
@@ -150,21 +149,7 @@ export function applyLayers(): void {
     });
   }
 
-  overlayTiles?.remove();
-  overlayTiles = null;
-  const over = settings.overlayLayer ? layerDef(settings.overlayLayer) : undefined;
-  if (usable(over) && over.id !== base.id) {
-    overlayTiles = makeTileLayer(over).addTo(map);
-    overlayTiles.setOpacity(settings.overlayOpacity);
-  } else if (settings.overlayLayer && !layerDef(settings.overlayLayer)) {
-    settings.overlayLayer = ''; // retired layer
-  }
   saveSettings(settings);
-}
-
-/** Live opacity while the Map panel's slider is dragged. */
-export function setOverlayOpacity(opacity: number): void {
-  overlayTiles?.setOpacity(opacity);
 }
 
 // ---------------------------------------------------------------- startup
