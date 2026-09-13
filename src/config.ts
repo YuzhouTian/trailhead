@@ -93,28 +93,44 @@ export interface ProfileDef {
   desc: string;
 }
 
+/**
+ * The first is the default for a fresh install, and what a stored or shared id
+ * that is no longer on this list falls back to (see knownProfile).
+ *
+ * BRouter's Trekking and Shortest profiles were offered here too and are gone:
+ * one is a bicycle profile and the other ignores the ground altogether, and
+ * Plan's Straight option is the honest version of "just get me across".
+ *
+ * Named for the one thing that tells them apart. Tested over Striding Edge and
+ * Crib Goch, both pick the same line wherever the climb can't be avoided, and
+ * both judge a path by its OpenStreetMap difficulty grade: each goes round Crib
+ * Goch (graded alpine) and each takes Striding Edge (graded as a mountain path).
+ * Where they part is a climb that can be walked round — "Save my legs" goes
+ * through Grisedale Hause, Standard goes over the 810 m top — so that is what
+ * the names say, rather than "General" and "Mountain", which suggested a
+ * difference in terrain that isn't there.
+ */
 export const BROUTER_PROFILES: ProfileDef[] = [
   {
-    id: 'hiking-mountain',
-    label: 'Mountain hiking',
-    desc: 'Prefers proper hiking trails and is happy to use steep, rough or exposed mountain paths. Best for fell and mountain walks.'
-  },
-  {
     id: 'hiking-beta',
-    label: 'General hiking',
-    desc: 'Footpaths and easier trails; steers away from technical mountain terrain more than the mountain profile.'
+    label: 'Standard',
+    desc: 'Footpaths and trails by the shorter line, even if it climbs a bit more.'
   },
   {
-    id: 'trekking',
-    label: 'Trekking (bike-style)',
-    desc: "BRouter's bicycle-touring profile. Prefers smoother, cycle-friendly ways and avoids steps — a useful fallback when the hiking profiles refuse to connect two points."
-  },
-  {
-    id: 'shortest',
-    label: 'Shortest',
-    desc: 'The shortest routable way regardless of surface or scenery. Good for comparison, or as a last resort.'
+    // Not BRouter's hiking-mountain but our copy of it that counts the climb
+    // (src/profiles/mountain-hiking.brf, uploaded by src/routing.ts). It keeps
+    // the stock id so installs and share links that already say
+    // hiking-mountain get the fixed version, with nothing to migrate.
+    id: 'hiking-mountain',
+    label: 'Save my legs',
+    desc: 'Walks a little further to avoid climbing — through a pass rather than over a top.'
   }
 ];
+
+/** `id` if it is still a profile the app offers, otherwise the default. */
+export function knownProfile(id: string | undefined | null): string {
+  return BROUTER_PROFILES.find((p) => p.id === id)?.id ?? BROUTER_PROFILES[0].id;
+}
 
 /** Distance (m) from the route line beyond which you count as off-route. */
 export const OFF_ROUTE_THRESHOLD_M = 50;

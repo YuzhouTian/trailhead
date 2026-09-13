@@ -44,10 +44,14 @@ nearby point.
   free [BRouter](https://brouter.de) public server. Waypoints are draggable; Undo and Clear
   are in the plan bar. Distance, climb and a time estimate update as you go. **Done** offers
   to name and save the route; cancelling still leaves it loaded, just unsaved.
-- **Routing profiles** (Settings) — *General hiking* (default; footpaths and easier trails),
-  *Mountain hiking* (happy with steep, rough, exposed paths), *Trekking* (BRouter's bike-touring
-  profile — the useful fallback when the hiking profiles refuse to connect two points), and
-  *Shortest*.
+- **Routing profiles** (Settings) — *Standard* (default; the shorter line, even if it climbs a
+  bit more) and *Save my legs* (walks a little further to go round a climb — through Grisedale
+  Hause rather than over the 810 m top). Both judge a path by its OpenStreetMap difficulty
+  grade, so both go round Crib Goch (graded alpine) and both will take Striding Edge (graded as
+  a mountain path). *Save my legs* is our own copy of BRouter's `hiking-mountain` with one
+  change: it counts the climb, which the stock profile treats as free. The public server doesn't
+  ship our version, so the app uploads `src/profiles/mountain-hiking.brf` once a session and
+  routes with the id the server stores it under.
 - **Per-leg snap toggle** — the magnet in the plan bar turns snapping off, so the next legs
   are drawn as straight lines. That's how you get through a gate, a stile or a field crossing
   that BRouter won't route through. Snapped and freeform legs mix freely in one route.

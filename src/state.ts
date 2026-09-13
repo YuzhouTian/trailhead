@@ -1,4 +1,5 @@
 import type { LatLng } from './geo';
+import { knownProfile } from './config';
 
 export interface SavedRoute {
   id: string;
@@ -91,7 +92,7 @@ function migrate(s: Settings, saved: unknown): Settings {
 export function loadSettings(): Settings {
   const defaults: Settings = {
     baseLayer: 'freemap',
-    profile: 'hiking-beta',
+    profile: knownProfile(null),
     speedKmh: 4,
     tfKey: '',
     theme: 'system',
@@ -111,6 +112,10 @@ export function loadSettings(): Settings {
       ...kept
     } = saved && typeof saved === 'object' ? saved : {};
     const s: Settings = { ...defaults, ...kept };
+    // Routing profiles can be dropped between releases (Trekking and Shortest
+    // have gone), so trust the list over whatever an old install saved: one
+    // still set to a dropped profile routes as Standard.
+    s.profile = knownProfile(s.profile);
     return migrate(s, saved);
   } catch {
     return defaults;

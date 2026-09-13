@@ -18,6 +18,7 @@
 // signal — the one place showing a route to the phone next to you matters. It
 // costs about 8 KB gzipped at startup.
 import qrcode from 'qrcode-generator';
+import { knownProfile } from '../config';
 import { computeClimbs, formatDistance, haversine } from '../geo';
 import { toGpx } from '../gpx';
 import { routeMixed } from '../routing';
@@ -71,7 +72,8 @@ export async function importParsed(parsed: ParsedShare): Promise<void> {
       const res = await routeMixed(
         parsed.waypoints,
         parsed.snaps,
-        parsed.profile || settings.profile
+        // A link from before Trekking and Shortest went routes as Standard.
+        parsed.profile ? knownProfile(parsed.profile) : settings.profile
       );
       r = {
         id: String(Date.now()),
