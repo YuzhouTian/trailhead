@@ -74,12 +74,24 @@ let follow = false;
  */
 let zoomInOnNextFix = false;
 /**
- * Set when the watch has given up: permission refused, or an error we stopped
- * on. The button then reads as a retry rather than as a toggle, because with no
- * off step there has to be a deliberate way back in — otherwise one timeout
- * leaves the app dotless for the rest of the walk.
+ * Set when the watch has given up, which only a refused permission does. The
+ * button then reads as a retry rather than as a toggle, because with no off
+ * step there has to be a deliberate way back in.
  */
 let gpsFailed = false;
+/**
+ * Set by a timeout or an unavailable position, and cleared by the next fix.
+ * Those are a lost signal, not a refusal — under trees, indoors, or a desktop
+ * whose location service is slow to answer — so the watch keeps going and the
+ * dot stays where you last were. Tracked only so a long outage says so once
+ * rather than every thirty seconds.
+ */
+let signalLost = false;
+/** The pending restart after a lost signal, so a retry or a failure can cancel it. */
+let restartTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** How long to wait after a lost signal before asking the device again. */
+const RESTART_MS = 5000;
 /**
  * Best position we know of, whether or not Me is following. Deliberately
  * separate from lastFix: route progress and the on/off-route banner should only
@@ -223,6 +235,7 @@ export function remainingText(): string | null {
 
 function onFix(pos: GeolocationPosition): void {
   const p: LatLng = [pos.coords.latitude, pos.coords.longitude];
+  signalLost = false;
   lastFix = p;
   lastKnownPos = p;
   lastAccuracy = pos.coords.accuracy;
@@ -409,12 +422,52 @@ export function locateAction(state: {
 
 // ---------------------------------------------------------------- the watch's life
 
+/** Ask the device for positions, replacing any watch already running. */
+function openWatch(): void {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = navigator.geolocation.watchPosition(onFix, onWatchError, {
+    enableHighAccuracy: true,
+    maximumAge: 2000,
+    timeout: 30000
+  });
+}
+
+/**
+ * Only a refused permission is final. A timeout or an unavailable position
+ * used to be treated the same way, which took the dot away and left Me doing
+ * nothing visible until a fix came back — on a desktop, whose location answers
+ * slowly, that could be a minute of a map that seemed to have lost you.
+ *
+ * So a lost signal keeps everything the walker had: the dot at the last fix,
+ * following, the banner. The watch is reopened after a pause rather than
+ * trusted to carry on by itself, since browsers disagree on whether a watch
+ * survives its own timeout.
+ */
+function onWatchError(err: GeolocationPositionError): void {
+  if (err.code === 1 /* PERMISSION_DENIED */) {
+    toast(`GPS error: ${err.message} — tap Me to try again`, 5000);
+    failWatch();
+    return;
+  }
+  if (!signalLost) toast('GPS signal lost — still trying', 3500);
+  signalLost = true;
+  if (restartTimer !== null) clearTimeout(restartTimer);
+  restartTimer = setTimeout(() => {
+    restartTimer = null;
+    if (watchId !== null) openWatch();
+  }, RESTART_MS);
+}
+
 /**
  * Give up on GPS: clear the watch, drop the dot, and leave the button reading
- * as a retry. Only errors get here — there is no tap that switches Me off.
+ * as a retry. Only a refused permission gets here — there is no tap that
+ * switches Me off.
  */
 function failWatch(): void {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  if (restartTimer !== null) clearTimeout(restartTimer);
+  restartTimer = null;
+  signalLost = false;
   watchId = null;
   follow = false;
   zoomInOnNextFix = false;
@@ -447,10 +500,7 @@ function startWatch(): boolean {
   follow = true;
   zoomInOnNextFix = true;
   paintLocate();
-  watchId = navigator.geolocation.watchPosition(onFix, (err) => {
-    toast(`GPS error: ${err.message} — tap Me to try again`, 5000);
-    failWatch();
-  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+  openWatch();
   return true;
 }
 
