@@ -1,4 +1,5 @@
 import type { LatLng } from './geo';
+import { knownProfile } from './config';
 import { DEFAULT_POI_KINDS, poiCategories, type PoiKind } from './poi';
 
 export interface SavedRoute {
@@ -98,7 +99,7 @@ export function loadSettings(): Settings {
     baseLayer: 'freemap',
     overlayLayer: '',
     overlayOpacity: 0.5,
-    profile: 'hiking-beta',
+    profile: knownProfile(null),
     speedKmh: 4,
     tfKey: '',
     theme: 'system',
@@ -113,6 +114,9 @@ export function loadSettings(): Settings {
     s.poiKinds = Array.isArray(s.poiKinds)
       ? poiCategories(s.poiKinds).map((c) => c.id)
       : [...DEFAULT_POI_KINDS];
+    // The same for routing profiles: Trekking and Shortest have gone, and an
+    // install still set to one routes as Standard.
+    s.profile = knownProfile(s.profile);
     return migrate(s, saved);
   } catch {
     return defaults;

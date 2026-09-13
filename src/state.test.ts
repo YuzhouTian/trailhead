@@ -84,6 +84,22 @@ describe('loadSettings', () => {
     expect(s.profile).toBe('hiking-beta');
   });
 
+  describe('routing profile', () => {
+    it('moves an install set to a profile that has been dropped onto Standard', () => {
+      for (const gone of ['trekking', 'shortest']) {
+        store.set(SETTINGS_KEY, JSON.stringify({ profile: gone, speedKmh: 5 }));
+        const s = loadSettings();
+        expect(s.profile).toBe('hiking-beta');
+        expect(s.speedKmh).toBe(5);
+      }
+    });
+
+    it('leaves Save my legs where it is', () => {
+      store.set(SETTINGS_KEY, JSON.stringify({ profile: 'hiking-mountain' }));
+      expect(loadSettings().profile).toBe('hiking-mountain');
+    });
+  });
+
   describe('base layer migration', () => {
     it('moves an install still on the old default over to Freemap', () => {
       store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'osm', speedKmh: 5 }));
