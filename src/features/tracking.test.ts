@@ -29,7 +29,7 @@ vi.mock('../ui/routeCard', () => ({ climbText: () => '', updateRouteCard: vi.fn(
 
 import { ARRIVAL_M, OFF_ROUTE_THRESHOLD_M } from '../config';
 import { haversine, type LatLng, type RouteProgress } from '../geo';
-import type { SavedRoute, Settings } from '../state';
+import type { SavedRoute } from '../state';
 import { $ } from '../ui/dom';
 import { bannerFor, locateAction } from './tracking';
 
@@ -302,7 +302,6 @@ async function boot(route: SavedRoute | null = null) {
   /** A hand on the map, which is what tells a walker's zoom from the app's. */
   const hand = (): void => void stub.map.getContainer().dispatchEvent(new Event('touchstart'));
   tracking.initTracking({
-    settings: { speedKmh: 4 } as Settings,
     getActiveRoute: () => route,
     onPosition: () => void positions++
   });

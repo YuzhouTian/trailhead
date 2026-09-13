@@ -53,7 +53,7 @@
 /* ------------------------------------------------------------------ type ramp
    Six steps, and every piece of text picks one — no one-off sizes. The rung a
    thing sits on is decided by "do I read this while walking?", not by what kind
-   of component it happens to live in: the remaining-distance readout outranks
+   of component it happens to live in: the figures on the route card outrank
    anything in Settings, because one is read one-handed on a climb and the other
    is read sitting at home.
 
@@ -77,7 +77,7 @@
   --t-body:    500 14px/20px var(--font-ui); /* secondary text, stats, key rows */
   --t-ui:      600 16px/22px var(--font-ui); /* anything tapped, inputs, names */
   --t-title:   700 18px/24px var(--font-ui); /* card and sheet titles */
-  --t-display: 700 24px/28px var(--font-ui); /* remaining distance while following */
+  --t-display: 700 24px/28px var(--font-ui); /* the top rung; unused since the route card's figures moved into cells */
   --t-mono:    700 22px/26px var(--font-mono);/* the grid reference, read aloud */
 
   --ls-eyebrow: .08em;
@@ -250,7 +250,7 @@ body {
 
 /* How far the bottom-anchored map furniture — the locate button and the scale
    bar — has to lift to clear the active-route card. The card's
-   height changes with the chart, the remaining line and the screen orientation,
+   height changes with the chart, the progress bar and the screen orientation,
    so ui/routeCard.ts measures it and publishes it here; each element adds it to
    its own resting offset. 0 when no card is showing.
    The published value is the card's height plus a fixed margin, which covers
@@ -779,34 +779,36 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
    card publishes --card-lift. */
 :root { --plan-lift: 0px; }
 
-/* Distance, climb and time as three cells — the numbers you plan by, so they
-   get the title rung rather than a line of body text. Tabular so a tap that
-   adds a point changes the digits without shoving the columns about. */
-#planStats {
+/* Distance, climb and time as three cells — the numbers you plan and walk by,
+   so they get the title rung rather than a line of body text. Plan's sheet and
+   the route card share them, so a route reads the same while you draw it and
+   while you follow it. Tabular so a tap that adds a point, or a fix that moves
+   you on, changes the digits without shoving the columns about. */
+.statCells {
   display: flex;
   background: var(--surface-2); border-radius: var(--r-md);
 }
-.planStat {
+.statCell {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column;
   padding: 10px 12px;
 }
-.planStat + .planStat { border-left: 1px solid var(--hairline); }
-.planStat .k { font: var(--t-caption); color: var(--muted); }
-.planStat .v {
+.statCell + .statCell { border-left: 1px solid var(--hairline); }
+.statCell .k { font: var(--t-caption); color: var(--muted); }
+.statCell .v {
   font: var(--t-title); letter-spacing: var(--ls-title);
   font-variant-numeric: tabular-nums;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* min-height holds the cell's height while a sub line is empty (a route under
    a kilometre has no miles line), so the sheet doesn't twitch as you draw. */
-.planStat .s {
+.statCell .s {
   min-height: 16px;
   font: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--muted);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* Nothing routed yet: the dashes are placeholders, not readings. */
-#planSheet.empty .planStat .v { color: var(--muted); }
+#planSheet.empty .statCell .v { color: var(--muted); }
 #planSheet #planHint { margin: 8px 4px 0; }
 #planDraw, #planName { margin-top: 12px; }
 
@@ -861,21 +863,27 @@ body.planning #toast { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar
   z-index: 950;
 }
 #rcHeader { display: flex; align-items: center; gap: 8px; }
-#rcInfo { flex: 1; min-width: 0; }
 #rcName {
+  flex: 1; min-width: 0;
   font: var(--t-ui); font-weight: 700;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* Distance, climb and time, rewritten on every GPS fix. Tabular numerals keep
-   each digit the same width, so the line stops twitching as the numbers tick. */
-#rcStats {
-  font: var(--t-body); font-variant-numeric: tabular-nums; color: var(--ink-2);
+/* Progress drawn rather than written: a bar reads at a glance on a climb,
+   where "41% done" in a line of text had to be found and read. The track is
+   the cells' own grey, so the two read as one set of instruments. */
+#rcProgress { margin-top: 10px; }
+#rcTrack {
+  height: 6px; border-radius: var(--r-pill);
+  background: var(--surface-2); overflow: hidden;
 }
-/* The one number read at arm's length on a climb, so it gets the top rung. */
-#rcRemaining {
-  font: var(--t-display); letter-spacing: var(--ls-display);
-  font-variant-numeric: tabular-nums; color: var(--brand);
+#rcTrackFill { width: 0; height: 100%; border-radius: inherit; background: var(--brand); }
+#rcProgressText {
+  display: flex; justify-content: space-between; gap: 8px;
+  margin-top: 6px;
+  font: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--muted);
+  white-space: nowrap;
 }
+#rcStats { margin-top: 10px; }
 #rcHeader button {
   border: none; background: var(--surface-2); color: var(--ink);
   border-radius: var(--r-sm);

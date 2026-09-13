@@ -18,18 +18,16 @@ import {
   computeClimbs,
   cumulativeDistances,
   formatDistance,
-  formatDuration,
   haversine,
-  naismithHours,
   projectOnPolyline,
   type LatLng,
   type RouteProgress
 } from '../geo';
 import { map } from '../map/map';
-import { type SavedRoute, type Settings } from '../state';
+import { type SavedRoute } from '../state';
 import { $, svgUse, toast } from '../ui/dom';
 import { positionText } from '../ui/format';
-import { climbText, updateRouteCard } from '../ui/routeCard';
+import { updateRouteCard, type WalkProgress } from '../ui/routeCard';
 
 const gpsIcon = L.divIcon({ className: '', html: '<div class="gpsDot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] });
 
@@ -48,9 +46,6 @@ const LOCATE_ICON = { away: svgUse('i-locate'), follow: svgUse('i-locate-on'), h
 // recentre in map/map.ts so both landings sit at the same scale.
 const FOLLOW_ZOOM = 15;
 
-// Owned by the app and shared by reference; only read here (the walking pace
-// for the time estimate).
-let settings: Settings;
 let getActiveRoute: () => SavedRoute | null;
 /** Told about every fix, for anything that shows a distance from you. */
 let onPosition: (() => void) | null = null;
@@ -156,7 +151,7 @@ export function updateBanner(): void {
     return;
   }
   // One projection per fix, seeded with where we were, then shared with the
-  // remaining-distance readout so both stay consistent and continuous.
+  // route card's progress so both stay consistent and continuous.
   const prog = projectOnPolyline(lastFix, activeRoute.coords, routeHint);
   lastProg = prog;
   // Only let a fix near the line move the hint. From miles away the nearest
@@ -246,10 +241,10 @@ function climbsAhead(coords: LatLng[], from: number): { ascentM: number; descent
 }
 
 /**
- * What's left of the active route from the current position: distance,
- * remaining climb, and a time estimate at the user's pace.
+ * How far along the active route you are, for the route card to lay out: the
+ * figures rather than a sentence, since the card shows them in separate cells.
  */
-export function remainingText(): string | null {
+export function walkProgress(): WalkProgress | null {
   const activeRoute = getActiveRoute();
   if (!lastFix || !activeRoute || !lastProg) return null;
   const coords = activeRoute.coords;
@@ -258,17 +253,19 @@ export function remainingText(): string | null {
   // started there is nothing to report but how far off the route is; once it
   // has, hold the last position we believed rather than jumping about.
   const prog = lastProg.offRouteM <= EN_ROUTE_THRESHOLD_M ? lastProg : lastOnRouteProg;
-  if (!prog) return `Not started · ${formatDistance(lastProg.offRouteM)} to the route`;
+  if (!prog) return { started: false, toRouteM: lastProg.offRouteM };
 
-  const total = routeLengthM(coords);
-  const remainingM = Math.max(0, total - prog.alongM);
-
+  const totalM = routeLengthM(coords);
   // Remaining climb and descent: only the part of the profile still ahead.
   const { ascentM, descentM } = climbsAhead(coords, prog.index + 1);
-  const est = naismithHours(remainingM, ascentM, settings.speedKmh);
-
-  const pct = total > 0 ? Math.round((prog.alongM / total) * 100) : 0;
-  return `${formatDistance(remainingM)} to go · ${climbText(ascentM, descentM)} · ~${formatDuration(est)} · ${pct}% done`;
+  return {
+    started: true,
+    walkedM: Math.min(prog.alongM, totalM),
+    totalM,
+    remainingM: Math.max(0, totalM - prog.alongM),
+    ascentM,
+    descentM
+  };
 }
 
 // ---------------------------------------------------------------- the watch
@@ -603,7 +600,6 @@ let handOnMapAt = 0;
  * app rather than to this feature.
  */
 export function initTracking(opts: {
-  settings: Settings;
   getActiveRoute: () => SavedRoute | null;
   /**
    * Called after each fix. Anything that shows a distance from you goes stale
@@ -613,7 +609,6 @@ export function initTracking(opts: {
    */
   onPosition?: () => void;
 }): void {
-  settings = opts.settings;
   getActiveRoute = opts.getActiveRoute;
   onPosition = opts.onPosition ?? null;
 

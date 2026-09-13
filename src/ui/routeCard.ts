@@ -12,7 +12,7 @@
 
 import L from '../leaflet-setup';
 import { moveHere, renderProfile, type Scrub } from '../elevation';
-import { formatDistance, formatDuration, naismithHours, type LatLng } from '../geo';
+import { distanceParts, naismithHours, shortDuration, type LatLng } from '../geo';
 import { map } from '../map/map';
 import { $ } from './dom';
 
@@ -24,14 +24,28 @@ export interface RouteCardSource {
   descentM?: number;
 }
 
+/** How far along the route you are, as tracking measures it from the latest fix. */
+export type WalkProgress =
+  /** There is a fix, but it has never been on the line: how far off it is. */
+  | { started: false; toRouteM: number }
+  | {
+      started: true;
+      walkedM: number;
+      totalM: number;
+      remainingM: number;
+      /** Climb and descent still ahead, not the route's totals. */
+      ascentM: number;
+      descentM: number;
+    };
+
 /** Everything the card draws, gathered by the caller at render time. */
 export interface RouteCardView {
   /** The route-like thing to display, or null to hide the card entirely. */
   src: RouteCardSource | null;
   /** Title line — the route's name. */
   name: string;
-  /** Progress readout, or null when there is nothing believable to say. */
-  remaining: string | null;
+  /** Where you are along it, or null when there is nothing believable to say. */
+  progress: WalkProgress | null;
   /** Metres along the route to mark as "you are here" on the profile, if known. */
   hereM: number | null;
   /** Walking pace for the time estimate. */
@@ -97,7 +111,7 @@ const LIFT_MARGIN = 24;
 /**
  * Publish the active-route card's height so the bottom-anchored map furniture
  * can clear it (see --card-lift in style.css). The card is not a fixed size —
- * it grows with the elevation chart and the remaining line, and reflows on
+ * it grows with the elevation chart and the progress bar, and reflows on
  * rotation — so a hard-coded offset left the scale bar and the locate button
  * buried under a tall card. Measuring is the only thing that tracks all three.
  */
@@ -119,12 +133,8 @@ export function updateRouteCard(): void {
     return;
   }
   card.classList.remove('hidden');
-  $('rcName').textContent = view.name;
-  const est = naismithHours(src.distanceM, src.ascentM, view.speedKmh);
-  $('rcStats').textContent =
-    `${formatDistance(src.distanceM)} · ${climbText(src.ascentM, src.descentM)} · ~${formatDuration(est)}`;
-  $('rcRemaining').textContent = view.remaining ?? '';
-  $('rcRemaining').classList.toggle('hidden', !view.remaining);
+  setText('rcName', view.name);
+  renderStats(src, view.progress, view.speedKmh);
   $('rcChart').classList.toggle('active', chartOpen);
   const chart = $('elevChart');
   if (chartOpen) {
@@ -152,6 +162,63 @@ export function updateRouteCard(): void {
   // No publishCardLift() here: the ResizeObserver in initRouteCard publishes
   // whenever the card's height changes, and a call here on every fix forced a
   // layout to measure a height that had not changed.
+}
+
+/**
+ * Write text only when it differs. The card is redrawn on every fix, and on
+ * most of them no figure on it has moved; an unchanged write still dirties
+ * the layout.
+ */
+function setText(id: string, text: string): void {
+  const el = $(id);
+  if (el.textContent !== text) el.textContent = text;
+}
+
+const metric = (m: number): string => distanceParts(m)[0];
+const upText = (m: number): string => `↑ ${Math.round(m)} m`;
+const downText = (m = 0): string => (Math.round(m) > 0 ? `↓ ${Math.round(m)} m` : '');
+
+function setCell(n: 'Dist' | 'Up' | 'Time', label: string, value: string, sub: string): void {
+  const subId = { Dist: 'rcDistSub', Up: 'rcDown', Time: 'rcTimeSub' }[n];
+  setText(`rc${n}K`, label);
+  setText(`rc${n}`, value);
+  setText(subId, sub);
+}
+
+/**
+ * The progress bar and the three cells. With nothing to measure from they are
+ * the route's totals, exactly as Plan's sheet showed them; once you are on the
+ * line they turn to what is left, and the bar says how far you have come.
+ * Before the walk starts the bar is already there, empty, so the card does not
+ * jump taller at the moment you reach the path.
+ */
+function renderStats(src: RouteCardSource, progress: WalkProgress | null, speedKmh: number): void {
+  const totalHours = naismithHours(src.distanceM, src.ascentM, speedKmh);
+  const walk = progress?.started ? progress : null;
+
+  $('rcProgress').classList.toggle('hidden', !progress);
+  if (progress) {
+    const pct = walk && walk.totalM > 0 ? Math.min(100, Math.round((walk.walkedM / walk.totalM) * 100)) : 0;
+    const fill = $('rcTrackFill');
+    if (fill.style.width !== `${pct}%`) fill.style.width = `${pct}%`;
+    const track = $('rcTrack');
+    if (track.getAttribute('aria-valuenow') !== String(pct)) track.setAttribute('aria-valuenow', String(pct));
+    setText('rcWalked', progress.started ? `${metric(progress.walkedM)} walked` : 'Not started');
+    setText('rcOf', progress.started ? `${pct}% of ${metric(progress.totalM)}` : `${metric(progress.toRouteM)} to the route`);
+  }
+
+  if (walk) {
+    const [km, mi] = distanceParts(walk.remainingM);
+    setCell('Dist', 'To go', km, mi);
+    setCell('Up', 'Climb left', upText(walk.ascentM), downText(walk.descentM));
+    const leftHours = naismithHours(walk.remainingM, walk.ascentM, speedKmh);
+    setCell('Time', 'Time left', shortDuration(leftHours), `of ${shortDuration(totalHours)}`);
+  } else {
+    const [km, mi] = distanceParts(src.distanceM);
+    setCell('Dist', 'Distance', km, mi);
+    setCell('Up', 'Climb', upText(src.ascentM), downText(src.descentM));
+    setCell('Time', 'Time', shortDuration(totalHours), `at ${speedKmh} km/h`);
+  }
 }
 
 /**

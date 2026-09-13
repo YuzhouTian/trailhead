@@ -127,14 +127,22 @@
 
   <div id="routeCard" class="hidden">
     <div id="rcHeader">
-      <div id="rcInfo">
-        <div id="rcName"></div>
-        <div id="rcStats"></div>
-        <div id="rcRemaining" class="hidden"></div>
-      </div>
+      <div id="rcName"></div>
       <button id="rcChart" title="Elevation profile"><svg viewBox="0 0 24 24"><use href="#i-elev"/></svg></button>
       <button id="rcOffline" title="Download tiles for offline use"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg></button>
       <button id="rcClose" title="Hide route" aria-label="Hide route"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
+    </div>
+    <!-- How far along you are: shown once there is a fix to measure from. -->
+    <div id="rcProgress" class="hidden">
+      <div id="rcTrack" role="progressbar" aria-label="Route progress" aria-valuemin="0" aria-valuemax="100"><div id="rcTrackFill"></div></div>
+      <div id="rcProgressText"><span id="rcWalked"></span><span id="rcOf"></span></div>
+    </div>
+    <!-- The same three cells as Plan's sheet: the route's totals, or what is
+         left of it while you walk. -->
+    <div id="rcStats" class="statCells">
+      <div class="statCell"><span class="k" id="rcDistK"></span><span class="v" id="rcDist"></span><span class="s" id="rcDistSub"></span></div>
+      <div class="statCell"><span class="k" id="rcUpK"></span><span class="v" id="rcUp"></span><span class="s" id="rcDown"></span></div>
+      <div class="statCell"><span class="k" id="rcTimeK"></span><span class="v" id="rcTime"></span><span class="s" id="rcTimeSub"></span></div>
     </div>
     <div id="elevChart" class="hidden"></div>
   </div>
@@ -172,10 +180,10 @@
       <span id="planGrab" aria-hidden="true"></span>
       <button id="planClose" class="closeX" aria-label="Close"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
     </div>
-    <div id="planStats">
-      <div class="planStat"><span class="k">Distance</span><span class="v" id="planDist">—</span><span class="s" id="planDistSub"></span></div>
-      <div class="planStat"><span class="k">Climb</span><span class="v" id="planUp">—</span><span class="s" id="planDown"></span></div>
-      <div class="planStat"><span class="k">Time</span><span class="v" id="planTime">—</span><span class="s" id="planPace"></span></div>
+    <div id="planStats" class="statCells">
+      <div class="statCell"><span class="k">Distance</span><span class="v" id="planDist">—</span><span class="s" id="planDistSub"></span></div>
+      <div class="statCell"><span class="k">Climb</span><span class="v" id="planUp">—</span><span class="s" id="planDown"></span></div>
+      <div class="statCell"><span class="k">Time</span><span class="v" id="planTime">—</span><span class="s" id="planPace"></span></div>
     </div>
     <p id="planHint" class="hint" aria-live="polite"></p>
     <!-- Drawing: how the next points join, and the edits. -->
