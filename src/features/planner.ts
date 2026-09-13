@@ -363,8 +363,12 @@ export function initPlanner(opts: {
   hidePanel = opts.hidePanel;
 
   map.on('click', (e: L.LeafletMouseEvent) => {
-    // Not while naming: the route being named should be the one you get.
-    if (planning && !naming) addWaypoint([e.latlng.lat, e.latlng.lng]);
+    // Not while naming: the route being named should be the one you get. Nor
+    // while search results are up: that tap is to put the list away (main.ts
+    // does), not to add a point somewhere you weren't looking. This handler is
+    // wired before main.ts's, so the list is still showing when it runs.
+    const resultsOpen = !$('searchResults').classList.contains('hidden');
+    if (planning && !naming && !resultsOpen) addWaypoint([e.latlng.lat, e.latlng.lng]);
   });
 
   // Four ways out, as for every other sheet: the tab, the close button, a drag

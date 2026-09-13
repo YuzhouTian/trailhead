@@ -36,7 +36,7 @@ vi.mock('../routing', () => ({ routeMixed: vi.fn(async () => null) }));
  */
 const PAGE = (() => {
   const doc = new DOMParser().parseFromString(indexHtml, 'text/html');
-  return ['btnPlan', 'planSheet', 'gpxFile', 'toast']
+  return ['btnPlan', 'planSheet', 'searchResults', 'gpxFile', 'toast']
     .map((id) => doc.getElementById(id)!.outerHTML)
     .join('');
 })();
@@ -181,6 +181,23 @@ describe('endPlanning', () => {
     p.tapMap(54.45, -3.21);
     p.planner.endPlanning();
     p.tapMap(54.47, -3.25); // a tap meant for the map, not the sketch
+    expect(p.sketch).toHaveLength(1);
+  });
+});
+
+describe('search while planning', () => {
+  it('lets a tap put the results away without dropping a point', async () => {
+    // Finding a place and carrying on from it is one job, so the sheet stays
+    // up while you search. The tap that dismisses the list is not a waypoint.
+    const p = await boot();
+    p.tapPlan();
+    p.$('searchResults').classList.remove('hidden');
+    p.tapMap(54.45, -3.21);
+    expect(p.sketch).toHaveLength(0);
+    expect(p.planner.isPlanning()).toBe(true);
+
+    p.$('searchResults').classList.add('hidden'); // what main.ts does on that tap
+    p.tapMap(54.45, -3.21);
     expect(p.sketch).toHaveLength(1);
   });
 });

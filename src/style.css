@@ -374,18 +374,9 @@ body.planning #btnLocate { display: none; }
 #searchResults .hit:last-child { border-bottom: none; }
 #searchResults .hit .n { font: var(--t-ui); }
 #searchResults .hit .d { font: var(--t-caption); color: var(--muted); }
-/* While planning the bar stays where it is, dimmed, so Plan looks like the
-   other three sheets, where it sits under the scrim. Plan has no scrim (the map
-   takes the taps), so the bar carries its own: the same colour, clipped to the
-   pill. The overlay also catches taps, as the scrim would — a tap on a bar that
-   is still showing shouldn't fall through and drop a waypoint under it. */
-body.planning #searchWrap::after {
-  content: '';
-  position: absolute; inset: -1px;
-  border-radius: inherit;
-  background: var(--scrim);
-}
-body.planning #searchResults { display: none; }
+/* No planning rule here, on purpose: search stays lit and live while you plan,
+   like the map. Finding a place and carrying on the route from there is one
+   job, so the sheet stays up while you look (see features/search.ts). */
 
 /* Status banner (on/off route) */
 #statusBanner {
