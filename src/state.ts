@@ -71,6 +71,7 @@ const SETTINGS_KEY = 'trailhead.settings';
 const ROUTES_KEY = 'trailhead.routes';
 const PINS_KEY = 'trailhead.pins';
 const ACTIVE_ROUTE_KEY = 'trailhead.activeRoute';
+const LAST_VIEW_KEY = 'trailhead.lastView';
 
 /**
  * Carry an existing install forward when a default changes.
@@ -156,6 +157,44 @@ export function loadActiveRoute(): SavedRoute | null {
   } catch {
     return null;
   }
+}
+
+/** Where the map was when you last closed the app: centre and zoom. */
+export interface LastView {
+  center: LatLng;
+  zoom: number;
+}
+
+/**
+ * The map view to open on next time. Without it the app opened on a fixed
+ * whole-UK view at zoom 6 and only moved once geolocation answered (up to ten
+ * seconds), so every launch downloaded a screenful of tiles nobody wanted and
+ * then jumped. Reopening where you left off means the first tiles you see are
+ * the right ones.
+ *
+ * Validated hard on read because this is the very first thing startup trusts:
+ * a NaN or an absurd zoom out of a half-written or hand-edited localStorage
+ * would leave Leaflet with a broken map rather than a wrong one, so anything
+ * that isn't two finite numbers and a zoom the layers actually serve (2–20)
+ * is thrown away in favour of the UK fallback.
+ */
+export function loadLastView(): LastView | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(LAST_VIEW_KEY) ?? 'null');
+    if (!v || !Array.isArray(v.center) || v.center.length !== 2) return null;
+    const [lat, lng] = v.center;
+    const ok = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n);
+    if (!ok(lat) || !ok(lng) || !ok(v.zoom)) return null;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    if (v.zoom < 2 || v.zoom > 20) return null;
+    return { center: [lat, lng], zoom: v.zoom };
+  } catch {
+    return null;
+  }
+}
+
+export function saveLastView(v: LastView): void {
+  localStorage.setItem(LAST_VIEW_KEY, JSON.stringify({ center: v.center, zoom: v.zoom }));
 }
 
 export function saveActiveRoute(r: SavedRoute | null): void {

@@ -7,17 +7,34 @@
 import L from '../leaflet-setup';
 import { BASE_LAYERS, FALLBACK_LAYER_ID, crossOriginFor, type BaseLayerDef } from '../config';
 import { type LatLng } from '../geo';
-import { saveSettings, type Settings } from '../state';
+import { loadLastView, saveLastView, saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
 import { toast } from '../ui/dom';
 
-// The map opens on a whole-UK view, then recentres on your actual area on
-// every startup once geolocation resolves. If location is denied, unavailable,
-// or times out, the UK view stays put.
+// Where the map opens when we have never seen you before: the whole of the UK.
+// Only reached on a first run, or after localStorage has been cleared, or when
+// what was stored there was rubbish.
 const UK_FALLBACK_VIEW = { center: [54.5, -3.0] as LatLng, zoom: 6 };
 // Match the "me"/follow zoom (see the locate button in main.ts) so the startup
 // view and locating yourself land at the same scale.
+//
+// Who is allowed to move the map at startup, and why only one of them is:
+// two things ask to at once — this one-shot geolocation call, and the GPS
+// watch that features/tracking.ts starts in follow mode, whose first fix
+// centres you and zooms to 15. Letting both act meant two jumps in the first
+// few seconds. The rule is that the one-shot only moves the map when there is
+// no saved view to open on (a first run, showing the whole UK, where sitting
+// there until the watch answers is the worst of the options). When there *is*
+// a saved view, the map already opens on the right piece of country, so the
+// one-shot only hands the position back and the watch's first fix is the only
+// move. That also covers the "new trip, hundreds of miles from last time"
+// case: the watch recentres regardless of how far away the saved view was.
 const STARTUP_LOCATION_ZOOM = 15;
+
+// The view we opened on, kept so recentreOnStartup knows whether it should
+// move. Read once, before the map exists, because the map itself is what it
+// is used to build.
+const savedView = loadLastView();
 
 export const map = L.map('map', {
   zoomControl: true,
@@ -27,7 +44,10 @@ export const map = L.map('map', {
   rotate: true,
   touchRotate: false,
   rotateControl: false
-}).setView(UK_FALLBACK_VIEW.center, UK_FALLBACK_VIEW.zoom);
+}).setView(
+  savedView?.center ?? UK_FALLBACK_VIEW.center,
+  savedView?.zoom ?? UK_FALLBACK_VIEW.zoom
+);
 
 // Zoom with one finger: double-tap and drag, so you can do it one-handed.
 enableDoubleTapDragZoom(map);
@@ -149,11 +169,40 @@ export function setOverlayOpacity(opacity: number): void {
 
 // ---------------------------------------------------------------- startup
 
+// Following moves the map about once a second while you walk. Wait for it to
+// settle rather than writing to localStorage ~3,600 times an hour.
+const SAVE_VIEW_DEBOUNCE_MS = 500;
+
 /**
- * Recentre on your current location at startup, for the initial tiles. This is
- * deliberately separate from the "me"/follow control — no marker, no accuracy
- * circle, no follow, and it bows out the moment you touch the map so it can't
- * yank you away mid-interaction.
+ * Remember where the map is, so the next launch opens here.
+ *
+ * Saved on every settled move, whoever caused it — your own panning, the
+ * startup recentre, the map following you along a walk. The alternative — a
+ * flag that skips the moves the app made itself — was considered and dropped:
+ * wherever the map ended up is somewhere you were actually looking, and so it
+ * is the right place to reopen on.
+ */
+function rememberView(): void {
+  let timer: number | undefined;
+  map.on('moveend zoomend', () => {
+    clearTimeout(timer);
+    timer = window.setTimeout(() => {
+      const c = map.getCenter();
+      saveLastView({ center: [c.lat, c.lng], zoom: map.getZoom() });
+    }, SAVE_VIEW_DEBOUNCE_MS);
+  });
+}
+
+/**
+ * Recentre on your current location at startup, for the initial tiles — but
+ * only on a launch with no saved view to open on; see STARTUP_LOCATION_ZOOM
+ * for why exactly one thing is allowed to move the map at startup. The
+ * position is handed back either way, because "how far away is that pin" wants
+ * it whether or not the map moved.
+ *
+ * This is deliberately separate from the "me"/follow control — no marker, no
+ * accuracy circle, no follow, and it bows out the moment you touch the map so
+ * it can't yank you away mid-interaction.
  */
 function recentreOnStartup(onPosition: (p: LatLng) => void): void {
   if (!('geolocation' in navigator)) return;
@@ -168,7 +217,7 @@ function recentreOnStartup(onPosition: (p: LatLng) => void): void {
       // Keep the position even when we decline to move the map: a pin dropped
       // before Me is ever switched on can still say how far away it is.
       onPosition([pos.coords.latitude, pos.coords.longitude]);
-      if (userTouchedMap) return;
+      if (userTouchedMap || savedView) return;
       map.setView([pos.coords.latitude, pos.coords.longitude], STARTUP_LOCATION_ZOOM);
     },
     () => { /* denied or unavailable — the UK fallback view stays put */ },
@@ -201,6 +250,7 @@ export function initMap(opts: {
 }): void {
   settings = opts.settings;
   recentreOnStartup(opts.onStartupPosition);
+  rememberView();
   watchViewport();
   applyLayers();
 
