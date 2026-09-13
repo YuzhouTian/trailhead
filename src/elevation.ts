@@ -31,15 +31,72 @@ export interface Scrub {
 }
 
 /**
- * What a chart's pointer handlers share across repaints: whether a finger is
- * down, and how to scrub the SVG that is currently on screen. Keyed by the
- * container because that is the one element that lives longer than a render.
+ * What outlives a single drawing of a chart: whether a finger is down, how to
+ * scrub and mark the SVG that is currently on screen, and what that SVG was
+ * drawn for. Keyed by the container because that is the one element that lives
+ * longer than a render.
  */
 interface LiveChart {
   dragging: boolean;
   scrubAt: (clientX: number) => void;
+  /** Move the "you are here" mark; null takes it away. */
+  setHere: (positionM: number | null) => void;
+  /** The SVG last drawn here, and the route and width it was drawn for. */
+  svg: SVGSVGElement | null;
+  coords: LatLng[] | null;
+  width: number;
 }
 const charts = new WeakMap<HTMLElement, LiveChart>();
+
+/** The width a profile is drawn at in this container. */
+const chartWidth = (container: HTMLElement): number => Math.max(container.clientWidth || 360, 280);
+
+/**
+ * The sample nearest `d` metres along. Samples are in order of distance, so
+ * this halves its way there rather than looking at every one: it runs on every
+ * GPS fix and on every pointer move of a scrub. Ties go to the earlier sample.
+ */
+function nearestSample<T extends { d: number }>(pts: T[], d: number): T {
+  let lo = 0;
+  let hi = pts.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (pts[mid].d < d) lo = mid + 1;
+    else hi = mid;
+  }
+  // lo is the first sample at or past d; the one before it may be nearer.
+  // Several samples can share a distance (a zero-length step), and the first
+  // of them is the one to keep.
+  let i = lo;
+  if (i > 0 && Math.abs(pts[i - 1].d - d) <= Math.abs(pts[i].d - d)) i--;
+  while (i > 0 && pts[i - 1].d === pts[i].d) i--;
+  return pts[i];
+}
+
+/**
+ * Move the "you are here" mark on the profile already drawn in `container`,
+ * without drawing it again. Returns false when there is no such profile to
+ * move it on — nothing drawn there, a different route, a container that has
+ * changed width since, or a chart someone has since cleared or written over —
+ * and the caller draws afresh with renderProfile.
+ *
+ * This is what a GPS fix calls. Redrawing the profile on every fix meant
+ * measuring the whole route, writing thousands of points into a new SVG and
+ * laying it out, once a second, to move one line.
+ */
+export function moveHere(container: HTMLElement, coords: LatLng[], positionM: number | null): boolean {
+  const live = charts.get(container);
+  if (
+    !live ||
+    live.svg?.parentNode !== container ||
+    live.coords !== coords ||
+    live.width !== chartWidth(container)
+  ) {
+    return false;
+  }
+  live.setHere(positionM);
+  return true;
+}
 
 /**
  * Render a distance-vs-elevation profile into the container as SVG, with a
@@ -50,13 +107,14 @@ const charts = new WeakMap<HTMLElement, LiveChart>();
  * The scrubber deliberately stays put when the finger (or the mouse) leaves:
  * the whole point of putting it on the chart is to look at the map afterwards.
  * It is the caller that owns where it sits, by remembering the last `onScrub`
- * and handing it back as `scrubM` — without that the next GPS fix, which
- * repaints this profile from scratch, would silently wipe it.
+ * and handing it back as `scrubM` — without that a redraw (a new width, the
+ * chart closed and opened again) would silently wipe it.
  *
  * `positionM` is how far along the route the walker currently is, in metres —
  * drawn as a "you are here" marker so the profile answers what is still to
  * climb, not just the shape of the whole walk. Pass null when the position
- * isn't known or isn't trusted.
+ * isn't known or isn't trusted. As you walk, move it with moveHere rather than
+ * drawing the profile again.
  */
 export function renderProfile(
   container: HTMLElement,
@@ -86,7 +144,7 @@ export function renderProfile(
   }
   const span = Math.max(maxE - minE, 20);
 
-  const W = Math.max(container.clientWidth || 360, 280);
+  const W = chartWidth(container);
   const H = 120;
   const padL = 38;
   const padR = 10;
@@ -97,20 +155,6 @@ export function renderProfile(
 
   const linePts = pts.map((p) => `${x(p.d).toFixed(1)},${y(p.e).toFixed(1)}`).join(' ');
   const midE = Math.round((minE + maxE) / 2);
-
-  // "You are here" — blue to match the GPS dot on the map, so the two read as
-  // the same thing shown two ways. Sits under the scrubber, which is red.
-  let hereMarkup = '';
-  if (typeof positionM === 'number' && positionM >= 0 && positionM <= dist) {
-    let here = pts[0];
-    for (const p of pts) {
-      if (Math.abs(p.d - positionM) < Math.abs(here.d - positionM)) here = p;
-    }
-    const hx = x(here.d).toFixed(1);
-    hereMarkup =
-      `<line x1="${hx}" y1="${padT}" x2="${hx}" y2="${H - padB}" stroke="#1a73e8" stroke-width="1" stroke-dasharray="3 3"/>` +
-      `<circle cx="${hx}" cy="${y(here.e).toFixed(1)}" r="5" fill="#1a73e8" stroke="#fff" stroke-width="2"/>`;
-  }
 
   // Everything but the "you are here" dot is drawn from theme tokens rather
   // than fixed greys and greens. The chart lives inside the app's own DOM, so
@@ -134,7 +178,10 @@ export function renderProfile(
       <text x="${W - padR}" y="${H - 4}" text-anchor="end" style="${labelStyle}" fill="var(--muted)">${formatDistance(dist)}</text>
       <polygon points="${padL},${y(minE)} ${linePts} ${x(dist).toFixed(1)},${y(minE)}" fill="url(#elevFill)"/>
       <polyline points="${linePts}" fill="none" stroke="var(--brand)" stroke-width="2"/>
-      ${hereMarkup}
+      <g class="here" style="display:none">
+        <line y1="${padT}" y2="${H - padB}" stroke="#1a73e8" stroke-width="1" stroke-dasharray="3 3"/>
+        <circle r="5" fill="#1a73e8" stroke="#fff" stroke-width="2"/>
+      </g>
       <g class="scrub" style="display:none">
         <line y1="${padT}" y2="${H - padB}" stroke="var(--danger)" stroke-width="1"/>
         <circle r="4" fill="var(--danger)"/>
@@ -143,6 +190,28 @@ export function renderProfile(
     </svg>`;
 
   const svg = container.querySelector('svg')!;
+
+  // "You are here" — blue to match the GPS dot on the map, so the two read as
+  // the same thing shown two ways. Sits under the scrubber, which is red. Drawn
+  // hidden and then placed, because it is the one part of the chart that moves
+  // as you walk (see moveHere).
+  const hereMark = svg.querySelector<SVGGElement>('.here')!;
+  const [hereLine, hereDot] = [hereMark.querySelector('line')!, hereMark.querySelector('circle')!];
+  const setHere = (m: number | null): void => {
+    if (typeof m !== 'number' || m < 0 || m > dist) {
+      hereMark.style.display = 'none';
+      return;
+    }
+    const here = nearestSample(pts, m);
+    const hx = x(here.d).toFixed(1);
+    hereLine.setAttribute('x1', hx);
+    hereLine.setAttribute('x2', hx);
+    hereDot.setAttribute('cx', hx);
+    hereDot.setAttribute('cy', y(here.e).toFixed(1));
+    hereMark.style.display = '';
+  };
+  setHere(positionM ?? null);
+
   const scrub = svg.querySelector<SVGGElement>('.scrub')!;
   const [vline, dot, label] = [
     scrub.querySelector('line')!,
@@ -151,8 +220,7 @@ export function renderProfile(
   ];
   /** Draw the scrubber at the sampled point nearest `d` metres along. */
   const place = (d: number): Scrub => {
-    let best = pts[0];
-    for (const p of pts) if (Math.abs(p.d - d) < Math.abs(best.d - d)) best = p;
+    const best = nearestSample(pts, d);
     scrub.style.display = '';
     vline.setAttribute('x1', String(x(best.d)));
     vline.setAttribute('x2', String(x(best.d)));
@@ -186,9 +254,10 @@ export function renderProfile(
   // last was, exactly as it stays where a finger lifted, so `onScrub` keeps its
   // single meaning and the caller persists a hovered position like any other.
   //
-  // The drag itself has to outlive this SVG. On a walk the profile is rebuilt
-  // on every GPS fix — about once a second — and a finger that is mid-drag
-  // when that happens is still down. So the "is a finger pressed" flag and the
+  // The drag itself has to outlive this SVG. The profile is drawn from scratch
+  // whenever its width or its route changes — and, until the "you are here"
+  // mark learned to move in place (moveHere), on every GPS fix — and a finger
+  // that is mid-drag when that happens is still down. So the "is a finger pressed" flag and the
   // current chart's drawing functions live on the container, which survives,
   // not in this closure, which does not. Two things then work that otherwise
   // break: the fresh SVG's handlers see the drag is still on, and the handlers
@@ -202,8 +271,19 @@ export function renderProfile(
     const inner = Math.max(rect.width - padL - padR, 1);
     return Math.max(0, Math.min(dist, ((clientX - rect.left - padL) / inner) * dist));
   };
-  const live = charts.get(container) ?? { dragging: false, scrubAt: () => undefined };
+  const live: LiveChart = charts.get(container) ?? {
+    dragging: false,
+    scrubAt: () => undefined,
+    setHere: () => undefined,
+    svg: null,
+    coords: null,
+    width: 0
+  };
   live.scrubAt = (clientX) => onScrub?.(place(distanceAt(clientX)));
+  live.setHere = setHere;
+  live.svg = svg;
+  live.coords = coords;
+  live.width = W;
   charts.set(container, live);
 
   svg.addEventListener('pointerdown', (e) => {

@@ -11,7 +11,7 @@
 // and dies with the card rather than with any feature.
 
 import L from '../leaflet-setup';
-import { renderProfile, type Scrub } from '../elevation';
+import { moveHere, renderProfile, type Scrub } from '../elevation';
 import { formatDistance, formatDuration, naismithHours, type LatLng } from '../geo';
 import { map } from '../map/map';
 import { $ } from './dom';
@@ -49,14 +49,17 @@ let getView: () => RouteCardView;
 let chartOpen = false;
 let scrubMarker: L.CircleMarker | null = null;
 // Where the chart's scrubber was left, in metres along the route. Held here
-// rather than in the chart because the chart is thrown away and redrawn on
-// every GPS fix, and a marker you have to keep re-placing every few seconds is
-// no use for reading the map.
+// rather than in the chart because the chart is thrown away and redrawn now and
+// then — a turned phone, a new route — and a marker that vanished whenever that
+// happened would be no use for reading the map.
 let scrubM: number | null = null;
 // The coords the chart currently shows. A new route — or an edited plan — is a
 // different walk, so the scrubber from the old one is dropped rather than
 // reappearing at the same distance along something else.
 let scrubCoords: LatLng[] | null = null;
+// The route whose chart came back empty: no elevation to draw. Remembered so a
+// route without heights does not try, and fail, all over again on every fix.
+let noProfileFor: LatLng[] | null = null;
 
 function onProfileScrub(scrub: Scrub | null): void {
   scrubM = scrub?.alongM ?? null;
@@ -111,8 +114,8 @@ export function updateRouteCard(): void {
   const card = $('routeCard');
   if (!src) {
     card.classList.add('hidden');
-    publishCardLift();
-    onProfileScrub(null);
+    publishCardLift(); // hidden, so this measures nothing
+    forgetChart();
     return;
   }
   card.classList.remove('hidden');
@@ -129,17 +132,40 @@ export function updateRouteCard(): void {
     if (scrubCoords && scrubCoords !== src.coords) onProfileScrub(null);
     // Only mark a position we actually believe: hereM is null until a fix lands
     // near the line, so the dot never appears at a guessed place.
-    if (renderProfile(chart, src.coords, onProfileScrub, view.hereM, scrubM)) {
+    //
+    // Most calls are a GPS fix on a chart already drawn for this route, and all
+    // that changes is where you are, so only the mark moves. The full draw is
+    // for a new route, a new width, or a chart just opened.
+    if (noProfileFor === src.coords || moveHere(chart, src.coords, view.hereM)) {
+      // Nothing to draw, or nothing more to draw.
+    } else if (renderProfile(chart, src.coords, onProfileScrub, view.hereM, scrubM)) {
       scrubCoords = src.coords;
     } else {
       chart.innerHTML = '<p class="hint">No elevation data for this route.</p>';
+      noProfileFor = src.coords;
       onProfileScrub(null);
     }
   } else {
     chart.classList.add('hidden');
-    onProfileScrub(null);
+    forgetChart();
   }
-  publishCardLift();
+  // No publishCardLift() here: the ResizeObserver in initRouteCard publishes
+  // whenever the card's height changes, and a call here on every fix forced a
+  // layout to measure a height that had not changed.
+}
+
+/**
+ * Drop the chart and its scrubber together, whenever the chart goes out of
+ * sight — closed, or the card hidden. The scrubber is forgotten either way, so
+ * a chart left in place would come back (the same saved route loaded again, the
+ * profile reopened) still showing a red mark with no dot on the map to match.
+ * Emptied, it is drawn afresh the next time it is shown.
+ */
+function forgetChart(): void {
+  const chart = $('elevChart');
+  if (chart.firstChild) chart.replaceChildren();
+  noProfileFor = null;
+  onProfileScrub(null);
 }
 
 /**

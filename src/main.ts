@@ -35,7 +35,7 @@ import {
   openSettingsPanel,
   showPanel
 } from './ui/panels';
-import { initRouteCard, updateRouteCard } from './ui/routeCard';
+import { initRouteCard } from './ui/routeCard';
 
 // ---------------------------------------------------------------- stored state
 
@@ -111,7 +111,8 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
     if (fit) pauseFollow();
   }
   if (persist) saveActiveRoute(r); // remember it so a hike survives an app reload
-  updateRouteCard();
+  // updateBanner redraws the route card too, with or without a fix — calling
+  // both drew the card twice for every route opened.
   updateBanner();
 }
 

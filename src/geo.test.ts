@@ -226,6 +226,63 @@ describe('projectOnPolyline', () => {
       expect(p.offRouteM).toBeCloseTo(0.0, 0);
     });
   });
+
+  describe('deciding the near-ties in one pass', () => {
+    // The nearest distance is only known once the whole line has been walked,
+    // so anything near the nearest *so far* is kept as a candidate and judged
+    // at the end. These pin down both halves of that.
+    const DEG_LNG_M = DEG_LAT_M * Math.cos((54 * Math.PI) / 180);
+    /** A point `m` metres east of the -3 meridian at `lat`. */
+    const east = (lat: number, m: number): LatLng => [lat, -3 + m / DEG_LNG_M];
+
+    it('drops an early candidate once something much nearer turns up', () => {
+      // North past the walker 40 m to their east, then back south right
+      // through them. The first pass looked close when it was all there was;
+      // 40 m is outside the tie margin of the real nearest, so a hint at the
+      // start must not pull the answer back to it.
+      const line: LatLng[] = [east(53.999, 40), east(54.001, 40), east(54.001, 0), east(53.999, 0)];
+      const p = projectOnPolyline([54, -3], line, 0)!;
+      expect(p.offRouteM).toBeCloseTo(0, 3);
+      expect(p.index).toBe(2);
+    });
+
+    it('keeps an early candidate that stays within the margin', () => {
+      // The same, but the first pass is 10 m off: a genuine near-tie, so a
+      // hint at the start picks it.
+      const line: LatLng[] = [east(53.999, 10), east(54.001, 10), east(54.001, 0), east(53.999, 0)];
+      const p = projectOnPolyline([54, -3], line, 0)!;
+      expect(p.offRouteM).toBeCloseTo(10, 0);
+      expect(p.index).toBe(0);
+    });
+
+    it('copes with far more near-ties than it keeps room for at first', () => {
+      // A 400-leg shuttle over the same 20 m: every segment is a tie, so the
+      // candidate store has to grow well past its starting size.
+      const shuttle: LatLng[] = Array.from({ length: 401 }, (_, i): LatLng => [54 + (i % 2) * 0.00018, -3]);
+      const legM = 0.00018 * DEG_LAT_M;
+      const p = projectOnPolyline([54.00009, -3], shuttle, 300.5 * legM)!;
+      expect(p.index).toBe(300);
+      expect(p.alongM).toBeCloseTo(300.5 * legM, 3);
+    });
+  });
+
+  it('projects a long route in a small fraction of a GPS fix interval', () => {
+    // Runs on every fix, over the whole route. The old shape — a fresh array per
+    // vertex, an object per segment, Math.hypot, two passes — took about 3.4 ms
+    // on this line in node; the rewrite about 0.4 ms. The bound is deliberately
+    // loose, so a slow CI machine never flakes: it is here to catch a return to
+    // the old shape, not to benchmark.
+    const long: LatLng[] = Array.from({ length: 20_000 }, (_, i): LatLng => [
+      54 + i * 0.0001,
+      -3 + 0.0005 * Math.sin(i / 50)
+    ]);
+    const at: LatLng = [54.5, -3];
+    for (let i = 0; i < 5; i++) projectOnPolyline(at, long, 0); // let the JIT settle
+    const runs = 20;
+    const t0 = performance.now();
+    for (let i = 0; i < runs; i++) projectOnPolyline(at, long, 55_000);
+    expect((performance.now() - t0) / runs).toBeLessThan(2.5);
+  });
 });
 
 describe('formatDistance', () => {
@@ -372,6 +429,18 @@ describe('computeClimbs', () => {
 
     it('measures only what is left when sliced from the summit', () => {
       expect(computeClimbs(route.slice(2))).toEqual({ ascentM: 150, descentM: 250 });
+    });
+
+    it('gives the same answer from a starting point as from a slice', () => {
+      // `from` is how the readout asks without copying the route every fix.
+      // Noise-sized wobbles included, since the 5 m rule is where a shortcut
+      // (total minus climbed so far) would part company with the slice.
+      const bumpy: LatLng[] = [100, 103, 99, 110, 107, 112, 90, 94, 88, 120].map(
+        (e, i): LatLng => [54 + i * 0.001, -3, e]
+      );
+      for (let i = 0; i <= bumpy.length; i++) {
+        expect(computeClimbs(bumpy, i)).toEqual(computeClimbs(bumpy.slice(i)));
+      }
     });
 
     it('measures only what is left when sliced from the last point', () => {
