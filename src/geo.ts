@@ -54,60 +54,86 @@ export function projectOnPolyline(
 ): RouteProgress | null {
   if (line.length < 2) return null;
 
-  const cosLat = Math.cos((p[0] * Math.PI) / 180);
-  const toXY = (q: LatLng): [number, number] => [
-    ((q[1] - p[1]) * Math.PI * cosLat * R) / 180,
-    ((q[0] - p[0]) * Math.PI * R) / 180
-  ];
+  // Flat metres east/north of `p`: exact enough at walking scale, and what
+  // makes the per-segment work plain arithmetic.
+  const kx = (Math.PI * Math.cos((p[0] * Math.PI) / 180) * R) / 180;
+  const ky = (Math.PI * R) / 180;
 
-  // Projects `p` onto segment prev-cur; `travelled` is the distance walked
-  // to reach `prev`. Returns the segment's closest distance/along-route/length.
-  const project = (prev: [number, number], cur: [number, number], travelled: number) => {
-    const abx = cur[0] - prev[0];
-    const aby = cur[1] - prev[1];
-    const len = Math.hypot(abx, aby);
-    let t = 0;
-    if (len > 0) {
-      t = Math.max(0, Math.min(1, (-prev[0] * abx - prev[1] * aby) / (len * len)));
-    }
-    const d = Math.hypot(prev[0] + t * abx, prev[1] + t * aby);
-    return { d, along: travelled + t * len, len };
-  };
-
-  // Pass 1: walk every segment once to find the overall nearest distance.
-  // Two passes over cheap arithmetic beats retaining an object per segment
-  // (this runs on every GPS fix, so a route-length array would churn the GC).
+  // One pass, no allocation per vertex. This runs on every GPS fix — about once
+  // a second — over the whole route, and the version that built a small array
+  // per vertex and an object per segment, in two passes, was measurable on a
+  // long route. Scalars in, scalars out.
+  //
+  // The tie rule still needs the nearest distance before it can tell which
+  // points are near-tied with it, and that is not known until the end. So every
+  // segment within TIE_M of the nearest *so far* is noted as a candidate; the
+  // running nearest only ever shrinks, so no segment that ends up within TIE_M
+  // of the true nearest can have been passed over. Usually only a handful
+  // qualify, and the second look is over those alone.
   let minD = Infinity;
+  let count = 0;
   let travelled = 0;
-  let prev = toXY(line[0]);
+  let ax = (line[0][1] - p[1]) * kx;
+  let ay = (line[0][0] - p[0]) * ky;
   for (let i = 1; i < line.length; i++) {
-    const cur = toXY(line[i]);
-    const { d, len } = project(prev, cur, travelled);
+    const bx = (line[i][1] - p[1]) * kx;
+    const by = (line[i][0] - p[0]) * ky;
+    const abx = bx - ax;
+    const aby = by - ay;
+    // sqrt rather than Math.hypot, which is several times slower in V8 and
+    // guards against an overflow that walking-scale metres never come near.
+    const len2 = abx * abx + aby * aby;
+    const len = Math.sqrt(len2);
+    let t = 0;
+    if (len2 > 0) t = Math.max(0, Math.min(1, (-ax * abx - ay * aby) / len2));
+    const cx = ax + t * abx;
+    const cy = ay + t * aby;
+    const d = Math.sqrt(cx * cx + cy * cy);
     if (d < minD) minD = d;
-    travelled += len;
-    prev = cur;
-  }
-
-  // Pass 2: among points within TIE_M of the nearest, take the one nearest the hint.
-  const target = hintAlongM ?? 0;
-  let best: RouteProgress | null = null;
-  let bestScore = Infinity;
-  travelled = 0;
-  prev = toXY(line[0]);
-  for (let i = 1; i < line.length; i++) {
-    const cur = toXY(line[i]);
-    const { d, along, len } = project(prev, cur, travelled);
     if (d <= minD + TIE_M) {
-      const score = Math.abs(along - target);
-      if (score < bestScore) {
-        bestScore = score;
-        best = { offRouteM: d, alongM: along, index: i - 1 };
-      }
+      if (count === candD.length) growCandidates();
+      candD[count] = d;
+      candAlong[count] = travelled + t * len;
+      candIndex[count] = i - 1;
+      count++;
     }
     travelled += len;
-    prev = cur;
+    ax = bx;
+    ay = by;
   }
-  return best;
+
+  // Among points within TIE_M of the nearest, take the one nearest the hint.
+  const target = hintAlongM ?? 0;
+  let best = -1;
+  let bestScore = Infinity;
+  for (let c = 0; c < count; c++) {
+    if (candD[c] > minD + TIE_M) continue;
+    const score = Math.abs(candAlong[c] - target);
+    if (score < bestScore) {
+      bestScore = score;
+      best = c;
+    }
+  }
+  return best < 0 ? null : { offRouteM: candD[best], alongM: candAlong[best], index: candIndex[best] };
+}
+
+// Candidate segments for projectOnPolyline, kept between calls so a fix does
+// not allocate them afresh. Grown by doubling; a long route whose line doubles
+// back on itself for its whole length is the only thing that ever grows them.
+let candD = new Float64Array(64);
+let candAlong = new Float64Array(64);
+let candIndex = new Int32Array(64);
+function growCandidates(): void {
+  const size = candD.length * 2;
+  const d = new Float64Array(size);
+  const along = new Float64Array(size);
+  const index = new Int32Array(size);
+  d.set(candD);
+  along.set(candAlong);
+  index.set(candIndex);
+  candD = d;
+  candAlong = along;
+  candIndex = index;
 }
 
 /** Cumulative distance to each point of a route, metres. */
@@ -150,13 +176,21 @@ export function naismithHours(distM: number, ascentM: number, speedKmh: number):
   return distM / 1000 / Math.max(speedKmh, 0.1) + ascentM / 600;
 }
 
-/** Total climb and drop, ignoring wobbles under 5 m so GPS noise doesn't inflate them. */
-export function computeClimbs(coords: LatLng[]): { ascentM: number; descentM: number } {
+/**
+ * Total climb and drop, ignoring wobbles under 5 m so GPS noise doesn't inflate
+ * them. `from` measures only the route from that point on — the same answer as
+ * `coords.slice(from)`, without copying the route to get it, which matters to
+ * the remaining-climb readout because it asks on every GPS fix.
+ */
+export function computeClimbs(
+  coords: LatLng[],
+  from = 0
+): { ascentM: number; descentM: number } {
   let ascentM = 0;
   let descentM = 0;
   let ref: number | null = null;
-  for (const c of coords) {
-    const e = c[2];
+  for (let i = Math.max(0, from); i < coords.length; i++) {
+    const e = coords[i][2];
     if (typeof e !== 'number') continue;
     if (ref === null) {
       ref = e;

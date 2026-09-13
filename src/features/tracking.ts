@@ -203,6 +203,48 @@ export function bannerFor(
   };
 }
 
+// ---------------------------------------------------------------- per-route sums
+//
+// The readout below runs on every fix, about once a second, but neither the
+// route's length nor the climb beyond a given point changes while you walk. So
+// both are kept for the route they were worked out for, and reused until it is
+// a different route. Keyed by the coords array itself: a planned, loaded or
+// shared route always arrives as a new one, so identity is exactly "the same
+// walk", and nothing has to remember to clear these.
+
+let lengthFor: LatLng[] | null = null;
+let lengthM = 0;
+
+/** The route's whole length, measured once per route. */
+function routeLengthM(coords: LatLng[]): number {
+  if (coords !== lengthFor) {
+    const cum = cumulativeDistances(coords);
+    lengthM = cum[cum.length - 1];
+    lengthFor = coords;
+  }
+  return lengthM;
+}
+
+let climbsFor: LatLng[] | null = null;
+let climbsFrom = -1;
+let climbs = { ascentM: 0, descentM: 0 };
+
+/**
+ * Climb and descent from point `from` to the end. Worked out again only when
+ * you pass a point of the route — every ten metres or so rather than every
+ * fix. Not a table built up front: the 5 m noise rule means the climb beyond a
+ * point is not simply the total minus the climb before it, and getting it
+ * exactly right for every point would cost the whole route per point.
+ */
+function climbsAhead(coords: LatLng[], from: number): { ascentM: number; descentM: number } {
+  if (coords !== climbsFor || from !== climbsFrom) {
+    climbs = computeClimbs(coords, from);
+    climbsFor = coords;
+    climbsFrom = from;
+  }
+  return climbs;
+}
+
 /**
  * What's left of the active route from the current position: distance,
  * remaining climb, and a time estimate at the user's pace.
@@ -218,13 +260,11 @@ export function remainingText(): string | null {
   const prog = lastProg.offRouteM <= EN_ROUTE_THRESHOLD_M ? lastProg : lastOnRouteProg;
   if (!prog) return `Not started · ${formatDistance(lastProg.offRouteM)} to the route`;
 
-  const cum = cumulativeDistances(coords);
-  const total = cum[cum.length - 1];
+  const total = routeLengthM(coords);
   const remainingM = Math.max(0, total - prog.alongM);
 
   // Remaining climb and descent: only the part of the profile still ahead.
-  const ahead = coords.slice(prog.index + 1);
-  const { ascentM, descentM } = computeClimbs(ahead);
+  const { ascentM, descentM } = climbsAhead(coords, prog.index + 1);
   const est = naismithHours(remainingM, ascentM, settings.speedKmh);
 
   const pct = total > 0 ? Math.round((prog.alongM / total) * 100) : 0;
