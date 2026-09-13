@@ -1,8 +1,9 @@
 // The active-route card: the strip along the bottom that names the route,
 // totals its distance and climb, says how much is left, and opens the
-// elevation profile. It is shared — the planner fills it with the route being
-// sketched, tracking fills it with progress along the one you are walking — so
-// it deliberately knows about neither. Callers describe what to show as a
+// elevation profile. It is shared — a saved, shared or detour route all show
+// here, and tracking fills it with progress along the one you are walking — so
+// it deliberately knows about none of them. (A route still being planned is not
+// one of them: Plan's sheet carries its own stats and profile.) Callers describe what to show as a
 // RouteCardView; this module turns that into DOM and owns nothing else.
 //
 // The one thing it draws on the map is the scrub marker: the dot that follows
@@ -15,7 +16,7 @@ import { formatDistance, formatDuration, naismithHours, type LatLng } from '../g
 import { map } from '../map/map';
 import { $ } from './dom';
 
-/** The minimum a thing needs to be shown on the card: a planned route or a saved one. */
+/** The minimum a thing needs to be shown on the card. */
 export interface RouteCardSource {
   coords: LatLng[];
   distanceM: number;
@@ -27,10 +28,8 @@ export interface RouteCardSource {
 export interface RouteCardView {
   /** The route-like thing to display, or null to hide the card entirely. */
   src: RouteCardSource | null;
-  /** Title line — the route's name, or "New route" while planning. */
+  /** Title line — the route's name. */
   name: string;
-  /** Planning hides the close/offline controls and the remaining line. */
-  planning: boolean;
   /** Progress readout, or null when there is nothing believable to say. */
   remaining: string | null;
   /** Metres along the route to mark as "you are here" on the profile, if known. */
@@ -117,15 +116,12 @@ export function updateRouteCard(): void {
     return;
   }
   card.classList.remove('hidden');
-  card.classList.toggle('abovePlan', view.planning);
   $('rcName').textContent = view.name;
   const est = naismithHours(src.distanceM, src.ascentM, view.speedKmh);
   $('rcStats').textContent =
     `${formatDistance(src.distanceM)} · ${climbText(src.ascentM, src.descentM)} · ~${formatDuration(est)}`;
   $('rcRemaining').textContent = view.remaining ?? '';
   $('rcRemaining').classList.toggle('hidden', !view.remaining);
-  $('rcOffline').classList.toggle('hidden', view.planning);
-  $('rcClose').classList.toggle('hidden', view.planning);
   $('rcChart').classList.toggle('active', chartOpen);
   const chart = $('elevChart');
   if (chartOpen) {

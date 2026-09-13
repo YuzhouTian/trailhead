@@ -3,7 +3,7 @@ import './style.css';
 import { initDetour } from './features/detour';
 import { initOffline } from './features/offline';
 import { dismissPinCard, initPins, openSharedPin, refreshCardDistance } from './features/pins';
-import { getPlan, initPlanner, isPlanning } from './features/planner';
+import { initPlanner, isPlanning } from './features/planner';
 import { initQr } from './features/qr';
 import { hideSearchResults, initSearch } from './features/search';
 import { importSharedRoute, initSharing } from './features/sharing';
@@ -118,18 +118,17 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
 
 // The card itself lives in ui/routeCard.ts and knows nothing about the planner
 // or GPS; this gathers what it should show from the two modules that do, plus
-// the active route, which is the app's. A sketch in progress wins over the
-// active route, and silences the progress readouts — there is no walking a
-// route you are still drawing. The "you are here" mark is deliberately
+// the active route, which is the app's. While planning there is no card at all:
+// Plan's sheet shows the sketch's stats and profile itself, and there is no
+// walking a route you are still drawing. The "you are here" mark is deliberately
 // conservative: hereAlongM() stays null until a fix lands near the line, so the
 // dot never appears at a guessed place.
 initRouteCard({
   getView: () => {
     const planning = isPlanning();
     return {
-      src: planning ? getPlan() : activeRoute,
-      name: planning ? 'New route' : activeRoute?.name ?? '',
-      planning,
+      src: planning ? null : activeRoute,
+      name: activeRoute?.name ?? '',
       remaining: planning ? null : remainingText(),
       hereM: planning ? null : hereAlongM(),
       speedKmh: settings.speedKmh

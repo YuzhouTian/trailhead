@@ -247,7 +247,6 @@ body {
 #bottomBar button .ico svg { width: 24px; height: 24px; display: block; }
 #bottomBar button .lbl { font: var(--t-caption); font-weight: 600; }
 #bottomBar button.active { color: var(--brand); }
-body.planning #bottomBar { display: none; }
 
 /* How far the bottom-anchored map furniture — the locate button and the scale
    bar — has to lift to clear the active-route card. The card's
@@ -300,7 +299,7 @@ body.planning #btnLocate { display: none; }
 /* Belt and braces: paint the bar's own colour from its bottom edge down past
    the foot of the screen, so nothing can show through beneath it whatever
    iOS decides the viewport bottom is. */
-#bottomBar::after, #planBar::after {
+#bottomBar::after {
   content: '';
   position: absolute;
   left: 0; right: 0; top: 100%;
@@ -437,8 +436,10 @@ body.planning #statusBanner { display: none; }
    88vh minus the bar rather than the full height, so a sliver of map stays
    visible above it — it keeps the sheet reading as something on top of the map
    that you can dismiss. The dvh lines repeat that in the unit that discounts
-   iOS's address bar; browsers that don't know dvh ignore them and keep the vh. */
-#panel {
+   iOS's address bar; browsers that don't know dvh ignore them and keep the vh.
+   Plan's sheet (#planSheet) shares all of this chrome — see "Plan sheet" below
+   for the one way it differs. */
+#panel, #planSheet {
   position: fixed;
   left: 0; right: 0;
   bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h));
@@ -466,7 +467,7 @@ body.planning #statusBanner { display: none; }
    44px because that is what the close button needs to be a real target; it is
    also a big enough band of sheet to start a drag on without aiming, which
    matters more than the 24px of map it costs. */
-#panelHead {
+#panelHead, #planHead {
   position: sticky; top: 0; z-index: 1;
   height: 44px;
   display: flex; align-items: center; justify-content: center;
@@ -485,7 +486,7 @@ body.planning #statusBanner { display: none; }
    that any control-identifying mark has to clear. At .35 it was 1.6:1 — a hint
    rather than a handle, and invisible in sunlight, which is where this app is
    read. .8 is the point where both themes pass. */
-#panelGrab {
+#panelGrab, #planGrab {
   width: 40px; height: 5px;
   border-radius: var(--r-pill);
   background: var(--muted); opacity: .8;
@@ -493,30 +494,32 @@ body.planning #statusBanner { display: none; }
 /* Out of the flex flow, so it can sit on the right without pushing the handle
    off centre; the sticky header is its containing block, so it sticks with it.
    Same height as the strip, so top:0 is dead centre. */
-#panel .closeX {
+#panel .closeX, #planSheet .closeX {
   position: absolute; top: 0; right: 4px;
   background: none; color: var(--muted);
   width: 44px; height: 44px; padding: 0;
   display: flex; align-items: center; justify-content: center;
 }
-#panel .closeX svg { width: 20px; height: 20px; display: block; }
+#panel .closeX svg, #planSheet .closeX svg { width: 20px; height: 20px; display: block; }
 /* Dragged by a finger, or springing back after one let go. The transform is
    only applied while one of these is set: a permanent transform on the sheet
    would make it the containing block for anything fixed inside it, and there is
    no reason to take that on for a gesture that is idle almost all the time. */
-#panel.dragging, #panel.settling { transform: translateY(var(--sheet-dy, 0px)); }
-#panel.settling { transition: transform .22s ease-out; }
+#panel.dragging, #panel.settling,
+#planSheet.dragging, #planSheet.settling { transform: translateY(var(--sheet-dy, 0px)); }
+#panel.settling, #planSheet.settling { transition: transform .22s ease-out; }
 /* On a wide screen a full-width sheet is a very long line to read, so it
    becomes a centred sheet of a phone-ish width instead. */
 @media (min-width: 700px) {
-  #panel {
+  #panel, #planSheet {
     left: 50%; right: auto;
     transform: translateX(-50%);
     width: 480px;
   }
   /* A drag has to compose with the centring translate rather than replace it,
      or the sheet jumps half its width to the right the moment a finger lands. */
-  #panel.dragging, #panel.settling { transform: translate(-50%, var(--sheet-dy, 0px)); }
+  #panel.dragging, #panel.settling,
+  #planSheet.dragging, #planSheet.settling { transform: translate(-50%, var(--sheet-dy, 0px)); }
 }
 /* The backdrop behind the sheet. It sits above the map and its furniture
    (search 1050, locate button and plan bar 1000, route card 950) and below both
@@ -533,7 +536,7 @@ body.planning #statusBanner { display: none; }
    than a heavy heading with a rule under it: the grouped block below is already
    doing the separating, so the heading only has to name it. That is also why
    the <hr>s are gone — two devices were dividing the same thing. */
-#panel .secTitle {
+#panel .secTitle, #planSheet .secTitle {
   margin: 22px 0 8px; padding: 0 4px;
   font: var(--t-eyebrow); letter-spacing: var(--ls-eyebrow);
   text-transform: uppercase; color: var(--muted);
@@ -587,33 +590,33 @@ body.planning #statusBanner { display: none; }
 /* Fields are filled wells with no outline, matching the pin card's name box:
    on a panel of grouped blocks, a border round every field is a line too many. */
 #panel input[type="text"], #panel input[type="password"], #panel input[type="number"],
-#panel select {
+#panel select, #planSheet input[type="text"] {
   width: 100%; height: 48px; padding: 0 14px; font: var(--t-ui);
   background: var(--surface-2); color: var(--ink);
   border: none; border-radius: var(--r-sm); outline: none;
   -webkit-appearance: none; appearance: none;
 }
-#panel input:focus, #panel select:focus { box-shadow: inset 0 0 0 2px var(--brand); }
+#panel input:focus, #panel select:focus, #planSheet input:focus { box-shadow: inset 0 0 0 2px var(--brand); }
 /* Without this the prompt inside a field is whatever grey the browser picks,
    and the browser picks it from its own idea of the page — on the black sheet
    Safari draws a dark grey on near-black. The search box already names its own
    placeholder colour; these are the other three fields. */
-#panel input::placeholder { color: var(--muted); font-weight: 500; }
+#panel input::placeholder, #planSheet input::placeholder { color: var(--muted); font-weight: 500; }
 /* The walking-speed box holds one number, with its unit label beside it. */
 #panel input.narrow { width: 88px; flex: none; }
-#panel button {
+#panel button, #planSheet button {
   height: 48px; padding: 0 16px; border: none; border-radius: var(--r-md);
   background: var(--brand); color: var(--on-brand); font: var(--t-ui); cursor: pointer;
 }
 /* Panel actions run the full width — there is never enough room beside one. */
-#panel button.wide { display: block; width: 100%; margin-bottom: 8px; }
-#panel button.secondary { background: var(--surface-2); color: var(--ink); }
+#panel button.wide, #planSheet button.wide { display: block; width: 100%; margin-bottom: 8px; }
+#panel button.secondary, #planSheet button.secondary { background: var(--surface-2); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: var(--on-brand); }
 /* A button that cannot be pressed has to look it. Author colours beat the
    browser's own greying-out, so without this rule a disabled button ("What's
    nearby" with no categories ticked) was a full-strength green button that
    simply ignored taps. */
-#panel button:disabled { background: var(--surface-2); color: var(--muted); cursor: default; }
+#panel button:disabled, #planSheet button:disabled { background: var(--surface-2); color: var(--muted); cursor: default; }
 /* Saved routes and pins. One cell per item, and the actions sit on their own
    row beneath the name: sharing one row with four buttons left the name about
    45px of 291px — four characters — and the panel is capped at
@@ -657,7 +660,7 @@ body.planning #statusBanner { display: none; }
 }
 /* Explanatory text sits *under* the group it is about, not inside it — a
    sentence in a settings row is a row you cannot tap. */
-#panel .hint { font: var(--t-caption); color: var(--muted); margin: 8px 4px 14px; }
+#panel .hint, #planSheet .hint { font: var(--t-caption); color: var(--muted); margin: 8px 4px 14px; }
 /* The steps in the iOS hand-off, which are prose rather than settings. */
 #panel .steps { font: var(--t-body); padding-left: 20px; margin: 8px 0 12px; }
 #panel .steps li { margin-bottom: 6px; }
@@ -686,66 +689,110 @@ body.planning #statusBanner { display: none; }
    chosen theme read as an action just taken rather than a state.
    Selectors are scoped under #panel so they beat the generic `#panel button`
    fill on the unselected segments. */
-#panel .themeSeg {
+#panel .themeSeg, #planSheet .themeSeg {
   display: flex; gap: 4px;
   background: var(--surface-2); border-radius: var(--r-md); padding: 4px;
 }
-#panel .themeSeg button {
+#panel .themeSeg button, #planSheet .themeSeg button {
   flex: 1; height: 44px; padding: 0; border: none; border-radius: var(--r-sm);
   background: none; color: var(--ink-2);
   font: var(--t-body); cursor: pointer;
   display: flex; align-items: center; justify-content: center; gap: 6px;
 }
-#panel .themeSeg button svg { width: 16px; height: 16px; }
-#panel .themeSeg button.sel {
+#panel .themeSeg button svg, #planSheet .themeSeg button svg { width: 16px; height: 16px; }
+#panel .themeSeg button.sel, #planSheet .themeSeg button.sel {
   background: var(--surface-3); color: var(--ink);
   box-shadow: var(--shadow-card), inset 0 0 0 1px var(--hairline);
 }
 
-/* Plan bar */
-#planBar {
-  position: fixed;
-  left: 0; right: 0;
-  /* Sit flush with the screen edge; the inset is handled by padding below,
-     so the bar's background covers the home-indicator strip. */
-  bottom: 0;
-  background: var(--bg);
-  /* Hairline, no shadow — same reasoning as the tab bar it replaces. */
-  border-top: 1px solid var(--hairline);
-  padding: 10px 12px calc(env(safe-area-inset-bottom, 0px) + 10px);
-  z-index: 1000;
-}
-/* Length and climb of the line you are drawing — they change on every tap, so
-   tabular digits stop the whole line jumping about as they do. */
+/* Plan sheet
+   Plan used to swap the tab bar for a bar of its own, with the route card
+   floating above it: a different look from the three sheets beside it, the
+   route's stats printed twice, and no tabs until you pressed Done. It is now a
+   sheet like the others (the chrome is shared, above), resting on the tab bar
+   with Plan lit, and it differs from them in one deliberate way: there is no
+   scrim. Plan is the one tab whose content is the map itself — every tap on it
+   is a waypoint — so the map stays bright and live, and the sheet stays short
+   enough to leave most of it showing.
+   Under the scrim's 1090 rather than beside #panel at 1100: nothing should
+   show both, and if a sheet ever did open over Plan, the plan is the one to dim. */
+#planSheet { z-index: 1000; }
+/* How far the scale bar and the toast have to rise to clear the sheet. Its
+   height moves with the hint, the naming step and the screen width, so
+   features/planner.ts measures it and publishes it here, the way the route
+   card publishes --card-lift. */
+:root { --plan-lift: 0px; }
+
+/* Distance, climb and time as three cells — the numbers you plan by, so they
+   get the title rung rather than a line of body text. Tabular so a tap that
+   adds a point changes the digits without shoving the columns about. */
 #planStats {
-  font: var(--t-ui); font-variant-numeric: tabular-nums;
-  display: block; margin-bottom: 8px;
+  display: flex;
+  background: var(--surface-2); border-radius: var(--r-md);
 }
-.planBtns { display: flex; gap: 8px; align-items: stretch; }
-.planBtns button {
-  flex: 1; height: 48px; padding: 0; border: none; border-radius: var(--r-md);
-  background: var(--surface-2); color: var(--ink); font: var(--t-ui); cursor: pointer;
+.planStat {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  padding: 10px 12px;
 }
-#planDone { background: var(--brand); color: var(--on-brand); }
-#planSnap {
-  flex: 0 0 48px; color: var(--muted);
-  display: flex; align-items: center; justify-content: center;
-  transition: background .15s, color .15s;
+.planStat + .planStat { border-left: 1px solid var(--hairline); }
+.planStat .k { font: var(--t-caption); color: var(--muted); }
+.planStat .v {
+  font: var(--t-title); letter-spacing: var(--ls-title);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-#planSnap svg { width: 22px; height: 22px; }
-/* Snap on = solid green fill; off = plain grey chip — an unmistakable toggle. */
-#planSnap.active { color: var(--on-brand); background: var(--brand); }
+/* min-height holds the cell's height while a sub line is empty (a route under
+   a kilometre has no miles line), so the sheet doesn't twitch as you draw. */
+.planStat .s {
+  min-height: 16px;
+  font: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Nothing routed yet: the dashes are placeholders, not readings. */
+#planSheet.empty .planStat .v { color: var(--muted); }
+#planSheet #planHint { margin: 8px 4px 0; }
+#planDraw, #planName { margin-top: 12px; }
+
+/* The snap switch is the Settings theme control, reused: two labelled halves
+   rather than the unlabelled magnet it replaces, which only a toast could
+   explain. Undo and Clear sit beside it at the full 52px of the track. */
+.planCtrls { display: flex; gap: 8px; margin-bottom: 8px; }
+.planCtrls .themeSeg { flex: 1; min-width: 0; }
+#planSheet .planCtrls > button { flex: 0 0 72px; height: 52px; padding: 0; }
+#planSheet #planSave { margin-bottom: 0; }
+/* On the narrowest phones the labels are what matter; the icons go. */
+@media (max-width: 359px) {
+  .planCtrls .themeSeg svg { display: none; }
+}
+
+/* The naming step. The profile moved here from the route card's chart button:
+   the card no longer shows while planning, and the moment before you keep a
+   route is when its shape is worth a look. */
+#planChart {
+  background: var(--surface-2); border-radius: var(--r-md);
+  padding: 2px 8px 6px;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+}
+#planSheet #planName .secTitle { margin: 16px 0 8px; }
+.planNameActs { display: flex; gap: 8px; margin-top: 12px; }
+#planSheet .planNameActs button { flex: 1; }
+#planSheet .planNameActs #planSaveConfirm { flex: 2; }
+/* The quiet way out: keep the route on the map for now, but not in the list. */
+#planSheet button.link {
+  display: block; width: 100%; height: 44px; margin-top: 4px;
+  background: none; color: var(--brand);
+  font: var(--t-body); font-weight: 600;
+}
+body.planning #toast { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h) + var(--plan-lift) + 12px); }
 
 /* Active route card — a card that floats on the map, not a strip bolted to the
    screen edge. Edge to edge with a border-top read as a second bottom bar and
    made the screen feel like three stacked chrome bands; inset by the same 12px
    as everything else that floats, it reads as one thing sitting over the map.
-   8px above the 56px tab bar; the .abovePlan offset clears the taller plan bar
-   (10 + 22 stats + 8 + 48 buttons + 10 + its 1px border = 99px) instead —
-   measured, not guessed. That sum assumes the plan bar's stats line fits on one
-   line, which it does whenever the card is showing at all: the wrapping
-   two-line version is the "tap the map to add points" hint, and that only
-   appears before there are enough points to draw a card. */
+   8px above the 56px tab bar. It does not show while planning: Plan's sheet
+   carries the route's stats itself. */
 #routeCard {
   position: fixed;
   left: 12px; right: 12px;
@@ -757,7 +804,6 @@ body.planning #statusBanner { display: none; }
   padding: 12px;
   z-index: 950;
 }
-#routeCard.abovePlan { bottom: calc(env(safe-area-inset-bottom, 0px) + 107px); }
 #rcHeader { display: flex; align-items: center; gap: 8px; }
 #rcInfo { flex: 1; min-width: 0; }
 #rcName {
@@ -1036,9 +1082,9 @@ body.planning #pinCard { display: none; }
 }
 /* Leaflet's own 10px control margins would throw those sums out. */
 .leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
-/* The plan bar is 108px tall, so the old 90px offset left the scale bar
-   sitting behind it entirely — invisible for as long as Plan mode was open. */
-body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + 114px + var(--card-lift)); }
+/* Plan's sheet rests on the tab bar and has no fixed height, so the scale bar
+   sits 8px above whatever height the planner last measured it at. */
+body.planning .leaflet-bottom { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h) + var(--plan-lift) + 8px); }
 
 .leaflet-control-zoom { display: none; }
 @media (min-width: 700px) {

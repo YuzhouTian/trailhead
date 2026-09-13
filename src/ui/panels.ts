@@ -76,10 +76,10 @@ export function hidePanel(): void {
 export function showPanel(html: string): HTMLElement {
   hidePinCard();
   // Only ever one of the four tabs is on, in both directions: Plan puts away an
-  // open sheet, and a sheet opening steps out of Plan. Without this, a sheet
-  // opened mid-sketch sat 57px off the bottom of the screen — it is anchored to
-  // the top edge of a tab bar that Plan has hidden — over a plan bar it had no
-  // business covering. Nothing of the sketch is lost; see endPlanning().
+  // open sheet, and a sheet opening steps out of Plan. Plan's sheet rests on
+  // the tab bar in exactly the place this one does, so without this the two
+  // would stack, with Plan still taking map taps behind the scrim. Nothing of
+  // the sketch is lost; see endPlanning().
   endPlanning();
   const content = $('panelContent');
   content.innerHTML = html;
