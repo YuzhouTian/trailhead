@@ -1,6 +1,6 @@
 import indexHtml from '../index.html?raw';
 import { describe, expect, it } from 'vitest';
-import { POI_CATEGORIES, poiCategory } from './poi';
+import { NEARBY_MAX_HALF_M, NEARBY_MIN_HALF_M, POI_CATEGORIES, nearbyBox, poiCategory } from './poi';
 
 const TABLE_ORDER = POI_CATEGORIES.map((c) => c.id);
 
@@ -79,5 +79,54 @@ describe('the category table', () => {
         seen.set(tag, c.id);
       }
     }
+  });
+});
+
+describe('nearbyBox', () => {
+  // Sheeps Tor on Dartmoor, as a phone shows it at about zoom 14.
+  const SHEEPS_TOR = { south: 50.5, west: -4.06, north: 50.53, east: -4.02 };
+  const M_PER_DEG = 111320;
+  const halfHeightM = (b: { south: number; north: number }) => ((b.north - b.south) / 2) * M_PER_DEG;
+  const halfWidthM = (b: { south: number; north: number; west: number; east: number }) =>
+    ((b.east - b.west) / 2) * M_PER_DEG * Math.cos((((b.south + b.north) / 2) * Math.PI) / 180);
+
+  it('searches exactly the map on screen when it is a sensible size', () => {
+    // The #98 bug: the search went where the GPS was, not where the map was.
+    const box = nearbyBox(SHEEPS_TOR);
+    expect(box.south).toBeCloseTo(SHEEPS_TOR.south, 9);
+    expect(box.west).toBeCloseTo(SHEEPS_TOR.west, 9);
+    expect(box.north).toBeCloseTo(SHEEPS_TOR.north, 9);
+    expect(box.east).toBeCloseTo(SHEEPS_TOR.east, 9);
+  });
+
+  it('widens a view zoomed right in, keeping its middle', () => {
+    const tiny = { south: 50.515, west: -4.041, north: 50.516, east: -4.039 };
+    const box = nearbyBox(tiny);
+    expect(halfHeightM(box)).toBeCloseTo(NEARBY_MIN_HALF_M, 3);
+    expect(halfWidthM(box)).toBeCloseTo(NEARBY_MIN_HALF_M, 3);
+    expect((box.south + box.north) / 2).toBeCloseTo(50.5155, 9);
+    expect((box.west + box.east) / 2).toBeCloseTo(-4.04, 9);
+  });
+
+  it('cuts a view zoomed right out down to what the servers answer, keeping its middle', () => {
+    const devon = { south: 50.2, west: -4.6, north: 51.2, east: -3.0 };
+    const box = nearbyBox(devon);
+    expect(halfHeightM(box)).toBeCloseTo(NEARBY_MAX_HALF_M, 3);
+    expect(halfWidthM(box)).toBeCloseTo(NEARBY_MAX_HALF_M, 3);
+    expect((box.south + box.north) / 2).toBeCloseTo(50.7, 9);
+    expect((box.west + box.east) / 2).toBeCloseTo(-3.8, 9);
+  });
+
+  it('clamps each direction on its own, so a tall narrow view stays narrow', () => {
+    const strip = { south: 50.0, west: -4.041, north: 50.1, east: -4.039 };
+    const box = nearbyBox(strip);
+    expect(halfHeightM(box)).toBeCloseTo((0.05 * M_PER_DEG), 3);
+    expect(halfWidthM(box)).toBeCloseTo(NEARBY_MIN_HALF_M, 3);
+  });
+
+  it('clips at the antimeridian rather than wrapping', () => {
+    const box = nearbyBox({ south: -17.1, west: 179.9, north: -17.0, east: 180.1 });
+    expect(box.east).toBe(180);
+    expect(box.west).toBeLessThan(box.east);
   });
 });
