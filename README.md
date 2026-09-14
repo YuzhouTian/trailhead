@@ -19,22 +19,26 @@ the browser.
 ## The app in one screen
 
 A full-screen map with a search box on top, a floating locate button, and four tabs along
-the bottom. Three of the tabs open a **bottom sheet** — a panel that slides up from the tab
-you tapped, scrolls inside itself, and leaves a sliver of map showing above it. Close it by
-tapping the same tab again, the close button, the dimmed map behind it, or by flicking the
-handle at its top edge downwards.
+the bottom. Each tab opens a **bottom sheet** — a panel that rests on the tab bar, scrolls
+inside itself, and leaves map showing above it. Close it by tapping the same tab again, the
+close button, the dimmed map behind it, or by flicking the handle downwards. Plan's sheet
+has no dimmed backdrop, because you tap the map behind it to add points.
 
 | Tab | What's in it |
 | --- | --- |
-| **Map** | Sheet: base layer, the map key, and nearby-point chips |
-| **Saved** | Sheet: your routes and pins; import GPX, scan a route QR, paste a shared link |
-| **Plan** | No sheet — it turns the map into the route planner (tap points to draw a line) |
-| **Settings** | Sheet: appearance, Thunderforest key, routing profile, walking speed, offline map usage, build version |
+| **Map** | Base map, nearby-point chips, the map key |
+| **Saved** | Your routes and pins; import GPX, scan a route QR, paste a shared link |
+| **Plan** | The route planner: distance, climb and time, Paths / Straight, Undo, Clear, Save |
+| **Settings** | Appearance, Thunderforest key, routing profile, walking speed, offline maps |
 
-When a route is loaded, a card floats just above the tabs with its name, stats, what's left
-of it, and buttons to open the elevation profile or cache its tiles. A long-press anywhere
-on the map opens a similar card for that spot, and so does tapping a search result or a
-nearby point.
+When a route is loaded, a card floats just above the tabs with its name, three cells —
+Distance, Climb, Time, which become To go, Climb left and Time left once you're on the
+line — a progress bar, and buttons for the elevation profile and offline tiles. A
+long-press anywhere on the map opens a card for that spot, and so does tapping a search
+result or a nearby point.
+
+The map opens where you last left it, and the build's version sits in small print in its
+bottom-left corner.
 
 ## Features
 
@@ -42,8 +46,9 @@ nearby point.
 
 - **Tap-to-plan** — tap points on the map and the line snaps to real paths and trails via the
   free [BRouter](https://brouter.de) public server. Waypoints are draggable; Undo and Clear
-  are in the plan bar. Distance, climb and a time estimate update as you go. **Done** offers
-  to name and save the route; cancelling still leaves it loaded, just unsaved.
+  are in the Plan sheet. Distance, climb and a time estimate update as you go. **Save
+  route** asks for a name, or **Show on map without saving** loads it unsaved. Search still
+  works while planning, and switching to another tab keeps the sketch until you come back.
 - **Routing profiles** (Settings) — *Standard* (default; the shorter line, even if it climbs a
   bit more) and *Save my legs* (walks a little further to go round a climb — through Grisedale
   Hause rather than over the 810 m top). Both judge a path by its OpenStreetMap difficulty
@@ -52,13 +57,16 @@ nearby point.
   change: it counts the climb, which the stock profile treats as free. The public server doesn't
   ship our version, so the app uploads `src/profiles/mountain-hiking.brf` once a session and
   routes with the id the server stores it under.
-- **Per-leg snap toggle** — the magnet in the plan bar turns snapping off, so the next legs
-  are drawn as straight lines. That's how you get through a gate, a stile or a field crossing
+- **Paths / Straight** — switch the Plan sheet to *Straight* and the next legs are drawn as
+  straight lines instead of following paths. That's how you get through a gate, a stile or a field crossing
   that BRouter won't route through. Snapped and freeform legs mix freely in one route.
 - **Naismith time estimates** — your flat-ground pace plus an hour per 600 m of climb. Set
   your speed in Settings (default 4 km/h) and every estimate in the app follows it.
 - **GPX import/export** — import a track from any other app (Saved → Import GPX file); export
   any saved route from its Share sheet (Saved → Share → Export GPX file).
+- **Directions** — on any place card (a saved pin, a long-pressed spot, a search result): a
+  route from where you are to there, loaded like any other route, with an "Arrived" banner
+  within 30 m. It asks before replacing a route you're already following.
 - Routing needs signal. If the router is unreachable the plan falls back to a dashed
   straight-line route rather than failing.
 
@@ -69,10 +77,13 @@ nearby point.
   with your compass); tapping it anywhere else brings you back. Dragging the map — or
   opening a pin, a search hit or a route — pauses the re-centring but keeps the rotation,
   so you can look up the valley with up still meaning forward. The next tap comes back
-  heading-up; the one after that squares the map to north.
+  heading-up; the one after that squares the map to north. If the signal drops, the dot
+  stays at the last fix and the app keeps trying until it comes back.
+- **One-finger zoom** — double-tap and hold, then slide down to zoom in or up to zoom out,
+  for when the other hand is holding poles.
 - **On/off-route banner** — how far you are from the planned line, turning red past 50 m.
-- **Route progress** — distance to go, remaining climb and descent, a time estimate at your
-  pace, and % done, live on the route card. Progress is projected onto the line in a way that
+- **Route progress** — distance to go, climb left and time left at your pace, with a
+  progress bar, live on the route card. Progress is projected onto the line in a way that
   survives loops and out-and-backs, where the nearest point of the route is ambiguous.
 - **Survives a reload** — the route you are following is remembered, so closing the app (or
   iOS discarding it in your pocket) doesn't lose your walk.
@@ -141,7 +152,8 @@ nearby point.
 - **Offline maps** — every tile you look at is cached by the service worker, and the ⤓ button
   on the route card pre-downloads a tile corridor along the active route (zooms 12–16, capped
   at 4000 tiles) before you leave the house. The app shell itself is cached too, so it starts
-  with no connection at all.
+  with no connection at all. Settings → Offline maps shows how many tiles are stored and
+  clears them.
 
 ## On the trail
 
@@ -233,21 +245,17 @@ On Windows, `Start Trailhead.cmd` does the dev-server dance and opens a browser 
 
 ### Tests
 
-Vitest, in the node environment, with each test file sitting next to the module it covers
-(`src/geo.test.ts` beside `src/geo.ts`). They cover the pure logic only — the maths and the
-parsing, where a silently wrong answer is most expensive. The feature modules touch the DOM
-and Leaflet and are not covered yet.
+Vitest, with each test file sitting next to the module it covers (`src/geo.test.ts` beside
+`src/geo.ts`). Most cover pure logic — the maths and the parsing, where a silently wrong
+answer is most expensive. The feature modules that are tested (planner, tracking,
+directions, sharing, the sheet, the route card) run against a small Leaflet stub in
+`src/testing/`, with jsdom only where a whole DOM is needed.
 
 Fixtures come from published sources rather than from the code's own output, so the tests say
 something about correctness rather than merely detecting change. In particular `osgb.ts` is
 checked against all forty of Ordnance Survey's own OSTN15 transformation test points, from the
 Scillies to Shetland; it agrees with them to under five metres, which is the expected error of
 a Helmert transform standing in for the full OSTN15 grid.
-
-Two tests are marked `it.fails`. Those are known bugs with the assertion already written
-([#41](https://github.com/YuzhouTian/trailhead/issues/41),
-[#42](https://github.com/YuzhouTian/trailhead/issues/42)); fixing the code turns them green,
-and the marker comes off in the same commit.
 
 `npm test` runs in CI ahead of the build, so a failing test blocks the deploy.
 
@@ -257,12 +265,14 @@ and the marker comes off in the same commit.
 | --- | --- |
 | `src/main.ts` | The wiring: starts everything up and connects the pieces below to each other |
 | `src/map/` | The Leaflet map itself: tile layers, the viewport quirks |
-| `src/features/` | One file per thing the app does: tracking, planner, pins, search, offline, sharing, QR |
+| `src/features/` | One file per thing the app does: tracking, planner, directions (`detour.ts`), pins, search, offline, storage, sharing, QR, deploy updates |
 | `src/ui/` | The screen furniture: the bottom sheet and its panels, the route card, shared helpers |
 | `src/config.ts` | Base layers, BRouter profiles, and the tuning constants (off-route thresholds, offline zooms and caps) |
 | `src/state.ts` | The `localStorage` layer: settings, saved routes, pins, active route |
 | `src/geo.ts` | Distance, bearings, route projection/progress, Naismith, ascent/descent, simplification, tile maths |
-| `src/routing.ts` | BRouter calls, including mixed snapped/freeform legs |
+| `src/routing.ts` | BRouter calls, including mixed snapped/freeform legs and uploading our profile |
+| `src/profiles/` | Our own BRouter profile, behind *Save my legs* |
+| `src/tapzoom.ts` | One-finger zoom |
 | `src/osgb.ts` | OS National Grid references both ways, on-device |
 | `src/search.ts` | Search box resolution: grid ref, lat/lng, then Photon place names with hiking-first ranking |
 | `src/poi.ts` | Nearby points — the category table and what each one asks Overpass for |
@@ -284,11 +294,15 @@ publishes to GitHub Pages. Nothing else to do — `git push` is the deploy.
 
 (Pages source is set to "GitHub Actions" in repo Settings → Pages; that's a one-time setting.)
 
-Settings shows the build timestamp, so you can tell at a glance whether a phone is running
-the latest deploy or a cached older one.
+The build's version is stamped in the map's bottom-left corner, so you can tell at a glance
+whether a phone is running the latest deploy.
 
-On a phone that already has the app, the service worker downloads a new deploy's page, script
-and stylesheet together before switching over, so the next launch works offline too. It keeps
+A new deploy reaches the phone on the next open. The app asks the service worker at launch
+and whenever it comes back to the foreground: if there's a newer build, it reloads onto it
+straight away if you opened the app in the last 10 seconds and haven't touched it, or shows
+an **Update ready · Reload** button if you're already using it. It never reloads by itself
+when opened from a shared link. The worker downloads the new page, script and stylesheet
+together before switching over, so the new build works offline too. It keeps
 that build and the one before it (a running page may still need its files) and deletes older
 ones, so the app's cache never holds more than two builds.
 
