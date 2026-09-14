@@ -108,15 +108,14 @@ export function openMapPanel(): void {
   showPanel(`
     <h4 class="secTitle">Base map</h4>
     <div class="cells">${baseRows}</div>
-    <button id="keyBtn" class="secondary wide">Map key — what the symbols mean</button>
+    <button id="keyBtn" class="secondary wide">Map key</button>
     <h4 class="secTitle">Nearby</h4>
     <div class="pc-chips nearbyChips">${POI_CATEGORIES.map(
       (c) => `<button class="pc-chip" data-kind="${c.id}">
         <span class="poiSwatch" style="background:${c.colour}">${svgUse(c.icon)}</span>${c.plural}
       </button>`
     ).join('')}</div>
-    <p class="hint">Shows what OpenStreetMap has around the visible map. Needs signal, and the
-    free servers are sometimes busy — tick it again if one fails.</p>
+    <p class="hint">Shows what OpenStreetMap has around the visible map.</p>
   `, 'Map');
 
   BASE_LAYERS.forEach((l) => {
@@ -152,8 +151,6 @@ export function openSettingsPanel(): void {
   const profileOpts = BROUTER_PROFILES.map(
     (p) => `<option value="${p.id}" ${settings.profile === p.id ? 'selected' : ''}>${p.label}</option>`
   ).join('');
-  const profileDesc = (id: string) =>
-    BROUTER_PROFILES.find((p) => p.id === id)?.desc ?? '';
 
   showPanel(`
     <h4 class="secTitle">Appearance</h4>
@@ -162,14 +159,11 @@ export function openSettingsPanel(): void {
       <button data-theme="dark"><svg viewBox="0 0 24 24"><use href="#i-moon"/></svg>Dark</button>
       <button data-theme="system"><svg viewBox="0 0 24 24"><use href="#i-auto"/></svg>System</button>
     </div>
-    <p class="hint">Dark keeps the map at full brightness. System follows your phone.</p>
     <h4 class="secTitle">Thunderforest API key</h4>
     <input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/>
-    <p class="hint">Powers the Outdoors base map. Free "Hobby Project" plan at
-    thunderforest.com — 150,000 tiles a month, far more than one walker uses.</p>
+    <p class="hint"><a href="https://www.thunderforest.com/maps/outdoors/" target="_blank" rel="noopener">thunderforest.com/maps/outdoors</a></p>
     <h4 class="secTitle">Routing profile</h4>
     <select id="profileSel">${profileOpts}</select>
-    <p class="hint" id="profileHint">${profileDesc(settings.profile)}</p>
     <h4 class="secTitle">Walking speed</h4>
     <div class="cells">
       <div class="row">
@@ -177,16 +171,9 @@ export function openSettingsPanel(): void {
         <label>km/h</label>
       </div>
     </div>
-    <p class="hint">Your pace on the flat. Time estimates add 1 h per 600 m of climb (Naismith's rule).</p>
     <h4 class="secTitle">Offline maps</h4>
     <p class="hint" id="offlineUsage">Checking…</p>
     <button id="offlineClear" class="danger wide">Clear all offline maps</button>
-    <p class="hint">Map saved on this phone: what you downloaded for a route, plus anything the
-    app kept automatically as you looked around. Your routes, pins and settings are kept —
-    this clears saved map only. Anything you still want offline needs downloading again from
-    its route card.</p>
-    <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'} (UTC).
-    A new deploy loads by itself when you open the app, or offers an Update button if you are already using it.</p>
   `, 'Settings');
 
   const themeSeg = $('themeSeg');
@@ -212,7 +199,6 @@ export function openSettingsPanel(): void {
   $('profileSel').addEventListener('change', (e) => {
     settings.profile = (e.target as HTMLSelectElement).value;
     saveSettings(settings);
-    $('profileHint').textContent = profileDesc(settings.profile);
   });
   $('speedInput').addEventListener('change', (e) => {
     const v = parseFloat((e.target as HTMLInputElement).value);
@@ -311,7 +297,6 @@ export function openRoutesPanel(): void {
     <button id="scanQr" class="wide">Scan route QR</button>
     <button id="pasteRoute" class="secondary wide">Paste shared route</button>
     <button id="importBtn" class="secondary wide">Import GPX file</button>
-    <p class="hint">Scan a route's QR straight off another screen, or paste a copied route link.</p>
   `, 'Saved');
   $('scanQr').addEventListener('click', startQrScan);
 

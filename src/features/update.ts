@@ -30,10 +30,11 @@ function latestEntry(sw: ServiceWorker): Promise<string | null> {
 }
 
 export function initUpdates(): void {
+  $('buildStamp').textContent = typeof __BUILD_ID__ === 'string' ? `${__BUILD_ID__} UTC` : 'dev';
   if (!import.meta.env.PROD || !('serviceWorker' in navigator)) return;
   // Vite names the entry script after a hash of its contents, and the build
-  // time baked into it (shown in Settings) changes every build, so a different
-  // file name is a different build.
+  // time baked into it (shown in the map's corner) changes every build, so a
+  // different file name is a different build.
   const running = document.querySelector<HTMLScriptElement>('script[type="module"][src]')?.src;
   if (!running) return;
 

@@ -711,6 +711,7 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 /* Explanatory text sits *under* the group it is about, not inside it — a
    sentence in a settings row is a row you cannot tap. */
 #panel .hint, #planSheet .hint { font: var(--t-caption); color: var(--muted); margin: 8px 4px 14px; }
+#panel .hint a { color: var(--brand); }
 /* The steps in the iOS hand-off, which are prose rather than settings. */
 #panel .steps { font: var(--t-body); padding-left: 20px; margin: 8px 0 12px; }
 #panel .steps li { margin-bottom: 6px; }
@@ -1143,6 +1144,28 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
 }
 /* Leaflet's own 10px control margins would throw those sums out. */
 .leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
+
+/* Which build is running, in the empty bottom-left corner, so a new deploy can
+   be confirmed the moment the app opens. It rides up with the scale on the
+   other side, and sits under the cards (950) so it never shows through one. */
+#buildStamp {
+  position: fixed;
+  left: 12px;
+  bottom: calc(
+    env(safe-area-inset-bottom, 0px) +
+    max(50px + var(--card-lift), var(--bar-h) + 8px)
+  );
+  z-index: 940;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font: var(--t-caption); font-size: 10px; font-variant-numeric: tabular-nums;
+  opacity: .85;
+  pointer-events: none;
+  transition: bottom .2s ease;
+}
+body.planning #buildStamp { display: none; }
 
 .leaflet-control-zoom { display: none; }
 @media (min-width: 700px) {
