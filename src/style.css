@@ -273,7 +273,7 @@ body {
   /* 12px: the same screen inset as the route card below it and the search bar
      above, so the three line up down the right-hand edge. */
   right: 12px;
-  /* 90px, not 72px: the scale occupies 65–84px on this side, so the button
+  /* 90px, not 72px: the scale occupies 65–83px on this side, so the button
      starts just above it. Every px here is thumb reach on a slope, so it is the
      smallest lift that clears the bar. (It was 106px while a credit line sat
      under the scale and pushed it 16px higher.) */
@@ -1100,21 +1100,24 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
 }
 .leaflet-bar a:hover { background: var(--surface-2); }
 
-/* Scale bar. Opaque, not the 82% tint it was once drawn at: a see-through fill
-   means the real background of the label is partly whatever tile is under it,
-   and over a snow field or a dark forest no tint passes 4.5:1 without being
-   opaque in all but name.
-   The text-shadow clearing is separate and must stay: Leaflet paints a white
-   shadow behind the label, which in dark mode is a white halo behind near-white
-   text and reads as badly out of focus. */
+/* Scale bar. Drawn as the same tag as the build stamp in the opposite corner
+   (#buildStamp below), so the two bottom corners read as one pair. The tag's
+   own width is the measurement: Leaflet sets `width` to the distance's length
+   in pixels, and border-box makes that the outer edge rather than the text box.
+   It shares the stamp's slight see-through too, a deliberate call for the two
+   corners to match exactly: over a snow field or a dark forest the label loses
+   a little contrast to the tile underneath.
+   The text-shadow clearing must stay: Leaflet paints a white shadow behind the
+   label, which in dark mode is a white halo and reads as badly out of focus. */
 .leaflet-control-scale-line {
+  box-sizing: border-box;
+  padding: 1px 6px;
+  border: none;
+  border-radius: 4px;
   background: var(--surface);
-  color: var(--ink);
-  /* The rule itself is the measurement, so it keeps full contrast. */
-  border: 2px solid var(--muted); border-top: none;
-  font: var(--t-caption); font-weight: 600; font-variant-numeric: tabular-nums;
-  line-height: 1.2;
-  padding: 1px 6px 2px;
+  color: var(--muted);
+  font: var(--t-caption); font-size: 10px; font-variant-numeric: tabular-nums;
+  opacity: .85;
   text-shadow: none;
 }
 
@@ -1137,10 +1140,11 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
 
 /* The scale is a Leaflet "bottomleft" control, but alone in that corner it read
    as a stray floating object. It sits against the right-hand edge instead,
-   under the Me button, with the rest of the map furniture. */
+   under the Me button, with the rest of the map furniture — 12px in, the same
+   inset as the Me button above it and the build stamp opposite. */
 .leaflet-bottom.leaflet-left {
   left: auto;
-  right: 0;
+  right: 12px;
 }
 /* Leaflet's own 10px control margins would throw those sums out. */
 .leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
