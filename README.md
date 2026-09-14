@@ -58,8 +58,8 @@ bottom-left corner.
   ship our version, so the app uploads `src/profiles/mountain-hiking.brf` once a session and
   routes with the id the server stores it under.
 - **Paths / Straight** — switch the Plan sheet to *Straight* and the next legs are drawn as
-  straight lines instead of following paths. That's how you get through a gate, a stile or a field crossing
-  that BRouter won't route through. Snapped and freeform legs mix freely in one route.
+  straight lines instead of following paths. That's how you get through a gate, a stile or a
+  field crossing that BRouter won't route through. Snapped and freeform legs mix freely in one route.
 - **Naismith time estimates** — your flat-ground pace plus an hour per 600 m of climb. Set
   your speed in Settings (default 4 km/h) and every estimate in the app follows it.
 - **GPX import/export** — import a track from any other app (Saved → Import GPX file); export
@@ -77,8 +77,10 @@ bottom-left corner.
   with your compass); tapping it anywhere else brings you back. Dragging the map — or
   opening a pin, a search hit or a route — pauses the re-centring but keeps the rotation,
   so you can look up the valley with up still meaning forward. The next tap comes back
-  heading-up; the one after that squares the map to north. If the signal drops, the dot
-  stays at the last fix and the app keeps trying until it comes back.
+  heading-up; the one after that squares the map to north. A slow first fix (a desktop,
+  say) only centres the map if you haven't started using the app while it was on its way.
+  If the signal drops, the dot stays at the last fix and the app keeps trying until it
+  comes back.
 - **One-finger zoom** — double-tap and hold, then slide down to zoom in or up to zoom out,
   for when the other hand is holding poles.
 - **On/off-route banner** — how far you are from the planned line, turning red past 50 m.

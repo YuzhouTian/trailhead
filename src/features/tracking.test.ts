@@ -503,6 +503,67 @@ describe('following you', () => {
     expect(t.button.classList.contains('active')).toBe(false);
     expect(t.glyph).toBe('#i-locate');
   });
+
+  it('pans with the arrow keys the way a drag does, and stops recentring on it', async () => {
+    // Leaflet's keyboard pan goes through panBy, which fires no dragstart.
+    const t = await boot();
+    t.gps.fix(START);
+    t.map.getContainer().dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }));
+    t.gps.fix(TARN);
+    expect(t.map.views).toHaveLength(1);
+    expect(t.button.classList.contains('active')).toBe(false);
+  });
+});
+
+// The launch turns following on by itself, before there is anything to follow.
+// On a desktop the first fix can be minutes away, and by then you are looking at
+// somewhere else under a Me button that has been muted the whole time.
+describe('a first fix that arrives late', () => {
+  /** Any use of the app at all — a panel, the search box, the map. */
+  const use = (): void => void document.body.dispatchEvent(new Event('pointerdown'));
+
+  it('still puts the map on you when you have not touched anything', async () => {
+    const t = await boot();
+    t.gps.fail(); // "signal lost", as a slow desktop says
+    t.gps.fix(START);
+    expect(t.map.views.map((v) => v.center)).toEqual([START]);
+    expect(t.button.classList.contains('active')).toBe(true);
+  });
+
+  it('leaves the map where you are once you have started using the app', async () => {
+    // The bug: signal lost, a look at somewhere else, and the fix that finally
+    // landed dragged the map back across the country to the dot.
+    const t = await boot();
+    t.gps.fail();
+    use();
+    t.gps.fix(START);
+    t.gps.fix(TARN);
+
+    expect(t.map.views).toHaveLength(0);
+    expect(t.dot?.latlng).toEqual(TARN); // the dot still turns up, and moves
+    expect(t.button.classList.contains('active')).toBe(false);
+  });
+
+  it('keeps following when the fix beat you to it', async () => {
+    const t = await boot();
+    t.gps.fix(START);
+    use();
+    t.gps.fix(TARN);
+    expect(t.map.views.map((v) => v.center)).toEqual([START, TARN]);
+  });
+
+  it('comes to get you after a tap of Me, however long the fix takes', async () => {
+    const t = await boot();
+    t.map.zoom = 11;
+    t.button.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+    await t.tap();
+    use(); // opening a panel while you wait is not looking away
+    t.gps.fix(START);
+
+    expect(t.map.views.map((v) => [v.center, v.zoom])).toEqual([[START, 15]]);
+    expect(t.glyph).toBe('#i-locate-on'); // a recentre, not the heading-up toggle
+    expect(t.button.classList.contains('active')).toBe(true);
+  });
 });
 
 // Heading-up: the map turned so that up is the way you are facing. What the
