@@ -1,22 +1,22 @@
 // Finding somewhere. Two ways of asking: type a name, a grid ref or a lat/lng
-// into the search box, or ask what is mapped around you.
+// into the search box, or ask what is mapped on the part of the map you are
+// looking at.
 //
 // They are one module because they are the same question with the answer
-// arriving differently. Both start from "where are we looking?" — the live GPS
-// fix if there is one, otherwise the middle of the screen — both put markers on
-// the map and open the pin card when tapped, and both are ways of saying "show
-// me that", which is why both pause following.
+// arriving differently. Both put markers on the map and open the pin card when
+// tapped, and both are ways of saying "show me that", which is why both pause
+// following.
 //
 // The search box's answers are a list you pick from; nearby's are layers you
 // toggle. That is the only real difference, and it is not enough to justify two
-// files that would share a position lookup, a card and a pause rule.
+// files that would share a card and a pause rule.
 
 import L from '../leaflet-setup';
 import { PLAN_PASS_THROUGH, openNewPin } from './pins';
 import { getLastFix, pauseFollow } from './tracking';
-import { haversine, type LatLng } from '../geo';
+import { type LatLng } from '../geo';
 import { map } from '../map/map';
-import { fetchPois, poiCategory, type Poi, type PoiKind } from '../poi';
+import { fetchPois, nearbyBox, poiCategory, type Poi, type PoiKind } from '../poi';
 import { search, type SearchHit } from '../search';
 import { $, hideToast, svgUse, toast } from '../ui/dom';
 
@@ -24,9 +24,6 @@ import { $, hideToast, svgUse, toast } from '../ui/dom';
 const SEARCH_DELAY_MS = 400;
 /** Shortest query worth sending. */
 const MIN_QUERY_LENGTH = 2;
-/** Nearby covers roughly the visible map, clamped to what Overpass answers quickly. */
-const NEARBY_MIN_RADIUS_M = 800;
-const NEARBY_MAX_RADIUS_M = 12000;
 
 let searchAbort: AbortController | null = null;
 let searchTimer: number | undefined;
@@ -105,7 +102,7 @@ export function nearbyOn(kind: PoiKind): boolean {
 }
 
 /**
- * Tick or untick one category. Ticking searches roughly the visible map for
+ * Tick or untick one category. Ticking searches the map on screen for
  * it; unticking drops its markers, and asks nothing. Resolves once the search
  * is done, by which time the category may have turned itself back off (nothing
  * found, or the servers were busy) — read `nearbyOn` again afterwards.
@@ -125,25 +122,24 @@ export async function toggleNearby(kind: PoiKind): Promise<void> {
   const entry = { layer: null as L.LayerGroup | null, abort: new AbortController() };
   nearby.set(kind, entry);
 
-  const centre: LatLng = getLastFix() ?? [map.getCenter().lat, map.getCenter().lng];
-  const bounds = map.getBounds();
-  const radius = Math.min(
-    Math.max(
-      haversine([bounds.getNorth(), bounds.getWest()], [bounds.getSouth(), bounds.getEast()]) / 2,
-      NEARBY_MIN_RADIUS_M
-    ),
-    NEARBY_MAX_RADIUS_M
-  );
+  // The map on screen, not the GPS fix: you may well be looking somewhere else.
+  const view = map.getBounds();
+  const box = nearbyBox({
+    south: view.getSouth(),
+    west: view.getWest(),
+    north: view.getNorth(),
+    east: view.getEast()
+  });
   const name = cat.plural.toLowerCase();
   toast(`Looking for ${name}…`, 0);
   try {
-    const pois = await fetchPois(centre, radius, kind, entry.abort.signal);
+    const pois = await fetchPois(box, kind, entry.abort.signal);
     // Unticked while the query was out: it has already been forgotten.
     if (nearby.get(kind) !== entry) return;
     hideToast();
     if (!pois.length) {
       nearby.delete(kind);
-      toast(`No ${name} mapped around here`, 3000);
+      toast(`No ${name} mapped in this part of the map`, 3000);
       return;
     }
     entry.layer = L.layerGroup(pois.map(poiMarker)).addTo(map);

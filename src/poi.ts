@@ -129,37 +129,72 @@ const SERVER_TIMEOUT_S = 20;
 
 const selector = ([key, value]: TagMatch): string => `["${key}"="${value}"]`;
 
+/** The edges of an area of map, in degrees. */
+export interface Box {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
+/** Metres in one degree of latitude — near enough everywhere. */
+const M_PER_DEG = 111320;
+/** Nearby never searches less than this either side of the middle of the view… */
+export const NEARBY_MIN_HALF_M = 800;
+/** …nor more, which is what Overpass answers quickly on a busy mirror. */
+export const NEARBY_MAX_HALF_M = 12000;
+
 /**
- * The search area as `south,west,north,east`, from a centre and a radius.
+ * The area a nearby search covers: the map as it is on screen, wherever that
+ * is. It used to be a square around the live GPS fix, sized from the screen —
+ * so sitting in Ealing and looking at Sheeps Tor found things around Ealing,
+ * none of them on the map you were looking at (#98).
  *
- * A box rather than an `(around:…)` circle on every statement, because that is
- * what Overpass is fast at: measured against the live mirrors, fifteen
- * categories in one boxed query answered in about three seconds where three
- * with per-statement `around` took ten, or timed out. It searches
- * the corners of the map as well, which is no bad thing — the radius is taken
- * from the visible map in the first place.
+ * Each direction is clamped separately around the middle of the view. Zoomed
+ * right in, a few streets' worth of screen is widened so a search still finds
+ * something; zoomed right out, a county's worth is cut down to what the
+ * servers will answer, keeping the middle, where you are looking.
  */
-function boundingBox([lat, lng]: LatLng, radiusM: number): string {
-  const dLat = radiusM / 111320;
+export function nearbyBox(view: Box): Box {
+  const midLat = (view.south + view.north) / 2;
+  const midLng = (view.west + view.east) / 2;
   // Guard the cosine so a search near the poles cannot divide by ~zero.
-  const dLng = radiusM / (111320 * Math.max(Math.cos((lat * Math.PI) / 180), 0.01));
-  const clampLat = (v: number) => Math.min(Math.max(v, -90), 90).toFixed(5);
+  const mPerDegLng = M_PER_DEG * Math.max(Math.cos((midLat * Math.PI) / 180), 0.01);
+  const clampHalf = (degrees: number, mPerDeg: number) =>
+    Math.min(Math.max((degrees / 2) * mPerDeg, NEARBY_MIN_HALF_M), NEARBY_MAX_HALF_M) / mPerDeg;
+  const dLat = clampHalf(view.north - view.south, M_PER_DEG);
+  const dLng = clampHalf(view.east - view.west, mPerDegLng);
+  const lat = (v: number) => Math.min(Math.max(v, -90), 90);
   // Overpass wants west < east, so a box spilling over the antimeridian is
   // clipped rather than wrapped.
-  const clampLng = (v: number) => Math.min(Math.max(v, -180), 180).toFixed(5);
-  return `${clampLat(lat - dLat)},${clampLng(lng - dLng)},${clampLat(lat + dLat)},${clampLng(lng + dLng)}`;
+  const lng = (v: number) => Math.min(Math.max(v, -180), 180);
+  return {
+    south: lat(midLat - dLat),
+    west: lng(midLng - dLng),
+    north: lat(midLat + dLat),
+    east: lng(midLng + dLng)
+  };
 }
 
 /**
- * Fetch POIs of one category within `radiusM` of a point.
+ * A box rather than an `(around:…)` circle on every statement, because that is
+ * what Overpass is fast at: measured against the live mirrors, fifteen
+ * categories in one boxed query answered in about three seconds where three
+ * with per-statement `around` took ten, or timed out.
+ */
+function bboxFilter({ south, west, north, east }: Box): string {
+  return [south, west, north, east].map((v) => v.toFixed(5)).join(',');
+}
+
+/**
+ * Fetch POIs of one category inside a box.
  *
  * One category per query: each chip in the Map sheet is its own layer, so
  * ticking one asks only for that, and unticking another costs nothing.
  * Throws on network/timeout failure.
  */
 export async function fetchPois(
-  centre: LatLng,
-  radiusM: number,
+  box: Box,
   kind: PoiKind,
   signal?: AbortSignal
 ): Promise<Poi[]> {
@@ -170,7 +205,7 @@ export async function fetchPois(
   const lines = cat.tags.map((t) => `  ${kw}${selector(t)};`).join('\n');
   // One union, so a feature carrying two of the tags comes back once.
   // `out center` gives areas a single point; on nodes it is plain `out body`.
-  const query = `[out:json][timeout:${SERVER_TIMEOUT_S}][bbox:${boundingBox(centre, radiusM)}];\n(\n${lines}\n);\nout center ${cat.quota};`;
+  const query = `[out:json][timeout:${SERVER_TIMEOUT_S}][bbox:${bboxFilter(box)}];\n(\n${lines}\n);\nout center ${cat.quota};`;
 
   const data = await queryOverpass(query, SERVER_TIMEOUT_S * 1000 + 5000, signal);
 
