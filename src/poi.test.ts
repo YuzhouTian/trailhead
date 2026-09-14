@@ -21,8 +21,8 @@ describe('poiCategory', () => {
 
 describe('the category table', () => {
   // These are not tests of a function so much as of the table itself: it drives
-  // the Overpass query, the markers, the map key and the Map sheet's chips at
-  // once, so a duplicated id or a missing field breaks four things quietly.
+  // the Overpass query, the markers and the Map sheet's chips at once, so a
+  // duplicated id or a missing field breaks three things quietly.
 
   it('has unique ids', () => {
     expect(new Set(TABLE_ORDER).size).toBe(TABLE_ORDER.length);
@@ -58,8 +58,8 @@ describe('the category table', () => {
   });
 
   it('draws every icon from a symbol that exists in the sprite', () => {
-    // A typo in an icon id draws nothing at all, on the marker, the chip and
-    // the map key alike.
+    // A typo in an icon id draws nothing at all, on the marker and the chip
+    // alike.
     for (const c of POI_CATEGORIES) expect(indexHtml).toContain(`<symbol id="${c.icon}"`);
   });
 

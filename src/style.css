@@ -657,6 +657,9 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 }
 /* Panel actions run the full width — there is never enough room beside one. */
 #panel button.wide, #planSheet button.wide { display: block; width: 100%; margin-bottom: 8px; }
+/* Both are the same grey, so a button flush against a block of rows (the map
+   key under Base map) read as one more row half-overlapping the block. */
+#panel .cells + button.wide { margin-top: 12px; }
 #panel button.secondary, #planSheet button.secondary { background: var(--surface-2); color: var(--ink); }
 #panel button.danger { background: var(--danger); color: var(--on-brand); }
 /* A button that cannot be pressed has to look it. Author colours beat the
@@ -736,7 +739,10 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
   min-height: 48px; padding: 11px 14px; font: var(--t-body);
 }
 #panel .cells > .keyRow + .keyRow { border-top: 1px solid var(--hairline); }
-#panel .keyRow svg { margin-top: 1px; }
+/* Swatches are map symbology drawn in the tiles' own colours, so they sit on
+   a patch of map-coloured ground: a dark path or a black stile would vanish
+   into the row in dark mode. Literal, like the other map colours. */
+#panel .keyRow svg { margin-top: 1px; background: #f2efe9; border-radius: 4px; }
 #panel .keyRow b { font-weight: 700; }
 #panel .keyNote { display: block; font: var(--t-caption); color: var(--muted); }
 
