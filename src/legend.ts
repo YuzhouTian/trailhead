@@ -1,158 +1,129 @@
 /**
- * Hiking map keys, one per base layer, grouped by the question a walker is
- * actually asking: can I walk it, can I get through, what's the ground like,
- * where's the water, what am I looking at.
+ * Hiking map keys, one per base layer. Each explains only what a walker could
+ * misread: which line is a path and which a route, how to spot a gate, what
+ * the rough ground looks like. Roads, rivers, lakes, woods, peaks, car parks
+ * and contours explain themselves and are left out on purpose, so the few
+ * symbols that matter are not buried in a list of the obvious.
  *
- * Swatches are hand-drawn approximations of each style's rendering — close
- * enough to recognise a feature on the map, not pixel-perfect copies. Where a
- * layer genuinely cannot answer something (OSM has no rights of way, OS has no
- * gates) the group says so, because knowing what a map *doesn't* show matters
- * as much as knowing what it does.
+ * Swatches use each style's own colours and, for point symbols, its own icon
+ * outlines: Freemap's from github.com/FreemapSlovakia/freemap-outdoor-map
+ * (Apache-2.0) and OpenStreetMap's from openstreetmap-carto (CC0). Freemap
+ * also serves every legend item as an image, at
+ * outdoor.tiles.freemap.sk/legend/{id}. Both were checked in September 2026.
+ * Thunderforest could not be — it needs a key — and is carried over as it was.
  */
-
-import { POI_CATEGORIES } from './poi';
 
 // ---------------------------------------------------------------- swatches
 
 const sw = (inner: string) =>
   `<svg width="46" height="18" viewBox="0 0 46 18" style="flex:0 0 46px">${inner}</svg>`;
 
-/** A plain or dashed line, optionally with a contrasting casing beneath. */
-const line = (color: string, width: number, dash = '', casing = ''): string =>
-  sw(
-    (casing ? `<line x1="2" y1="9" x2="44" y2="9" stroke="${casing}" stroke-width="${width + 3}"/>` : '') +
-      `<line x1="2" y1="9" x2="44" y2="9" stroke="${color}" stroke-width="${width}"${
-        dash ? ` stroke-dasharray="${dash}"` : ''
-      } stroke-linecap="butt"/>`
-  );
+/** A plain or dashed line, optionally over a wider casing or glow. */
+const line = (color: string, width: number, dash = '', casing = '', y = 9): string =>
+  (casing ? `<line x1="2" y1="${y}" x2="44" y2="${y}" stroke="${casing}" stroke-width="${width + 2.5}"/>` : '') +
+  `<line x1="2" y1="${y}" x2="44" y2="${y}" stroke="${color}" stroke-width="${width}"${
+    dash ? ` stroke-dasharray="${dash}"` : ''
+  }/>`;
 
-/** Line with regular cross-rungs: steps, and railway-style symbols. */
-const rungs = (color: string, width: number, rungColor = '#fff'): string =>
+const way = (color: string, width: number, dash = '', casing = '') => sw(line(color, width, dash, casing));
+
+/** A Freemap path with a route drawn alongside it, the way that style offsets
+ *  routes to one side of the way that carries them. */
+const besidePath = (route: string) => sw(line('#552b2b', 1.4, '3 3', '#cc9999', 12) + route);
+
+/** Line with teeth on its downhill side. */
+const cliff = (color: string) =>
   sw(
-    `<line x1="2" y1="9" x2="44" y2="9" stroke="${color}" stroke-width="${width}"/>` +
-      `<g stroke="${rungColor}" stroke-width="1.5">` +
-      [8, 14, 20, 26, 32, 38].map((x) => `<line x1="${x}" y1="4" x2="${x}" y2="14"/>`).join('') +
+    `<line x1="2" y1="6" x2="44" y2="6" stroke="${color}" stroke-width="1.4"/>` +
+      `<g fill="${color}">` +
+      [6, 15, 24, 33, 42].map((x) => `<path d="M${x - 3} 6 h6 l-3 7 Z"/>`).join('') +
       `</g>`
   );
 
-/** Fence: thin line with short uprights. */
-const fence = sw(
-  `<line x1="2" y1="9" x2="44" y2="9" stroke="#9e9e9e" stroke-width="1"/>` +
-    `<g stroke="#9e9e9e" stroke-width="1">` +
-    [6, 13, 20, 27, 34, 41].map((x) => `<line x1="${x}" y1="5" x2="${x}" y2="9"/>`).join('') +
-    `</g>`
-);
+/** Flat colour area, optionally with a pattern drawn over it. */
+const area = (fill: string, over = ''): string =>
+  sw(`<rect x="3" y="2" width="40" height="14" rx="2" fill="${fill}"/>${over}`);
 
-/** Cliff / crag: a line with downslope ticks. */
-const cliff = (color = '#666') =>
-  sw(
-    `<line x1="2" y1="7" x2="44" y2="7" stroke="${color}" stroke-width="1.6"/>` +
-      `<g stroke="${color}" stroke-width="1.2">` +
-      [5, 11, 17, 23, 29, 35, 41].map((x) => `<line x1="${x}" y1="7" x2="${x}" y2="14"/>`).join('') +
-      `</g>`
-  );
-
-/** Scree / bare rock stipple. */
-const stipple = (color = '#8d8d8d') =>
-  sw(
-    `<g fill="${color}">` +
+/** Loose-rock stipple. */
+const stipple = (fill: string, dots: string) =>
+  area(
+    fill,
+    `<g fill="${dots}">` +
       [
-        [7, 5], [14, 11], [21, 4], [28, 12], [35, 6], [41, 12],
-        [10, 14], [18, 7], [25, 14], [32, 4], [38, 9]
+        [7, 5], [14, 11], [21, 4], [28, 12], [35, 6], [40, 12],
+        [10, 14], [18, 8], [25, 14], [32, 4], [38, 9]
       ]
-        .map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.3"/>`)
+        .map(([x, y]) => `<circle cx="${x}" cy="${y}" r="1.25"/>`)
         .join('') +
       `</g>`
   );
 
-/** Marsh / bog: water line with reed tufts. */
-const marsh = sw(
-  `<rect x="3" y="2" width="40" height="14" fill="#e3eef0"/>` +
-    `<g stroke="#4a90a4" stroke-width="1.2">` +
-    [8, 18, 28, 38]
-      .map(
-        (x) =>
-          `<line x1="${x}" y1="13" x2="${x}" y2="6"/><line x1="${x - 3}" y1="13" x2="${x - 3}" y2="8"/><line x1="${x + 3}" y1="13" x2="${x + 3}" y2="8"/>`
-      )
-      .join('') +
-    `</g>` +
-    `<line x1="3" y1="14" x2="43" y2="14" stroke="#4a90a4" stroke-width="1"/>`
-);
-
-/** Contour lines, with a heavier index line. */
-const contours = (thin: string, index: string) =>
-  sw(
-    `<g stroke="${thin}" fill="none" stroke-width="1">` +
-      `<path d="M2 13 C 14 5, 30 15, 44 6"/><path d="M2 17 C 16 9, 30 17, 44 10"/>` +
-      `</g><path d="M2 8 C 14 1, 30 11, 44 2" stroke="${index}" stroke-width="1.8" fill="none"/>`
-  );
-
-/** Flat colour area, optionally with a repeating glyph over it. */
-const area = (fill: string, glyphs = ''): string =>
-  sw(`<rect x="3" y="2" width="40" height="14" fill="${fill}"/>${glyphs}`);
-
-const trees = (color: string) =>
+/** Wetland: short blue dashes with reed tufts between them. */
+const bog = (fill: string, water: string) =>
   area(
-    '#c8e0b4',
-    `<g fill="${color}">` +
-      [9, 20, 31, 39]
-        .map((x) => `<circle cx="${x}" cy="8" r="2.6"/><rect x="${x - 0.5}" y="9" width="1" height="4"/>`)
+    fill,
+    `<g stroke="${water}" stroke-width="1.2">` +
+      [[6, 5], [22, 5], [14, 9], [30, 9], [6, 13], [24, 13], [35, 5]]
+        .map(([x, y]) => `<line x1="${x}" y1="${y}" x2="${x + 6}" y2="${y}"/>`)
         .join('') +
+      `</g><g stroke="#4f8f3a" stroke-width="1" fill="none">` +
+      [17, 38].map((x) => `<path d="M${x} 14 v-4 M${x - 2} 14 l-1 -3 M${x + 2} 14 l1 -3"/>`).join('') +
       `</g>`
   );
 
-const conifers = (color: string) =>
-  area(
-    '#b9d9a5',
-    `<g fill="${color}">` +
-      [9, 20, 31, 39].map((x) => `<path d="M${x} 3 l3.4 8 h-6.8 Z"/>`).join('') +
-      `</g>`
+/** A point symbol copied from a map style: its path, and the box its drawing
+ *  occupies in that path's own units. */
+interface Icon {
+  d: string;
+  box: [x: number, y: number, w: number, h: number];
+}
+
+/** One or more icons in a row, each scaled so its longer side is 12px. */
+const glyphs = (fill: string, ...icons: Icon[]) => {
+  const size = 12;
+  const gap = 5;
+  const scales = icons.map(({ box: [, , w, h] }) => size / Math.max(w, h));
+  const total = icons.reduce((sum, { box }, i) => sum + box[2] * scales[i], 0) + gap * (icons.length - 1);
+  let x = 23 - total / 2;
+  return sw(
+    icons
+      .map(({ d, box: [bx, by, w, h] }, i) => {
+        const s = scales[i];
+        const tx = x - bx * s;
+        const ty = 9 - (h * s) / 2 - by * s;
+        x += w * s + gap;
+        return `<path transform="translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${s.toFixed(3)})" d="${d}" fill="${fill}" fill-rule="evenodd"/>`;
+      })
+      .join('')
   );
+};
 
-/** Diagonal hatching, for access land and danger areas. */
-const hatch = (fill: string, stroke: string) =>
-  sw(
-    `<rect x="3" y="2" width="40" height="14" fill="${fill}"/>` +
-      `<g stroke="${stroke}" stroke-width="1.2">` +
-      [0, 8, 16, 24, 32, 40].map((x) => `<line x1="${x + 3}" y1="16" x2="${x + 13}" y2="2"/>`).join('') +
-      `</g>`
-  );
-
-/** A point symbol drawn as a small glyph, optionally on a coloured chip. */
-const symbol = (inner: string, chip = '') =>
-  sw((chip ? `<rect x="16" y="2" width="14" height="14" rx="2" fill="${chip}"/>` : '') + inner);
-
-const dot = (color: string, r = 3.5) => sw(`<circle cx="23" cy="9" r="${r}" fill="${color}"/>`);
-
-const peak = (color: string) => symbol(`<path d="M17 14 L23 3 L29 14 Z" fill="${color}"/>`);
-
-const trig = (color: string) =>
-  symbol(`<path d="M17 14 L23 4 L29 14 Z" fill="none" stroke="${color}" stroke-width="1.8"/>`);
-
-/** A tent, for the campsite symbol the base maps draw. This used to be a
- *  typed triangle character on a coloured chip, which rendered at a different
- *  size and weight on every phone and never matched the tent on the tiles. */
-const tent = (colour: string) =>
-  symbol(`<path d="M23 3 L29 15 H17 Z" fill="${colour}"/>`);
-
-const letterChip = (ch: string, bg: string, fg = '#fff') =>
-  symbol(
-    `<text x="23" y="13" text-anchor="middle" font-size="11" font-weight="700" fill="${fg}">${ch}</text>`,
-    bg
-  );
-
-const ford = sw(
-  `<line x1="2" y1="9" x2="44" y2="9" stroke="#b8a06a" stroke-width="3"/>` +
-    `<g stroke="#5aa0c8" stroke-width="1.6">` +
-    [17, 21, 25, 29].map((x) => `<line x1="${x}" y1="3" x2="${x}" y2="15"/>`).join('') +
-    `</g>`
-);
-
-const bridge = sw(
-  `<line x1="2" y1="9" x2="44" y2="9" stroke="#7fb8d4" stroke-width="5"/>` +
-    `<line x1="14" y1="9" x2="32" y2="9" stroke="#e8e2d8" stroke-width="4"/>` +
-    `<g stroke="#333" stroke-width="1.2"><line x1="14" y1="4" x2="14" y2="14"/><line x1="32" y1="4" x2="32" y2="14"/></g>`
-);
+// Gate and stile are the same drawings in both styles: Freemap took them from
+// openstreetmap-carto.
+const GATE: Icon = {
+  d: 'M 4,0 3.4,1 H 0 v 1 h 2.799 l -0.6,1 H 0 V 4 H 1.6 L 1,5 H 2 L 2.6,4 H 6 V 3 H 3.2 L 3.799,2 H 6 V 1 H 4.4 L 5,0 Z',
+  box: [0, 0, 6, 5]
+};
+const STILE: Icon = {
+  d: 'm2,.5 a.5,.5 0 0 1 1,0 v3.5 h4 v-3.5 a.5,.5 0 0 1 1,0 v9.5 h-1 v-1 h-4 v1 h-1 z m1,4.5 v1 h4 v-1 z m0,2 v1 h4 v-1 z',
+  box: [2, 0, 6, 10]
+};
+const FM_SPRING: Icon = {
+  d: 'M 7.1517932,5.5 A 3.3787894,3.3904123 0 0 0 3.7934813,8.9212342 A 3.4402219,3.4520561 0 0 0 3.977779,10.041098 C 2.2167129,12.147257 3.2508272,13.041093 3.6501388,14.345888 C 4.0494503,15.660957 2.6160244,16.452053 1.5,17.499999 C 4.8173569,16.904108 5.3702498,15.352738 5.278101,14.510272 C 5.1757134,13.565066 4.4282842,12.938353 5.400966,11.839037 C 5.9640976,12.023969 6.5067517,12.332189 7.1415545,12.352736 A 3.3173568,3.3287684 0 0 0 9.0459631,11.736298 A 3.4095057,3.4212343 0 0 0 10.49986,8.9212342 A 3.3787894,3.3904123 0 0 0 7.1415545,5.5 Z',
+  box: [1.5, 5.5, 9, 12]
+};
+const CARTO_SPRING: Icon = {
+  d: 'm6,1.3125 a4.6875,4.6875 0 0 0 0,9.375 a4.6875,4.6875 0 0 0 0,-9.375z m0,2.625 a2.0625,2.0625 0 0 1 0,4.125 a2.0625,2.0625 0 0 1 0,-4.125z',
+  box: [1.3125, 1.3125, 9.375, 9.375]
+};
+const FM_SHELTER: Icon = {
+  d: 'M 6,5 H 0 V 4 L 6.5,0 L 13,4 V 5 H 7 V 11 H 10 V 12 H 3 V 11 H 6 Z',
+  box: [0, 0, 13, 12]
+};
+const WILDERNESS_HUT: Icon = {
+  d: 'M 8,0 V 2 L 7,1.5 0,5 V 7 L 1.5,6.35 V 14 H 3 V 5.7 L 7,4 8,4.426 V 9 H 4.5 c 0.025,1.652 -0.034,3.39 0,5 h 5 C 9.518,11.047 9.506,8.05 9.5,5.062 L 11,5.7 V 14 h 1.5 V 6.35 L 14,7 V 5 L 9.5,2.75 C 9.498,1.831 9.5,0.916 9.5,0 Z M 7,11 c 0,0 1,0 1,1 v 1 H 6 v -1 c 0,-1 1,-1 1,-1 z',
+  box: [0, 0, 14, 14]
+};
 
 // ---------------------------------------------------------------- layout
 
@@ -178,220 +149,124 @@ const renderGroup = (g: Group): string =>
         }</span></div>`
     )
     .join('') +
-  // The footnote closes the block first: an explanation of what a group of
-  // symbols cannot tell you is about the group, not another symbol in it.
+  // The footnote closes the block first: it is about the group, not another
+  // symbol in it.
   `</div>` +
   (g.footnote ? `<p class="hint">${g.footnote}</p>` : '');
 
-// ---------------------------------------------------------------- OpenStreetMap
+const CROSSING_NOTE = 'Only drawn from zoom 17 — zoom right in to check a crossing.';
+const CLIFF_NOTE = 'Teeth point downhill, off the top of the drop.';
+const SCREE_NOTE = 'Loose ground — slow and hard on the ankles.';
 
-const OSM_GROUPS: Group[] = [
+// ---------------------------------------------------------------- Freemap
+
+const FREEMAP_GROUPS: Group[] = [
   {
-    title: 'Ways you can walk',
+    title: 'Paths and routes',
     entries: [
-      { swatch: line('#fa8072', 2, '4 3'), name: 'Footpath', note: 'Signed or surfaced walking route.' },
-      { swatch: line('#c88a76', 2, '2 4'), name: 'Path', note: 'Anything from a good trail to a faint sheep track — no promise of either.' },
-      { swatch: line('#3d9b3d', 2, '6 4'), name: 'Bridleway', note: 'Walkers, horses and usually bikes. Often wider and muddier.' },
-      { swatch: line('#5b7cfa', 2, '6 4'), name: 'Cycleway', note: 'Walkable unless signed otherwise.' },
-      { swatch: line('#a08048', 3, '8 5', '#e8d9b8'), name: 'Track', note: 'Farm or forest vehicle track. Usually the fastest going underfoot.' },
-      { swatch: rungs('#e66e64', 5), name: 'Steps' },
-      { swatch: line('#f7f5f2', 5, '', '#c9c2b8'), name: 'Minor road', note: 'No pavement on lanes — walk facing traffic.' }
+      { swatch: way('#552b2b', 1.6, '3 3', '#cc9999'), name: 'Path', note: 'Paler dashes mean the path is faint or hard to follow on the ground.' },
+      { swatch: way('#552b2b', 2.2, '7 3', '#cc9999'), name: 'Track', note: 'The more broken the line, the rougher the surface. Solid means well made.' },
+      { swatch: way('#267326', 1.6, '6 3', '#b3e6b3'), name: 'Bridleway' },
+      {
+        swatch: besidePath(line('#e8413c', 2, '', '', 6)),
+        name: 'Waymarked walking route',
+        note: 'A coloured line beside the path, usually the colour of its waymarks. Dashed for a local route.'
+      },
+      {
+        swatch: besidePath(
+          `<g fill="#e8413c">${[5, 11, 17, 23, 29, 35, 41].map((x) => `<circle cx="${x}" cy="5.5" r="1.5"/>`).join('')}</g>`
+        ),
+        name: 'Cycle route',
+        note: 'Coloured dots, not a path — the way to walk is the line they run beside.'
+      }
     ]
   },
   {
     title: 'Getting through',
     entries: [
-      { swatch: dot('#666', 3), name: 'Gate', note: 'Small grey dot sitting on the path where it meets a barrier.' },
-      { swatch: symbol('<circle cx="23" cy="9" r="4" fill="none" stroke="#666" stroke-width="1.6"/>'), name: 'Stile or kissing gate', note: 'Only drawn when zoomed right in (about z17+), so zoom in to check a crossing.' },
-      { swatch: bridge, name: 'Footbridge' },
-      { swatch: ford, name: 'Ford', note: 'Stream crossing with no bridge. Can be impassable after heavy rain.' },
-      { swatch: line('#5a5a5a', 2), name: 'Wall', note: 'Dry stone walls are reliable handrails in poor visibility.' },
-      { swatch: fence, name: 'Fence' }
-    ],
-    footnote: 'OpenStreetMap is the best layer here — surveyors map gates and stiles as points on the path. If a gate is missing, it is missing from the routing data too, which is when the magnet toggle helps.'
-  },
-  {
-    title: 'Ground and hazards',
-    entries: [
-      { swatch: cliff('#666'), name: 'Cliff or crag', note: 'Ticks point downhill, off the top of the drop.' },
-      { swatch: stipple(), name: 'Scree or bare rock', note: 'Loose ground — slow and hard on the ankles.' },
-      { swatch: marsh, name: 'Marsh or bog', note: 'Wet ground. On moorland this is often the slowest terrain there is.' },
-      { swatch: trees('#6a9e4f'), name: 'Broadleaf woodland' },
-      { swatch: conifers('#3f7d3f'), name: 'Conifer plantation', note: 'Dense rows; forest tracks may not match the map after felling.' },
-      { swatch: area('#e6e0c8'), name: 'Heath or moorland' }
+      { swatch: glyphs('#000', GATE, STILE), name: 'Gate or stile', note: CROSSING_NOTE },
+      { swatch: cliff('#404040'), name: 'Crag or cliff', note: CLIFF_NOTE }
     ]
   },
   {
-    title: 'Water',
+    title: 'Ground, water and shelter',
     entries: [
-      { swatch: line('#7fb8d4', 3), name: 'River' },
-      { swatch: line('#9ec9dd', 1.5), name: 'Stream', note: 'Thin blue lines. Useful for refills, and for fixing your position.' },
-      { swatch: area('#aad3df'), name: 'Lake or tarn' },
-      { swatch: dot('#3d6fd0'), name: 'Spring', note: 'Usually the cleanest refill — take it above any grazing.' }
+      { swatch: stipple('#e6e6e6', '#8a8a8a'), name: 'Scree or bare rock', note: SCREE_NOTE },
+      { swatch: bog('#e8f5d8', '#3f7fe8'), name: 'Bog or marsh' },
+      { swatch: glyphs('#0064ff', FM_SPRING), name: 'Spring' },
+      { swatch: glyphs('#48388a', FM_SHELTER, WILDERNESS_HUT), name: 'Shelter or bothy', note: 'Cover from the weather, not somewhere staffed.' }
     ]
-  },
-  {
-    title: 'Landmarks and facilities',
-    entries: [
-      { swatch: peak('#a0522d'), name: 'Peak', note: 'Shown with name and height where mapped.' },
-      { swatch: letterChip('P', '#4a7ebb'), name: 'Car park', note: 'Where the walk usually starts.' },
-      { swatch: dot('#8b5a2b', 3), name: 'Cairn or trig point', note: 'Small markers, handy for confirming a summit in mist.' },
-      { swatch: tent('#7a9e3f'), name: 'Campsite / hostel' }
-    ],
-    footnote: 'What this layer cannot tell you: OpenStreetMap\'s standard style does not distinguish legal rights of way or show open access land. For "am I allowed here", switch to an OS layer.'
   }
 ];
 
-// ---------------------------------------------------------------- Ordnance Survey
+// ---------------------------------------------------------------- OpenStreetMap
+
+const OSM_GROUPS: Group[] = [
+  {
+    title: 'Paths and routes',
+    entries: [
+      { swatch: way('#fa8072', 2, '2 2', '#ffffff'), name: 'Footpath', note: 'Anything from a paved way to a faint trail — the map does not say which.' },
+      { swatch: way('#996600', 2, '6 3', '#ffffff'), name: 'Track', note: 'Farm or forest track. Usually the easiest going underfoot.' },
+      { swatch: way('#008000', 1.6, '5 2', '#ffffff'), name: 'Bridleway', note: 'Walkers, horses and usually bikes.' },
+      { swatch: way('#0000ff', 1.6, '2 3', '#ffffff'), name: 'Cycleway', note: 'Walkable unless signed otherwise.' }
+    ]
+  },
+  {
+    title: 'Getting through',
+    entries: [
+      { swatch: glyphs('#3f3f3f', GATE, STILE), name: 'Gate or stile', note: CROSSING_NOTE },
+      { swatch: cliff('#999999'), name: 'Crag or cliff', note: CLIFF_NOTE }
+    ]
+  },
+  {
+    title: 'Ground and water',
+    entries: [
+      { swatch: stipple('#eee5dc', '#9a9a9a'), name: 'Scree or bare rock', note: SCREE_NOTE },
+      { swatch: area('#d6d99f'), name: 'Heath or moorland', note: 'The khaki that covers open fell. Rough ground, not fields.' },
+      { swatch: bog('#d6d99f', '#4d80b3'), name: 'Bog', note: 'On moorland, often the slowest going there is.' },
+      { swatch: glyphs('#7abcec', CARTO_SPRING), name: 'Spring' }
+    ]
+  }
+];
+
+// ---------------------------------------------------------------- Thunderforest
+
+const routeDots = (colour: string) =>
+  sw(`<g fill="${colour}">${[6, 14, 22, 30, 38].map((x) => `<circle cx="${x}" cy="9" r="2.6"/>`).join('')}</g>`);
 
 const TF_GROUPS: Group[] = [
   {
-    title: 'Waymarked routes',
+    title: 'Paths and routes',
     entries: [
-      {
-        swatch: sw(
-          `<g fill="#c0392b">${[6, 14, 22, 30, 38].map((x) => `<circle cx="${x}" cy="9" r="2.6"/>`).join('')}</g>`
-        ),
-        name: 'National trail',
-        note: 'Red dots — e.g. the Pennine Way. Signposted on the ground the whole way.'
-      },
-      {
-        swatch: sw(
-          `<g fill="#8e44ad">${[6, 14, 22, 30, 38].map((x) => `<circle cx="${x}" cy="9" r="2.6"/>`).join('')}</g>`
-        ),
-        name: 'Regional route',
-        note: 'Purple dots — e.g. the Capital Ring, the Dartmoor Way. Usually waymarked too.'
-      },
-      { swatch: symbol('<text x="23" y="13" text-anchor="middle" font-size="9" fill="#8e44ad" font-style="italic">Name</text>'), name: 'Route name', note: 'Written along the line of dots, so you can read which route you are on.' },
-      { swatch: line('#333', 2, '2 3'), name: 'Path', note: 'Plain dashes: a path with no waymarked route along it.' },
-      { swatch: line('#a08048', 3, '8 5', '#e8d9b8'), name: 'Track' },
-      { swatch: line('#ffffff', 5, '', '#c9c2b8'), name: 'Road' }
+      { swatch: routeDots('#c0392b'), name: 'National trail', note: 'Red dots, e.g. the Pennine Way. Signposted the whole way.' },
+      { swatch: routeDots('#8e44ad'), name: 'Regional route', note: 'Purple dots. Usually waymarked too.' },
+      { swatch: way('#333', 2, '2 3'), name: 'Path', note: 'Plain dashes: a path with no waymarked route along it.' },
+      { swatch: way('#a08048', 2.5, '8 5', '#e8d9b8'), name: 'Track' }
     ],
-    footnote: 'Cycle routes are not drawn as coloured dots on this layer — verified on a tile carrying three of them. Solid blue lines are water, not routes, which is easy to misread at a glance.'
+    footnote: 'Cycle routes are not drawn as dots on this layer, and solid blue lines are water, not routes.'
   },
   {
-    title: 'Relief',
+    title: 'Ground and shelter',
     entries: [
-      { swatch: contours('#c4a882', '#a8875c'), name: 'Contours' },
-      { swatch: area('#e8e0d0'), name: 'Elevation shading', note: 'Ground colour shifts with height, and hillshading picks out the shape of the slopes.' },
-      { swatch: stipple('#9a9a9a'), name: 'Scree and bare rock' }
+      { swatch: stipple('#e8e0d0', '#9a9a9a'), name: 'Scree or bare rock', note: SCREE_NOTE },
+      { swatch: bog('#e3eef0', '#4a90a4'), name: 'Wetland' },
+      { swatch: glyphs('#8b5a2b', WILDERNESS_HUT), name: 'Hut or shelter' }
     ]
-  },
-  {
-    title: 'Ground cover and water',
-    entries: [
-      { swatch: conifers('#3f7d3f'), name: 'Forest' },
-      { swatch: marsh, name: 'Wetland' },
-      { swatch: line('#7fb8d4', 3), name: 'River or stream' },
-      { swatch: area('#aad3df'), name: 'Lake or tarn' }
-    ]
-  },
-  {
-    title: 'Landmarks and facilities',
-    entries: [
-      { swatch: peak('#8b5a2b'), name: 'Peak', note: 'With name and height.' },
-      { swatch: symbol('<path d="M17 14 L23 5 L29 14 Z" fill="#8b5a2b"/><rect x="21" y="10" width="4" height="4" fill="#fff"/>'), name: 'Hut, refuge or shelter' },
-      { swatch: letterChip('P', '#4a7ebb'), name: 'Car park' },
-      { swatch: tent('#7a9e3f'), name: 'Campsite' }
-    ],
-    footnote: 'Same OpenStreetMap data as the OSM layer, drawn for walkers and served as sharp double-resolution tiles. It does not label legal rights of way, and small barrier symbols are less prominent than on the plain OSM layer — switch there to check a specific gate or stile.'
   }
 ];
-
-// ---------------------------------------------------------------- nearby points
-
-/** Crossed tools: an old mine or adit, as the base map draws it. */
-const mine = (colour: string) =>
-  symbol(
-    `<g stroke="${colour}" stroke-width="1.5" fill="none">` +
-      `<path d="M19 14 L27 5"/><path d="M27 14 L19 5"/></g>`
-  );
-
-const routeDots = (colour: string) =>
-  sw(`<g fill="${colour}">${[6, 14, 22, 30, 38].map((x) => `<circle cx="${x}" cy="9" r="2.4"/>`).join('')}</g>`);
-
-const FREEMAP_GROUPS: Group[] = [
-  {
-    title: 'Ways you can walk',
-    entries: [
-      { swatch: line('#8b3a3a', 2, '3 3'), name: 'Path or footpath', note: 'Fine red-brown dashes. The commonest walking line on this layer.' },
-      { swatch: line('#a08048', 3, '8 5', '#e8d9b8'), name: 'Track', note: 'Wider, with a pale casing. Usually the fastest going underfoot.' },
-      { swatch: line('#ffffff', 5, '', '#c9c2b8'), name: 'Road' },
-      { swatch: rungs('#4a4a4a', 5, '#e8e8e8'), name: 'Railway', note: 'Cross-hatched. The Snowdon Mountain Railway draws like this.' }
-    ]
-  },
-  {
-    title: 'Waymarked routes',
-    entries: [
-      { swatch: routeDots('#b03a8a'), name: 'Route waymarks', note: 'Small coloured markers strung along a way that carries a named route.' },
-      {
-        swatch: symbol('<text x="23" y="13" text-anchor="middle" font-size="8" fill="#5a4a3a" font-style="italic">Name</text>'),
-        name: 'Route name',
-        note: 'Written along the line itself — you can read which route you are on without tapping anything.'
-      }
-    ]
-  },
-  {
-    title: 'Relief',
-    entries: [
-      { swatch: contours('#c0a080', '#9a7850'), name: 'Contours', note: 'Heavier index lines carry the height label; lighter lines run between them.' },
-      { swatch: area('#ddd6c8'), name: 'Hillshading', note: 'Shaded relief under everything else, so you read the shape of a slope at a glance.' },
-      { swatch: cliff('#333'), name: 'Crag or cliff', note: 'Ticks point downhill, off the top of the drop.' },
-      { swatch: stipple('#9a9a9a'), name: 'Scree or bare rock' }
-    ]
-  },
-  {
-    title: 'Ground cover and water',
-    entries: [
-      { swatch: trees('#6a9e4f'), name: 'Broadleaf woodland' },
-      { swatch: conifers('#3f7d3f'), name: 'Conifer plantation' },
-      { swatch: line('#7fb8d4', 3), name: 'River or stream' },
-      { swatch: area('#aad3df'), name: 'Lake or tarn' }
-    ]
-  },
-  {
-    title: 'Landmarks',
-    entries: [
-      { swatch: peak('#6b4a2a'), name: 'Peak', note: 'With name and spot height — Bwlch Glâs draws as 998.' },
-      { swatch: mine('#4a4a4a'), name: 'Mine or adit', note: 'Crossed tools. Old workings are common on Welsh and Lakeland hillsides.' },
-      { swatch: letterChip('P', '#4a7ebb'), name: 'Car park' },
-      { swatch: tent('#7a9e3f'), name: 'Campsite' }
-    ],
-    footnote:
-      'Covers Europe only — walk off the edge of its data and Trailhead switches you to OpenStreetMap. Gates and stiles are not drawn, so switch to the OSM layer to check a specific crossing.'
-  }
-];
-
-
-/** The app's own nearby-point marker, drawn exactly as the map draws it:
- *  the category colour as a filled disc, a white ring, and the same sprite
- *  symbol the marker uses — so the key cannot drift from what is on the map. */
-const poiChip = (icon: string, colour: string) =>
-  sw(
-    `<circle cx="23" cy="9" r="7.6" fill="${colour}" stroke="#fff" stroke-width="1.5"/>` +
-      `<use href="#${icon}" x="18" y="4" width="10" height="10" style="color:#fff"/>`
-  );
-
-const NEARBY_GROUP: Group = {
-  title: 'Nearby points',
-  entries: POI_CATEGORIES.map((c) => ({ swatch: poiChip(c.icon, c.colour), name: c.label })),
-  footnote:
-    "Trailhead's own markers, not part of the base map — they appear when you tick a category under Nearby in the Map sheet."
-};
 
 // ---------------------------------------------------------------- entry point
 
 const KEYS: Record<string, { title: string; groups: Group[] }> = {
-  osm: { title: 'OpenStreetMap', groups: OSM_GROUPS },
+  freemap: { title: 'Outdoor', groups: FREEMAP_GROUPS },
   'tf-outdoors': { title: 'Outdoors', groups: TF_GROUPS },
-  freemap: { title: 'Outdoor', groups: FREEMAP_GROUPS }
+  osm: { title: 'OpenStreetMap', groups: OSM_GROUPS }
 };
 
 export function legendHtml(layerId: string): string {
   const key = KEYS[layerId] ?? KEYS.osm;
   return `
     <h3>Map key — ${key.title}</h3>
-    <p class="hint">Symbols are approximations; map styles change over time.</p>
     ${key.groups.map(renderGroup).join('')}
-    ${renderGroup(NEARBY_GROUP)}`;
+    <p class="hint">No layer shows legal rights of way or open access land.</p>`;
 }

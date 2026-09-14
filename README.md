@@ -117,13 +117,13 @@ nearby point.
 ### Maps
 
 - **Base layers** — *Outdoor* from Freemap (the default: contours, hillshading and crag
-  ticks, sharp all the way to zoom 20, Europe only), *OpenStreetMap* (no key, global, and the
-  only layer that draws individual gates and stiles) and *Outdoors* from Thunderforest
+  ticks, sharp all the way to zoom 20, Europe only), *OpenStreetMap* (no key, global, the
+  fallback) and *Outdoors* from Thunderforest
   (hiking cartography, trails graded by difficulty — needs a
   [free key](#outdoors-layer-optional)).
-- **Map key** — a per-layer legend grouped by the question you're actually asking: can I walk
-  it, can I get through, what's the ground like, where's the water. It also says what each
-  layer *cannot* show, which matters as much.
+- **Map key** — a short per-layer legend of only the symbols a walker could misread: path,
+  track or waymarked route, gates and stiles, crags, scree, bog, springs and shelters. Roads,
+  rivers, woods and peaks explain themselves and are left out.
 - **Dark mode** — light, dark, or follow the phone. Dark themes the app only: the map keeps
   full brightness, because the phone is often in dark mode in broad daylight.
 - Distances are shown in **km and miles** together, heights in metres, and there's a metric

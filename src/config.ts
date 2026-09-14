@@ -58,7 +58,7 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     maxZoom: 19,
     maxNativeZoom: 19,
-    blurb: 'The reference rendering, and the only layer that draws individual gates and stiles. No key, global coverage and the sturdiest servers, which is why it is the fallback.'
+    blurb: 'The reference rendering. No key, global coverage and the sturdiest servers, which is why it is the fallback.'
   }
 ];
 
