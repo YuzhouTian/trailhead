@@ -90,7 +90,6 @@ export const BROUTER_URL = 'https://brouter.de/brouter';
 export interface ProfileDef {
   id: string;
   label: string;
-  desc: string;
 }
 
 /**
@@ -113,8 +112,7 @@ export interface ProfileDef {
 export const BROUTER_PROFILES: ProfileDef[] = [
   {
     id: 'hiking-beta',
-    label: 'Standard',
-    desc: 'Footpaths and trails by the shorter line, even if it climbs a bit more.'
+    label: 'Standard'
   },
   {
     // Not BRouter's hiking-mountain but our copy of it that counts the climb
@@ -122,8 +120,7 @@ export const BROUTER_PROFILES: ProfileDef[] = [
     // the stock id so installs and share links that already say
     // hiking-mountain get the fixed version, with nothing to migrate.
     id: 'hiking-mountain',
-    label: 'Save my legs',
-    desc: 'Walks a little further to avoid climbing — through a pass rather than over a top.'
+    label: 'Save my legs'
   }
 ];
 

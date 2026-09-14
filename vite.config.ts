@@ -5,7 +5,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   base: './',
   define: {
-    // Shown in Settings so it's possible to tell at a glance whether a phone
+    // Shown in the map's bottom-left corner so it's possible to tell at a glance whether a phone
     // is running the latest deploy or a cached older one.
     __BUILD_ID__: JSON.stringify(
       new Date().toISOString().slice(0, 16).replace('T', ' ')
