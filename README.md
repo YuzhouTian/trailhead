@@ -69,7 +69,8 @@ nearby point.
   with your compass); tapping it anywhere else brings you back. Dragging the map — or
   opening a pin, a search hit or a route — pauses the re-centring but keeps the rotation,
   so you can look up the valley with up still meaning forward. The next tap comes back
-  heading-up; the one after that squares the map to north.
+  heading-up; the one after that squares the map to north. A slow first fix (a desktop,
+  say) only centres the map if you haven't started using the app while it was on its way.
 - **On/off-route banner** — how far you are from the planned line, turning red past 50 m.
 - **Route progress** — distance to go, remaining climb and descent, a time estimate at your
   pace, and % done, live on the route card. Progress is projected onto the line in a way that

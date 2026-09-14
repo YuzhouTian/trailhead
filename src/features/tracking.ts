@@ -585,8 +585,37 @@ export function pauseFollow(): void {
  */
 const GESTURE_MS = 700;
 
-/** When a finger, a pointer or a wheel was last on the map itself. */
+/** When a finger, a pointer, a wheel or a key was last on the map itself. */
 let handOnMapAt = 0;
+
+/**
+ * The launch's follow is an offer, not a tap: it puts the map on you if the
+ * first fix gets here before you have started using the app, and stands down
+ * the moment you do.
+ *
+ * On a phone the fix wins that race in a second or two and nobody notices the
+ * rule. A desktop's location service can take minutes — long enough to say
+ * "signal lost" and for you to be halfway through looking at somewhere else,
+ * often the saved view you reopened on — and the fix that finally arrived used
+ * to yank the map across the country to your dot. The Me button had been
+ * muted all that while, since there was no fix to be on, so the jump broke the
+ * one promise the button makes: muted means the map is left where you put it.
+ *
+ * Any use counts, not only a drag or a zoom: reading a pin card, typing a
+ * search or scrolling the routes list is being in the middle of something just
+ * as much. A tap of Me is use too, and lands the right way round — this stands
+ * the offer down on the press, and the click that follows asks for you
+ * outright, which a later fix then honours however long it takes. Capture and
+ * passive, like the hand test below: this only ever watches.
+ */
+function standDownOnFirstUse(): void {
+  const types = ['pointerdown', 'touchstart', 'wheel', 'keydown'];
+  const onUse = (): void => {
+    for (const type of types) document.removeEventListener(type, onUse, true);
+    if (!lastFix) pauseFollow();
+  };
+  for (const type of types) document.addEventListener(type, onUse, { capture: true, passive: true });
+}
 
 /**
  * Wire up the Me button and the two look-around-to-pause rules, and start the
@@ -651,8 +680,8 @@ export function initTracking(opts: {
   // on those would drop follow with nothing on screen to explain it.
   //
   // A hand tells them apart. Every zoom the walker can start — pinch, the
-  // double-tap-drag gesture, the +/- control, a wheel on a desktop — begins
-  // with a touch, pointer or wheel on the map itself, and none of the app's
+  // double-tap-drag gesture, the +/- control, a wheel or a key on a desktop —
+  // begins with a touch, pointer, wheel or key on the map itself, and none of the app's
   // own zooms do: the Me button, the panels and Settings all sit outside the
   // map element, and the startup recentre already stands down the moment you
   // touch the map. So a zoom is yours if your hand was just on the map.
@@ -665,15 +694,21 @@ export function initTracking(opts: {
   // stoppable by a handler closer to the target.
   const container = map.getContainer();
   const handOnMap = (): void => { handOnMapAt = Date.now(); };
-  for (const type of ['touchstart', 'pointerdown', 'wheel']) {
+  for (const type of ['touchstart', 'pointerdown', 'wheel', 'keydown']) {
     container.addEventListener(type, handOnMap, { capture: true, passive: true });
   }
   map.on('zoomstart', () => {
     if (Date.now() - handOnMapAt <= GESTURE_MS) pauseFollow();
   });
 
+  // The arrow keys pan a focused map on a desktop, which is a drag by other
+  // means — but Leaflet moves it with panBy, and panBy fires no dragstart.
+  container.addEventListener('keydown', (e) => {
+    if (e.key.startsWith('Arrow')) pauseFollow();
+  }, { capture: true, passive: true });
+
   // No first tap to wait for: the map is on you from the moment it can be.
   // The startup one-shot in map/map.ts has already asked for permission, so
   // this adds no prompt of its own.
-  startWatch();
+  if (startWatch()) standDownOnFirstUse();
 }
