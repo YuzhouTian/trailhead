@@ -208,3 +208,47 @@ export function parseGridRef(input: string): LatLng | null {
   // Aim at the middle of the square the reference describes.
   return eastingNorthingToLatLng(e + scale / 2, n + scale / 2);
 }
+
+/**
+ * Where the OS maps have map: Great Britain and its islands, as a coarse
+ * outline drawn a few kilometres out to sea. Not Northern Ireland, the Isle of
+ * Man or the Channel Islands, which OS's GB maps leave blank — a rectangle
+ * will not do, because the National Grid's own extent takes in all three.
+ *
+ * Offshore on purpose: the margin is the dead band, so standing on a beach or
+ * looking a little way out to sea does not count as leaving. The tight spots
+ * are the North Channel (the line runs between Islay and Rathlin, then west
+ * of Galloway and east of the Copeland Islands) and the gap between Galloway
+ * and the Isle of Man. St Kilda and Rockall are left out.
+ *
+ * [lat, lng], clockwise from the Isles of Scilly.
+ */
+const GB_OUTLINE: LatLng[] = [
+  [49.82, -6.55], [49.88, -5.15], [50.12, -4.4], [50.15, -3.6], [50.45, -2.45],
+  [50.52, -1.3], [50.68, 0.3], [50.85, 1.05], [51.15, 1.5], [51.4, 1.55],
+  [52.48, 1.85], [52.85, 1.75], [53.05, 1.0], [53.6, 0.25], [54.12, 0.0],
+  [54.55, -0.5], [55.8, -1.75], [55.95, -2.0], [56.28, -2.45], [57.5, -1.65],
+  [57.75, -1.9], [58.4, -2.9], [59.0, -2.2], [59.8, -1.1], [60.4, -0.6],
+  [60.9, -0.7], [60.9, -1.4], [60.15, -2.2], [59.45, -3.0], [58.95, -3.5],
+  [58.65, -5.1], [58.6, -6.25], [58.25, -7.2], [57.3, -7.6], [56.75, -7.75],
+  [56.45, -7.1], [55.75, -6.6], [55.5, -6.35], [55.25, -5.85], [54.6, -4.95],
+  [54.62, -4.35], [54.47, -3.7], [54.05, -3.35], [53.8, -3.15], [53.4, -3.2],
+  [53.48, -4.5], [53.3, -4.8], [52.75, -4.9], [51.9, -5.45], [51.55, -5.3],
+  [51.5, -4.25], [51.2, -4.8], [51.05, -4.65], [50.6, -5.1], [50.1, -5.85],
+  [49.95, -6.45]
+];
+
+/** Whether OS's GB maps cover this point, within a few kilometres. */
+export function inGB(lat: number, lng: number): boolean {
+  // Ray casting: count the outline's edges a line due east of the point
+  // crosses. Odd means inside.
+  let inside = false;
+  for (let i = 0, j = GB_OUTLINE.length - 1; i < GB_OUTLINE.length; j = i++) {
+    const [latI, lngI] = GB_OUTLINE[i];
+    const [latJ, lngJ] = GB_OUTLINE[j];
+    if (latI > lat !== latJ > lat && lng < ((lngJ - lngI) * (lat - latI)) / (latJ - latI) + lngI) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}

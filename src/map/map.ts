@@ -8,12 +8,14 @@ import L from '../leaflet-setup';
 import {
   BASE_LAYERS,
   FALLBACK_LAYER_ID,
+  OUTSIDE_GB_LAYER_ID,
   crossOriginFor,
   missingKey,
   type BaseLayerDef,
   type LayerKey
 } from '../config';
 import { type LatLng } from '../geo';
+import { inGB } from '../osgb';
 import { loadLastView, saveLastView, saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
 import { toast } from '../ui/dom';
@@ -149,6 +151,36 @@ function setGrid(grid: 'web' | 'osgb', minZoom: number): void {
 const REMATCH_LAT_DEG = 0.5;
 const REMATCH_LNG_DEG = 1;
 
+/**
+ * Whether any of the visible map is over Great Britain, sampled on a 3×3 grid
+ * across the view. Any one point is enough to keep OS: it is the map you chose,
+ * and half a screen of it on a coast is still worth having.
+ */
+function viewTouchesGB(): boolean {
+  const b = map.getBounds();
+  for (const fy of [0, 0.5, 1]) {
+    for (const fx of [0, 0.5, 1]) {
+      const lat = b.getSouth() + fy * (b.getNorth() - b.getSouth());
+      const lng = b.getWest() + fx * (b.getEast() - b.getWest());
+      if (inGB(lat, lng)) return true;
+    }
+  }
+  return false;
+}
+
+/** Hand a GB-only layer over to Freemap once the map has left GB. */
+function leaveOsOutsideGB(): boolean {
+  if (currentGrid !== 'osgb' || viewTouchesGB()) return false;
+  toast('No OS map here — switched to Freemap', 4000);
+  settings.baseLayer = OUTSIDE_GB_LAYER_ID;
+  applyLayers();
+  return true;
+}
+
+function onMoveEnd(): void {
+  if (!leaveOsOutsideGB()) rematchOsGrid();
+}
+
 function rematchOsGrid(): void {
   if (currentGrid !== 'osgb' || !baseTiles) return;
   const centre = map.getCenter();
@@ -193,9 +225,16 @@ export function applyLayers(): void {
   const requested = layerDef(settings.baseLayer);
   // Falls back for both a missing key and settings still naming a retired
   // layer (the old OS Outdoor and Light layers among them).
-  const base = usable(requested) ? requested : FALLBACK_LAYER;
+  let base = usable(requested) ? requested : FALLBACK_LAYER;
   if (base.id !== settings.baseLayer) {
     if (requested?.needsKey) toast(NEEDS_KEY_TOAST[requested.needsKey], 4000);
+    settings.baseLayer = base.id;
+  }
+  // Picked, or opened on, somewhere OS has no map: go straight to Freemap
+  // rather than switching grids to show a blank one.
+  if (base.grid === 'osgb' && !viewTouchesGB()) {
+    toast(`${base.name} covers Great Britain only — showing Freemap`, 4000);
+    base = layerDef(OUTSIDE_GB_LAYER_ID) ?? FALLBACK_LAYER;
     settings.baseLayer = base.id;
   }
   baseTiles?.remove();
@@ -318,7 +357,7 @@ export function initMap(opts: {
   recentreOnStartup(opts.onStartupPosition);
   rememberView();
   watchViewport();
-  map.on('moveend', rematchOsGrid);
+  map.on('moveend', onMoveEnd);
   applyLayers();
 
   // Metric scale bar so distance is readable at a glance. Leaflet calls it

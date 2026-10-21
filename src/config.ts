@@ -69,7 +69,7 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     maxNativeZoom: 16,
     maxZoom: 18,
     needsKey: 'os',
-    blurb: 'The Ordnance Survey Explorer map: 1:25,000 from close in, with rights of way and access land. Great Britain only. Needs an OS Data Hub key in Settings, and the Premium plan for the 1:25k zooms.'
+    blurb: 'The Ordnance Survey Explorer map: 1:25,000 from close in, with rights of way and access land. Great Britain only: leave it and the map switches to Freemap. Needs an OS Data Hub key in Settings, and the Premium plan for the 1:25k zooms.'
   },
   {
     id: 'tf-outdoors',
@@ -126,6 +126,14 @@ export function crossOriginFor(def: BaseLayerDef): 'anonymous' | undefined {
  * runs on the most robust servers of the four.
  */
 export const FALLBACK_LAYER_ID = 'osm';
+
+/**
+ * Where a GB-only layer (OS Explorer) hands over when the map leaves Great
+ * Britain. Not the fallback: OS is chosen for the hills, and Freemap is the
+ * hill map that carries on past the border. The map stays on it until OS is
+ * picked again, rather than flipping back on the way home.
+ */
+export const OUTSIDE_GB_LAYER_ID = 'freemap';
 
 export const BROUTER_URL = 'https://brouter.de/brouter';
 

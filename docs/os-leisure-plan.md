@@ -221,6 +221,13 @@ OS layer and everything else still ships.
 
 ## 6. The GB-only fallback
 
+**As built (Phase 3):** you chose to stay on Freemap after leaving GB, so there
+is no split between the layer you chose and the layer shown. Leaving switches
+`settings.baseLayer` to Freemap (`OUTSIDE_GB_LAYER_ID`) until OS is picked
+again. "Leaving" means none of a 3×3 grid of points across the view is inside
+the offshore outline, which works at every zoom, and the offshore margin is the
+dead band. The original design is below for reference.
+
 The Map panel keeps **two things apart:** `settings.baseLayer` (what you chose)
 and the layer actually shown. Choosing OS Explorer means "OS wherever it covers".
 
@@ -302,7 +309,7 @@ enough).
 
 Answered 2026-10-21: the name is **OS Explorer (1:25k)**, **Freemap stays the
 default**, and **Thunderforest stays** (so layers name their key with
-`needsKey: 'tf' | 'os'`). Question 3 is open until Phase 3.
+`needsKey: 'tf' | 'os'`). For question 3: **stay on Freemap** after leaving GB until OS is picked again.
 
 1. **Name in the Map panel:** "OS Explorer (1:25k)" or "OS Leisure"?
 2. **Default layer:** stay on Freemap, or make OS the default once your key is
