@@ -198,7 +198,14 @@ self.addEventListener('fetch', (event) => {
         // than returning a response, so patchy signal on a hill still cannot
         // poison the cache; a server-side 404 or 5xx can, and that is what
         // bumping TILE_CACHE clears.
-        const res = await fetch(req);
+        //
+        // A CORS tile is fetched as a new request built from its URL, not by
+        // passing the page's request on. Firefox fails the passed-on request
+        // with a NetworkError, even copied with new Request(req, ...), so every
+        // CORS layer (OS, OpenStreetMap, Thunderforest) drew nothing there;
+        // Chrome and Safari accept either. Freemap's no-CORS request passes on
+        // fine in all three.
+        const res = await fetch(req.mode === 'cors' ? new Request(req.url, { mode: 'cors' }) : req);
         if (res.ok || res.type === 'opaque') cache.put(key, res.clone());
         return res;
       })
