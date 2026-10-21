@@ -5,11 +5,19 @@
 // this module only knows about the canvas they draw on.
 
 import L from '../leaflet-setup';
-import { BASE_LAYERS, FALLBACK_LAYER_ID, crossOriginFor, type BaseLayerDef } from '../config';
+import {
+  BASE_LAYERS,
+  FALLBACK_LAYER_ID,
+  crossOriginFor,
+  missingKey,
+  type BaseLayerDef,
+  type LayerKey
+} from '../config';
 import { type LatLng } from '../geo';
 import { loadLastView, saveLastView, saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
 import { toast } from '../ui/dom';
+import { osGridCrs, osReference, osTileSize, setOsReference } from './osgrid';
 
 // Where the map opens when we have never seen you before: the whole of the UK.
 // Only reached on a first run, or after localStorage has been cleared, or when
@@ -71,7 +79,10 @@ export function layerDef(id: string): BaseLayerDef | undefined {
 /** Fill in the API key and the retina suffix for a layer's tile URL. */
 export function tileUrlFor(def: BaseLayerDef): string {
   const scale = def.retina && window.devicePixelRatio > 1.3 ? '@2x' : '';
-  return def.url.replace('{tfKey}', settings.tfKey).replace('{r}', scale);
+  return def.url
+    .replace('{tfKey}', settings.tfKey)
+    .replace('{osKey}', settings.osKey)
+    .replace('{r}', scale);
 }
 
 function makeTileLayer(def: BaseLayerDef): L.TileLayer {
@@ -96,32 +107,102 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
     keepBuffer: 6
   };
   if (def.minNativeZoom !== undefined) opts.minNativeZoom = def.minNativeZoom;
+  if (def.zoomOffset !== undefined) opts.zoomOffset = def.zoomOffset;
+  if (def.minZoom !== undefined) opts.minZoom = def.minZoom;
+  // OS tiles are drawn larger than 256 px so the scale matches Freemap's at
+  // the grid's reference latitude; see map/osgrid.ts.
+  if (def.grid === 'osgb') opts.tileSize = osTileSize();
   return L.tileLayer(tileUrlFor(def), opts);
+}
+
+// ---------------------------------------------------------------- grid switch
+
+/** Leaflet's view reset, which redraws everything under a changed CRS. */
+type ResettableMap = L.Map & { _resetView(center: L.LatLng, zoom: number): void };
+
+/** The grid the map is on now. */
+let currentGrid: 'web' | 'osgb' = 'web';
+
+/**
+ * Put the map on `grid`, keeping the same centre and zoom number. Because the
+ * OS grid is matched to Freemap's scale at the centre's latitude, the same zoom
+ * number is the same scale: the switch redraws, but nothing on screen moves or
+ * grows. Routes, pins and markers keep GPS coordinates and re-project
+ * themselves on the reset.
+ */
+function setGrid(grid: 'web' | 'osgb', minZoom: number): void {
+  if (grid === currentGrid) return;
+  const centre = map.getCenter();
+  const zoom = Math.max(map.getZoom(), minZoom);
+  if (grid === 'osgb') setOsReference(centre.lat, centre.lng);
+  map.options.crs = grid === 'osgb' ? osGridCrs : L.CRS.EPSG3857;
+  currentGrid = grid;
+  (map as ResettableMap)._resetView(centre, zoom);
+}
+
+/**
+ * Freemap's scale changes with latitude and the OS grid's does not, so after a
+ * long pan north or south re-match the grid where the map now is. 0.5° keeps
+ * each step to about 1% of scale — too little to see. East–west the grid's own
+ * scale factor drifts far more slowly, so a whole degree is allowed.
+ */
+const REMATCH_LAT_DEG = 0.5;
+const REMATCH_LNG_DEG = 1;
+
+function rematchOsGrid(): void {
+  if (currentGrid !== 'osgb' || !baseTiles) return;
+  const centre = map.getCenter();
+  const ref = osReference();
+  if (
+    Math.abs(centre.lat - ref.lat) <= REMATCH_LAT_DEG &&
+    Math.abs(centre.lng - ref.lng) <= REMATCH_LNG_DEG
+  ) return;
+  setOsReference(centre.lat, centre.lng);
+  baseTiles.options.tileSize = osTileSize();
+  (map as ResettableMap)._resetView(centre, map.getZoom());
 }
 
 /** The layer we fall back to: always available, never needs a key. */
 const FALLBACK_LAYER =
   BASE_LAYERS.find((l) => l.id === FALLBACK_LAYER_ID) ??
-  BASE_LAYERS.find((l) => !l.needsTfKey) ??
+  BASE_LAYERS.find((l) => !l.needsKey) ??
   BASE_LAYERS[0];
 
 /** A layer is usable if it exists and any key it needs has been entered. */
 export function usable(def: BaseLayerDef | undefined): def is BaseLayerDef {
-  return !!def && !(def.needsTfKey && !settings.tfKey);
+  return !!def && !missingKey(def, settings);
 }
+
+/** Toasts for a layer picked without its key, by the key it needs. */
+const NEEDS_KEY_TOAST: Record<LayerKey, string> = {
+  tf: 'Outdoors needs a Thunderforest key — add it in Settings',
+  os: 'OS Explorer needs an OS Data Hub key — add it in Settings'
+};
+
+/**
+ * Why a keyed layer's tiles might be failing. OS has a second cause: past the
+ * Premium plan's free monthly allowance with no card registered, it stops
+ * serving the 1:25k zooms while the rest still load.
+ */
+const KEY_FAILING_TOAST: Record<LayerKey, string> = {
+  tf: 'tiles are failing — check the key in Settings',
+  os: 'tiles are failing — check the OS key in Settings, and that your Data Hub plan includes Premium'
+};
 
 export function applyLayers(): void {
   const requested = layerDef(settings.baseLayer);
-  // Read this before the type guard below narrows `requested` away.
-  const missingKey = !!requested?.needsTfKey && !settings.tfKey;
   // Falls back for both a missing key and settings still naming a retired
-  // OS layer.
+  // layer (the old OS Outdoor and Light layers among them).
   const base = usable(requested) ? requested : FALLBACK_LAYER;
   if (base.id !== settings.baseLayer) {
-    if (missingKey) toast('Outdoors needs a Thunderforest key — add it in Settings', 4000);
+    if (requested?.needsKey) toast(NEEDS_KEY_TOAST[requested.needsKey], 4000);
     settings.baseLayer = base.id;
   }
   baseTiles?.remove();
+  // Switch grid before the tile layer is made: its tile size depends on where
+  // the OS grid is matched.
+  setGrid(base.grid ?? 'web', base.minZoom ?? 0);
+  map.setMinZoom(base.minZoom ?? 0);
   baseTiles = makeTileLayer(base).addTo(map);
 
   // Layers disagree about how far in they go (Freemap 20, OpenStreetMap 19), so
@@ -139,8 +220,8 @@ export function applyLayers(): void {
     baseTiles.on('tileerror', () => {
       if (++failures !== 4 || settings.baseLayer !== base.id) return;
       toast(
-        base.needsTfKey
-          ? `${base.name} tiles are failing — check the key in Settings`
+        base.needsKey
+          ? `${base.name} ${KEY_FAILING_TOAST[base.needsKey]}`
           : `${base.name} has no tiles here — switched to ${FALLBACK_LAYER.name}`,
         6000
       );
@@ -237,6 +318,7 @@ export function initMap(opts: {
   recentreOnStartup(opts.onStartupPosition);
   rememberView();
   watchViewport();
+  map.on('moveend', rematchOsGrid);
   applyLayers();
 
   // Metric scale bar so distance is readable at a glance. Leaflet calls it
