@@ -57,7 +57,8 @@ function isTileRequest(url) {
   return (
     url.hostname.endsWith('tile.openstreetmap.org') ||
     url.hostname.endsWith('tile.thunderforest.com') ||
-    url.hostname.endsWith('tiles.freemap.sk')
+    url.hostname.endsWith('tiles.freemap.sk') ||
+    (url.hostname === 'api.os.uk' && url.pathname.startsWith('/maps/raster/'))
   );
 }
 

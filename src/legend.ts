@@ -255,10 +255,39 @@ const TF_GROUPS: Group[] = [
   }
 ];
 
+// ---------------------------------------------------------------- OS Explorer
+
+/** Green diamonds, the way OS marks a National Trail. */
+const diamonds = (colour: string) =>
+  sw(`<g fill="${colour}">${[7, 18, 29, 40].map((x) => `<path d="M${x} 5 l4 4 l-4 4 l-4 -4 Z"/>`).join('')}</g>`);
+
+// Drawn from OS's printed Explorer key. The colours are close rather than
+// sampled from tiles, so the shapes — short dashes against long — carry the
+// meaning, as they do on the paper map.
+const OS_GROUPS: Group[] = [
+  {
+    title: 'Rights of way',
+    entries: [
+      { swatch: way('#2f9a3a', 2, '3 3'), name: 'Public footpath', note: 'Short green dashes. You have a legal right to walk it.' },
+      { swatch: way('#2f9a3a', 2, '9 4'), name: 'Bridleway', note: 'Long green dashes. Walkers, horses and bikes.' },
+      { swatch: way('#2f9a3a', 2, '9 3 2 3'), name: 'Byway', note: 'Open to all traffic, or restricted to non-motor.' },
+      { swatch: diamonds('#2f9a3a'), name: 'National Trail', note: 'Signposted the whole way.' }
+    ],
+    footnote: 'Black dashes are paths on the ground, not rights of way — a right of way need not be visible on the ground either.'
+  },
+  {
+    title: 'Access',
+    entries: [
+      { swatch: area('#fdf2c4', '<rect x="3" y="2" width="40" height="14" rx="2" fill="none" stroke="#e8902e" stroke-width="2"/>'), name: 'Access land', note: 'Yellow wash with an orange edge: open to walk anywhere, not just on paths.' }
+    ]
+  }
+];
+
 // ---------------------------------------------------------------- entry point
 
-const KEYS: Record<string, { title: string; groups: Group[] }> = {
+const KEYS: Record<string, { title: string; groups: Group[]; rightsOfWay?: boolean }> = {
   freemap: { title: 'Outdoor', groups: FREEMAP_GROUPS },
+  'os-leisure': { title: 'OS Explorer', groups: OS_GROUPS, rightsOfWay: true },
   'tf-outdoors': { title: 'Outdoors', groups: TF_GROUPS },
   osm: { title: 'OpenStreetMap', groups: OSM_GROUPS }
 };
@@ -268,5 +297,9 @@ export function legendHtml(layerId: string): string {
   return `
     <h3>Map key — ${key.title}</h3>
     ${key.groups.map(renderGroup).join('')}
-    <p class="hint">No layer shows legal rights of way or open access land.</p>`;
+    <p class="hint">${
+      key.rightsOfWay
+        ? 'The full key is printed on every paper Explorer map.'
+        : 'This layer does not show legal rights of way or open access land; OS Explorer does.'
+    }</p>`;
 }

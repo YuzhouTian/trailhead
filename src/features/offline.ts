@@ -75,6 +75,12 @@ export function initOffline(opts: {
       return toast('Offline caching only works in the installed (built) app', 5000);
     }
     const defs = [layerDef(settings.baseLayer)].filter(usable);
+    // The tile maths below is the standard grid's, and OS's terms on keeping
+    // its tiles offline are not settled yet (docs/os-leisure-plan.md §5). Say
+    // so rather than downloading tiles that would not be the map you see.
+    if (defs.some((d) => d.grid === 'osgb')) {
+      return toast('Offline maps are not available for OS Explorer yet — switch to Freemap to download this route', 5000);
+    }
     // Carry each layer's CORS support alongside its URLs: how the tile is
     // fetched, and whether the result can be checked, differ per layer.
     let urls = defs.flatMap((d) =>

@@ -8,8 +8,18 @@ export interface BaseLayerDef {
   maxNativeZoom: number;
   /** Lowest zoom the tile server provides (tiles downscale below it). */
   minNativeZoom?: number;
-  /** Needs the Thunderforest API key from Settings. */
-  needsTfKey?: boolean;
+  /** Needs an API key from Settings: Thunderforest's or the OS Data Hub's. */
+  needsKey?: LayerKey;
+  /**
+   * Which grid the tiles are cut on. 'osgb' is the British National Grid
+   * (src/map/osgrid.ts): picking such a layer switches the whole map onto it.
+   * Default 'web', the standard Web Mercator grid every other layer uses.
+   */
+  grid?: 'web' | 'osgb';
+  /** Added to the map's zoom to get the zoom in the tile URL. */
+  zoomOffset?: number;
+  /** Lowest zoom the map allows on this layer. */
+  minZoom?: number;
   /** Server offers @2x tiles — much sharper on a phone's high-density screen. */
   retina?: boolean;
   /**
@@ -27,6 +37,9 @@ export interface BaseLayerDef {
   blurb?: string;
 }
 
+/** The API keys a layer can need, each a field in Settings. */
+export type LayerKey = 'tf' | 'os';
+
 export const BASE_LAYERS: BaseLayerDef[] = [
   {
     id: 'freemap',
@@ -42,13 +55,30 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     blurb: 'Contours, hillshading and crag ticks over OpenStreetMap data, with waymarked routes named along the line. The sharpest layer here — its own tiles all the way to z20, at true retina resolution. Covers Europe only.'
   },
   {
+    id: 'os-leisure',
+    name: 'OS Explorer (1:25k)',
+    url: 'https://api.os.uk/maps/raster/v1/zxy/Leisure_27700/{z}/{x}/{y}.png?key={osKey}',
+    // OS serves this style on the British National Grid only, so picking it
+    // moves the whole map onto that grid: see map/osgrid.ts.
+    grid: 'osgb',
+    // App zoom 7–16 is OS level 0–9: 1:50k at 12–13, the 1:25k map at 14–16.
+    // Same scale as Freemap at the same zoom, so switching never jumps.
+    zoomOffset: -7,
+    minZoom: 7,
+    minNativeZoom: 7,
+    maxNativeZoom: 16,
+    maxZoom: 18,
+    needsKey: 'os',
+    blurb: 'The Ordnance Survey Explorer map: 1:25,000 from close in, with rights of way and access land. Great Britain only: leave it and the map switches to Freemap. Needs an OS Data Hub key in Settings, and the Premium plan for the 1:25k zooms.'
+  },
+  {
     id: 'tf-outdoors',
     name: 'Outdoors (Thunderforest)',
     // {r} becomes "@2x" on high-density screens.
     url: 'https://tile.thunderforest.com/outdoors/{z}/{x}/{y}{r}.png?apikey={tfKey}',
     maxZoom: 20,
     maxNativeZoom: 20,
-    needsTfKey: true,
+    needsKey: 'tf',
     retina: true,
     blurb: 'Hiking cartography over OpenStreetMap data: trails graded by difficulty, terrain shading, sharp retina tiles. Needs a free key in Settings.'
   },
@@ -61,6 +91,18 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     blurb: 'The reference rendering. No key, global coverage and the sturdiest servers, which is why it is the fallback.'
   }
 ];
+
+/** The key `def` needs, if any, read from Settings ('' when it has none). */
+export function keyFor(def: BaseLayerDef, keys: { tfKey: string; osKey: string }): string | null {
+  if (def.needsKey === 'tf') return keys.tfKey;
+  if (def.needsKey === 'os') return keys.osKey;
+  return null;
+}
+
+/** True when `def` needs a key and Settings does not have it. */
+export function missingKey(def: BaseLayerDef, keys: { tfKey: string; osKey: string }): boolean {
+  return keyFor(def, keys) === '';
+}
 
 /**
  * What to give an `<img>` as its `crossOrigin` for this layer, or undefined to
@@ -84,6 +126,14 @@ export function crossOriginFor(def: BaseLayerDef): 'anonymous' | undefined {
  * runs on the most robust servers of the four.
  */
 export const FALLBACK_LAYER_ID = 'osm';
+
+/**
+ * Where a GB-only layer (OS Explorer) hands over when the map leaves Great
+ * Britain. Not the fallback: OS is chosen for the hills, and Freemap is the
+ * hill map that carries on past the border. The map stays on it until OS is
+ * picked again, rather than flipping back on the way home.
+ */
+export const OUTSIDE_GB_LAYER_ID = 'freemap';
 
 export const BROUTER_URL = 'https://brouter.de/brouter';
 

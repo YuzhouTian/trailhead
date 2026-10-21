@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   eastingNorthingToLatLng,
   formatGridRef,
+  inGB,
   latLngToEastingNorthing,
   parseGridRef
 } from './osgb';
@@ -241,5 +242,53 @@ describe('parseGridRef', () => {
       expect(Math.abs(backLat - lat) * 111320).toBeLessThan(1);
       expect(Math.abs(backLng - lng) * 111320 * Math.cos((lat * Math.PI) / 180)).toBeLessThan(1);
     }
+  });
+});
+
+describe('inGB', () => {
+  // Pairs across each tight gap, plus the far corners of what OS maps.
+  const inside: [string, number, number][] = [
+    ['London', 51.507, -0.128],
+    ['Snowdon', 53.068, -4.076],
+    ['Ben Nevis', 56.797, -5.004],
+    ['Stranraer', 54.903, -5.027],
+    ['Mull of Galloway', 54.635, -4.857],
+    ['Campbeltown', 55.425, -5.605],
+    ['Port Ellen, Islay', 55.628, -6.19],
+    ['Stornoway', 58.209, -6.389],
+    ['Kirkwall', 58.981, -2.96],
+    ['Lerwick', 60.155, -1.145],
+    ['Unst', 60.76, -0.86],
+    ['Holyhead', 53.31, -4.633],
+    ["St David's", 51.882, -5.268],
+    ['St Mary’s, Scilly', 49.915, -6.31],
+    ['Newport, Isle of Wight', 50.7, -1.29],
+    ['Dover', 51.127, 1.316],
+    ['Lowestoft', 52.475, 1.75],
+    ['St Bees Head', 54.514, -3.636],
+    // On the beach and a little way out: the outline sits offshore.
+    ['off Blackpool beach', 53.815, -3.07]
+  ];
+  const outside: [string, number, number][] = [
+    ['Larne', 54.852, -5.82],
+    ['Belfast', 54.597, -5.93],
+    ['Copeland Islands', 54.67, -5.53],
+    ['Ballycastle', 55.204, -6.244],
+    ['Douglas, Isle of Man', 54.15, -4.48],
+    ['Point of Ayre, Isle of Man', 54.415, -4.368],
+    ['Dublin', 53.35, -6.26],
+    ['Jersey', 49.214, -2.13],
+    ['Guernsey', 49.455, -2.536],
+    ['Calais', 50.951, 1.858],
+    ['mid North Sea', 55.5, 2.5],
+    ['Amsterdam', 52.37, 4.9]
+  ];
+
+  it.each(inside)('counts %s as covered', (_name, lat, lng) => {
+    expect(inGB(lat, lng)).toBe(true);
+  });
+
+  it.each(outside)('counts %s as not covered', (_name, lat, lng) => {
+    expect(inGB(lat, lng)).toBe(false);
   });
 });

@@ -33,6 +33,8 @@ export interface SavedRoute {
 export interface Settings {
   /** Thunderforest key — the Outdoors base layer. */
   tfKey: string;
+  /** OS Data Hub key — the OS Explorer base layer. */
+  osKey: string;
   baseLayer: string;
   profile: string;
   /** Average walking speed on the flat, km/h (Naismith time estimate). */
@@ -95,6 +97,7 @@ export function loadSettings(): Settings {
     profile: knownProfile(null),
     speedKmh: 4,
     tfKey: '',
+    osKey: '',
     theme: 'system',
     schema: SCHEMA
   };

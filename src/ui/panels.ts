@@ -12,7 +12,7 @@
 // own chrome — the grab handle and the close button — lives in index.html and
 // is wired once in initPanels(), because it outlives any one panel.
 
-import { BASE_LAYERS, BROUTER_PROFILES } from '../config';
+import { BASE_LAYERS, BROUTER_PROFILES, missingKey } from '../config';
 import { catMeta, deletePin, getPins, hidePinCard, openSavedPin, sharePin } from '../features/pins';
 import { endPlanning, updatePlanStats } from '../features/planner';
 import { startQrScan } from '../features/qr';
@@ -101,7 +101,7 @@ export function openMapPanel(): void {
     (l) => `<div class="row">
       <input type="radio" name="base" id="base-${l.id}" value="${l.id}" ${settings.baseLayer === l.id ? 'checked' : ''}/>
       <label for="base-${l.id}">${l.name}${
-        l.needsTfKey && !settings.tfKey ? ' <span class="warn">(needs key)</span>' : ''
+        missingKey(l, settings) ? ' <span class="warn">(needs key)</span>' : ''
       }${l.blurb ? `<span class="keyNote">${l.blurb}</span>` : ''}</label>
     </div>`
   ).join('');
@@ -162,6 +162,9 @@ export function openSettingsPanel(): void {
     <h4 class="secTitle">Thunderforest API key</h4>
     <input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/>
     <p class="hint"><a href="https://www.thunderforest.com/maps/outdoors/" target="_blank" rel="noopener">thunderforest.com/maps/outdoors</a></p>
+    <h4 class="secTitle">OS Data Hub API key</h4>
+    <input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/>
+    <p class="hint">For OS Explorer. The 1:25k zooms need the Premium plan. <a href="https://osdatahub.os.uk/" target="_blank" rel="noopener">osdatahub.os.uk</a></p>
     <h4 class="secTitle">Routing profile</h4>
     <select id="profileSel">${profileOpts}</select>
     <h4 class="secTitle">Walking speed</h4>
@@ -195,6 +198,12 @@ export function openSettingsPanel(): void {
     saveSettings(settings);
     applyLayers();
     toast(settings.tfKey ? 'Thunderforest key saved — pick Outdoors in Map' : 'Thunderforest key cleared');
+  });
+  $('osKeyInput').addEventListener('change', (e) => {
+    settings.osKey = (e.target as HTMLInputElement).value.trim();
+    saveSettings(settings);
+    applyLayers();
+    toast(settings.osKey ? 'OS key saved — pick OS Explorer in Map' : 'OS key cleared');
   });
   $('profileSel').addEventListener('change', (e) => {
     settings.profile = (e.target as HTMLSelectElement).value;
