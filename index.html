@@ -64,6 +64,7 @@
     <symbol id="i-search" viewBox="0 0 24 24"><circle class="gico" cx="11" cy="11" r="6.5"/><path class="gico" d="m20.5 20.5-4.8-4.8"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path class="gico" d="M6 6l12 12M18 6 6 18"/></symbol>
     <symbol id="i-chevron-right" viewBox="0 0 24 24"><path class="gico" d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path class="gico" d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path class="gico" d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><circle class="gico" cx="12" cy="12" r="4"/><path class="gico" d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path class="gico" d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5Z"/></symbol>
@@ -95,7 +96,6 @@
 
   <div id="statusBanner" class="hidden"></div>
   <button id="updatePill" class="hidden">Update ready · Reload</button>
-  <div id="buildStamp"></div>
 
   <button id="btnLocate" title="Locate me"><span class="ico" id="locateIco"><svg viewBox="0 0 24 24"><use href="#i-locate"/></svg></span></button>
 
@@ -107,25 +107,40 @@
   </nav>
 
   <div id="routeCard" class="hidden">
-    <div id="rcHeader">
-      <div id="rcName"></div>
-      <button id="rcChart" title="Elevation profile"><svg viewBox="0 0 24 24"><use href="#i-elev"/></svg></button>
-      <button id="rcOffline" title="Download tiles for offline use"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg></button>
-      <button id="rcClose" title="Hide route" aria-label="Hide route"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
+    <!-- The whole card. Minimised, it is put away and #rcChip takes its place. -->
+    <div id="rcFull">
+      <div id="rcHeader">
+        <div id="rcName"></div>
+        <button id="rcChart" title="Elevation profile"><svg viewBox="0 0 24 24"><use href="#i-elev"/></svg></button>
+        <button id="rcOffline" title="Download tiles for offline use"><svg viewBox="0 0 24 24"><use href="#i-download"/></svg></button>
+        <button id="rcMin" title="Minimise" aria-label="Minimise route card" aria-expanded="true"><svg viewBox="0 0 24 24"><use href="#i-chevron-down"/></svg></button>
+        <button id="rcClose" title="Hide route" aria-label="Hide route"><svg viewBox="0 0 24 24"><use href="#i-close"/></svg></button>
+      </div>
+      <!-- How far along you are: shown once there is a fix to measure from. -->
+      <div id="rcProgress" class="hidden">
+        <div id="rcTrack" role="progressbar" aria-label="Route progress" aria-valuemin="0" aria-valuemax="100"><div id="rcTrackFill"></div></div>
+        <div id="rcProgressText"><span id="rcWalked"></span><span id="rcOf"></span></div>
+      </div>
+      <!-- The same three cells as Plan's sheet: the route's totals, or what is
+           left of it while you walk. -->
+      <div id="rcStats" class="statCells">
+        <div class="statCell"><span class="k" id="rcDistK"></span><span class="v" id="rcDist"></span><span class="s" id="rcDistSub"></span></div>
+        <div class="statCell"><span class="k" id="rcUpK"></span><span class="v" id="rcUp"></span><span class="s" id="rcDown"></span></div>
+        <div class="statCell"><span class="k" id="rcTimeK"></span><span class="v" id="rcTime"></span><span class="s" id="rcTimeSub"></span></div>
+      </div>
+      <div id="elevChart" class="hidden"></div>
     </div>
-    <!-- How far along you are: shown once there is a fix to measure from. -->
-    <div id="rcProgress" class="hidden">
-      <div id="rcTrack" role="progressbar" aria-label="Route progress" aria-valuemin="0" aria-valuemax="100"><div id="rcTrackFill"></div></div>
-      <div id="rcProgressText"><span id="rcWalked"></span><span id="rcOf"></span></div>
-    </div>
-    <!-- The same three cells as Plan's sheet: the route's totals, or what is
-         left of it while you walk. -->
-    <div id="rcStats" class="statCells">
-      <div class="statCell"><span class="k" id="rcDistK"></span><span class="v" id="rcDist"></span><span class="s" id="rcDistSub"></span></div>
-      <div class="statCell"><span class="k" id="rcUpK"></span><span class="v" id="rcUp"></span><span class="s" id="rcDown"></span></div>
-      <div class="statCell"><span class="k" id="rcTimeK"></span><span class="v" id="rcTime"></span><span class="s" id="rcTimeSub"></span></div>
-    </div>
-    <div id="elevChart" class="hidden"></div>
+    <!-- The card minimised: the one figure that matters most, and progress as a
+         ring, in the bottom-left corner level with the locate button. Tapping
+         it brings the whole card back. -->
+    <button id="rcChip" aria-expanded="false">
+      <span id="rcRing">
+        <svg viewBox="0 0 42 42" aria-hidden="true"><circle class="ringTrack" cx="21" cy="21" r="17"/><circle id="rcRingArc" cx="21" cy="21" r="17"/></svg>
+        <span id="rcRingMark"></span>
+        <svg id="rcRingIco" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-routes"/></svg>
+      </span>
+      <span id="rcChipText"><span id="rcChipV"></span><span id="rcChipS"></span></span>
+    </button>
   </div>
 
   <div id="pinCard" class="hidden"></div>

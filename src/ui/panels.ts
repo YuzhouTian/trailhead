@@ -156,7 +156,10 @@ export function openSettingsPanel(): void {
     (c) => `<button role="radio" data-colour="${c.colour}" style="--swatch: ${c.colour}" aria-label="${c.label}" title="${c.label}"></button>`
   ).join('');
 
+  // The build time comes first, so checking whether a deploy has landed is one
+  // tap on Settings rather than a scroll to the bottom.
   showPanel(`
+    <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? `${__BUILD_ID__} UTC` : 'dev'}</p>
     <h4 class="secTitle">Appearance</h4>
     <div class="themeSeg" id="themeSeg">
       <button data-theme="light"><svg viewBox="0 0 24 24"><use href="#i-sun"/></svg>Light</button>
