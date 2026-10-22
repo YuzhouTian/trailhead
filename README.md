@@ -116,6 +116,12 @@ bottom-left corner.
   near it is. So Helvellyn the mountain beats Helvellyn Avenue, Sunderland, and Coombe Hill
   the Chilterns summit beats the four Coombe Hill Roads that happen to be closer. Rows read
   "Summit · 260 m · Buckinghamshire · 52 km away": what it is, how high, where, how far.
+  With an OS Data Hub key, searches in Great Britain also ask the free
+  [OS Names API](https://docs.os.uk/os-apis/accessing-os-apis/os-names-api) (every name on
+  the OS map) and merge the two answers. A place both know is kept once, at OpenStreetMap's
+  point (the summit node), and ranked up as confirmed. What only OS knows joins the list: an
+  unmapped crag or corrie, a postcode, a Welsh or Gaelic name. If OS is slow, down or refuses
+  the key, the list comes from Photon alone.
 - **Saved pins** — drop a pin, name it, tag it (summit / viewpoint / water / camp / parking /
   other) and it's kept with its grid ref and height. **Share** — on the card, or on the pin's
   row in Saved — opens the phone's share sheet with the place written out and a link that
@@ -276,7 +282,7 @@ a Helmert transform standing in for the full OSTN15 grid.
 | `src/profiles/` | Our own BRouter profile, behind *Save my legs* |
 | `src/tapzoom.ts` | One-finger zoom |
 | `src/osgb.ts` | OS National Grid references both ways, on-device |
-| `src/search.ts` | Search box resolution: grid ref, lat/lng, then Photon place names with hiking-first ranking |
+| `src/search.ts` | Search box resolution: grid ref, lat/lng, then Photon place names (plus OS Names with an OS key) with hiking-first ranking |
 | `src/poi.ts` | Nearby points — the category table and what each one asks Overpass for |
 | `src/overpass.ts` | Talking to the Overpass mirrors: staggered requests, first answer wins |
 | `src/elevation.ts` | Point elevation lookup, and the SVG profile chart with its scrubber |

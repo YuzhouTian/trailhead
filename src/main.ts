@@ -191,7 +191,7 @@ initDetour({ settings, getActiveRoute: () => activeRoute, setActiveRoute });
 // "where are we looking?" (the live fix, else the map centre), both drop
 // markers that open the pin card, and both pause following. The Map sheet's
 // chips drive nearby, so it exposes state rather than owning a control.
-initSearch();
+initSearch({ settings });
 
 // ---------------------------------------------------------------- sharing + QR
 

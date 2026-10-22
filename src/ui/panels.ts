@@ -173,7 +173,7 @@ export function openSettingsPanel(): void {
     <p class="hint"><a href="https://www.thunderforest.com/maps/outdoors/" target="_blank" rel="noopener">thunderforest.com/maps/outdoors</a></p>
     <h4 class="secTitle">OS Data Hub API key</h4>
     <input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/>
-    <p class="hint">For OS Explorer. The 1:25k zooms need the Premium plan. <a href="https://osdatahub.os.uk/" target="_blank" rel="noopener">osdatahub.os.uk</a></p>
+    <p class="hint">For OS Explorer, and OS place names in search (turn on OS Names API for the key). The 1:25k zooms need the Premium plan. <a href="https://osdatahub.os.uk/" target="_blank" rel="noopener">osdatahub.os.uk</a></p>
     <h4 class="secTitle">Routing profile</h4>
     <select id="profileSel">${profileOpts}</select>
     <h4 class="secTitle">Walking speed</h4>
