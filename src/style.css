@@ -268,31 +268,6 @@ body {
    publishCardLift(). */
 :root { --card-lift: 0px; }
 
-/* iOS 27 draws a frosted blur over the top of a Home Screen web app, reaching
-   about 40px below the status bar, so the search bar was half smeared. iOS
-   draws it over the page, so no CSS on the page can turn it off. What it does
-   look at is the top few pixels of the viewport: with a solid fixed element
-   there, it paints a plain status bar in that element's colour and drops the
-   blur. This is that element: an 11px strip in the page colour, hidden under
-   the status bar, touching nothing. Only in the installed app on iOS
-   (-webkit-touch-callout is the WebKit-on-iOS tell), and only upright, as the
-   app is portrait-only and there is no status bar on its side. This behaviour
-   is undocumented, so a later iOS may need it revisited. */
-#topEdge { display: none; }
-@media (display-mode: standalone) and (orientation: portrait) {
-  @supports (-webkit-touch-callout: none) {
-    #topEdge {
-      display: block;
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      height: 11px;
-      background: var(--bg);
-      pointer-events: none;
-      z-index: 1200;
-    }
-  }
-}
-
 /* The height of the bottom tab bar above the safe-area strip: 6px + 4px padding
    round a 47px column of icon and label. The bottom sheet rests on top of the
    bar and has to know where the bar's top edge is, and that is the only place
