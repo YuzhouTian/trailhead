@@ -275,16 +275,20 @@ body {
    down, and if that lands in a solid fixed box more than 10px tall and about
    as wide as the screen, it paints a plain status bar in that box's colour and
    drops the blur (LocalFrameView::fixedContainerEdges in WebKit). This is that
-   box: a 12px strip in the page colour, hidden under the status bar.
+   box: a 12px strip in the page colour.
+   The status bar is solid now (see index.html), so the page starts below it
+   and the strip shows, as a band in the same colour as the bar: it reads as a
+   slightly deeper status bar. It sits under the search bar, which overlaps
+   its bottom 4px, so it never covers the box.
    It must not be pointer-events: none. The first hit-test honours it, and went
    straight through the strip to the map, which fills the screen and so is
    never taken as the edge colour; iOS then fell back to the blur.
    Only on iOS (-webkit-touch-callout is the WebKit-on-iOS tell), and only
    upright: the installed app is portrait-only, and a Safari tab turned on its
-   side has no status bar to hide this under. Not limited to the installed
-   app, because an icon added with "Open as Web App" off opens in Safari, which
-   samples the edge the same way. This behaviour is undocumented, so a later iOS
-   may need it revisited. */
+   side has no status bar to match. Not limited to the installed app, because
+   an icon added with "Open as Web App" off opens in Safari, which samples the
+   edge the same way. This behaviour is undocumented, so a later iOS may need
+   it revisited. */
 #topEdge { display: none; }
 @media (orientation: portrait) {
   @supports (-webkit-touch-callout: none) {
@@ -294,7 +298,7 @@ body {
       top: 0; left: 0; right: 0;
       height: 12px;
       background: var(--bg);
-      z-index: 1200;
+      z-index: 1040;
     }
   }
 }
