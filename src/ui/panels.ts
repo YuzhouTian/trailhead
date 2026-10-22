@@ -1,5 +1,5 @@
 // The bottom sheet and the three things that fill it: Map (base layer, map key,
-// nearby), Settings (theme, key, routing, pace, offline maps) and Routes
+// nearby), Settings (theme, line colour, key, routing, pace, offline maps) and Routes
 // (your saved routes and pins, and the ways of getting more in).
 //
 // This is the last module out of main.ts and the most cross-cutting by nature:
@@ -12,7 +12,7 @@
 // own chrome — the grab handle and the close button — lives in index.html and
 // is wired once in initPanels(), because it outlives any one panel.
 
-import { BASE_LAYERS, BROUTER_PROFILES, missingKey } from '../config';
+import { BASE_LAYERS, BROUTER_PROFILES, ROUTE_COLOURS, missingKey } from '../config';
 import { catMeta, deletePin, getPins, hidePinCard, openSavedPin, sharePin } from '../features/pins';
 import { endPlanning, updatePlanStats } from '../features/planner';
 import { startQrScan } from '../features/qr';
@@ -37,6 +37,7 @@ let getRoutes: () => SavedRoute[];
 let deleteRoute: (r: SavedRoute) => boolean;
 let setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
 let applyTheme: () => void;
+let applyRouteColour: () => void;
 
 // ---------------------------------------------------------------- the shell
 
@@ -108,12 +109,6 @@ export function openMapPanel(): void {
   showPanel(`
     <h4 class="secTitle">Base map</h4>
     <div class="cells">${baseRows}</div>
-    <div class="cells">
-      <div class="row">
-        <input type="checkbox" id="osNative" ${settings.osNative ? 'checked' : ''}/>
-        <label for="osNative">OS Explorer at OS's own scale<span class="keyNote">Sharper: each OS pixel is one screen pixel, where matched to Freemap's scale it is drawn 1.14–1.5× larger. The cost is that switching to or from OS zooms the map in or out by that much.</span></label>
-      </div>
-    </div>
     <button id="keyBtn" class="secondary wide">Map key</button>
     <h4 class="secTitle">Nearby</h4>
     <div class="pc-chips nearbyChips">${POI_CATEGORIES.map(
@@ -130,9 +125,6 @@ export function openMapPanel(): void {
       applyLayers();
     });
   });
-  $('osNative').addEventListener('change', (e) =>
-    setOsNativeScale((e.target as HTMLInputElement).checked)
-  );
   $('keyBtn').addEventListener('click', () =>
     showPanel(legendHtml(settings.baseLayer))
   );
@@ -160,20 +152,35 @@ export function openSettingsPanel(): void {
   const profileOpts = BROUTER_PROFILES.map(
     (p) => `<option value="${p.id}" ${settings.profile === p.id ? 'selected' : ''}>${p.label}</option>`
   ).join('');
+  const colourBtns = ROUTE_COLOURS.map(
+    (c) => `<button role="radio" data-colour="${c.colour}" style="--swatch: ${c.colour}" aria-label="${c.label}" title="${c.label}"></button>`
+  ).join('');
 
+  // The build time comes first, so checking whether a deploy has landed is one
+  // tap on Settings rather than a scroll to the bottom.
   showPanel(`
+    <p class="hint">App version ${typeof __BUILD_ID__ === 'string' ? `${__BUILD_ID__} UTC` : 'dev'}</p>
     <h4 class="secTitle">Appearance</h4>
     <div class="themeSeg" id="themeSeg">
       <button data-theme="light"><svg viewBox="0 0 24 24"><use href="#i-sun"/></svg>Light</button>
       <button data-theme="dark"><svg viewBox="0 0 24 24"><use href="#i-moon"/></svg>Dark</button>
       <button data-theme="system"><svg viewBox="0 0 24 24"><use href="#i-auto"/></svg>System</button>
     </div>
+    <h4 class="secTitle">Route line</h4>
+    <div class="swatches" id="routeColours" role="radiogroup" aria-label="Route line colour">${colourBtns}</div>
+    <p class="hint">For the route you are planning and the one you load. Pick whichever stands out on the map you use.</p>
     <h4 class="secTitle">Thunderforest API key</h4>
     <input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/>
     <p class="hint"><a href="https://www.thunderforest.com/maps/outdoors/" target="_blank" rel="noopener">thunderforest.com/maps/outdoors</a></p>
     <h4 class="secTitle">OS Data Hub API key</h4>
     <input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/>
     <p class="hint">For OS Explorer, and OS place names in search (turn on OS Names API for the key). The 1:25k zooms need the Premium plan. <a href="https://osdatahub.os.uk/" target="_blank" rel="noopener">osdatahub.os.uk</a></p>
+    <div class="cells">
+      <div class="row">
+        <input type="checkbox" id="osNative" ${settings.osNative ? 'checked' : ''}/>
+        <label for="osNative">OS Explorer at OS's own scale<span class="keyNote">Sharper: each OS pixel is one screen pixel, where matched to Freemap's scale it is drawn 1.14–1.5× larger. The cost is that switching to or from OS zooms the map in or out by that much.</span></label>
+      </div>
+    </div>
     <h4 class="secTitle">Routing profile</h4>
     <select id="profileSel">${profileOpts}</select>
     <h4 class="secTitle">Walking speed</h4>
@@ -202,6 +209,23 @@ export function openSettingsPanel(): void {
     })
   );
 
+  const colourSel = Array.from($('routeColours').querySelectorAll('button')) as HTMLButtonElement[];
+  const markColour = () =>
+    colourSel.forEach((b) => {
+      const on = b.dataset.colour === settings.routeColour;
+      b.classList.toggle('sel', on);
+      b.setAttribute('aria-checked', String(on));
+    });
+  markColour();
+  colourSel.forEach((b) =>
+    b.addEventListener('click', () => {
+      settings.routeColour = b.dataset.colour!;
+      saveSettings(settings);
+      applyRouteColour();
+      markColour();
+    })
+  );
+
   $('tfKeyInput').addEventListener('change', (e) => {
     settings.tfKey = (e.target as HTMLInputElement).value.trim();
     saveSettings(settings);
@@ -214,6 +238,9 @@ export function openSettingsPanel(): void {
     applyLayers();
     toast(settings.osKey ? 'OS key saved — pick OS Explorer in Map' : 'OS key cleared');
   });
+  $('osNative').addEventListener('change', (e) =>
+    setOsNativeScale((e.target as HTMLInputElement).checked)
+  );
   $('profileSel').addEventListener('change', (e) => {
     settings.profile = (e.target as HTMLSelectElement).value;
     saveSettings(settings);
@@ -372,12 +399,15 @@ export function initPanels(opts: {
   setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
   /** Re-apply the theme after the Settings panel changes it. */
   applyTheme: () => void;
+  /** Redraw the route lines after the Settings panel changes their colour. */
+  applyRouteColour: () => void;
 }): void {
   settings = opts.settings;
   getRoutes = opts.getRoutes;
   deleteRoute = opts.deleteRoute;
   setActiveRoute = opts.setActiveRoute;
   applyTheme = opts.applyTheme;
+  applyRouteColour = opts.applyRouteColour;
   // All wired once, here, rather than on every showPanel: the scrim and the
   // sheet's header are always in the document, only their visibility changes.
   $('panelScrim').addEventListener('click', hidePanel);

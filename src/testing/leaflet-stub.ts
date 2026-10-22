@@ -39,6 +39,8 @@ export interface StubLayer {
   onMap: boolean;
   setLatLng(p: StubLatLng): StubLayer;
   setRadius(m: number): StubLayer;
+  /** Merged into `options`, as Leaflet merges it into a path's own. */
+  setStyle(style: Record<string, unknown>): StubLayer;
   addTo(map: StubMap): StubLayer;
   remove(): StubLayer;
   /** Leaflet's own shape, which is what the app reads off a dragged marker. */
@@ -186,6 +188,10 @@ export function createLeafletStub(): LeafletStub {
       },
       setRadius(m) {
         self.radius = m;
+        return self;
+      },
+      setStyle(style) {
+        Object.assign(self.options, style);
         return self;
       },
       addTo() {

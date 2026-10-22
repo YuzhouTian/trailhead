@@ -69,8 +69,9 @@ async function boot() {
   const hidePanel = vi.fn();
   const saveRoute = vi.fn<(r: SavedRoute) => void>();
   const setActiveRoute = vi.fn<(r: SavedRoute | null, fit?: boolean, persist?: boolean) => void>();
+  const settings = { speedKmh: 4, profile: 'hiking-beta', routeColour: '#d8303c' } as Settings;
   planner.initPlanner({
-    settings: { speedKmh: 4, profile: 'hiking-beta' } as Settings,
+    settings,
     saveRoute,
     setActiveRoute,
     hidePanel
@@ -79,6 +80,7 @@ async function boot() {
   const shown = (id: string) => !$(id).classList.contains('hidden');
   return {
     planner,
+    settings,
     hidePanel,
     saveRoute,
     setActiveRoute,
@@ -97,6 +99,10 @@ async function boot() {
     /** The waypoint markers still drawn — the sketch, as the map holds it. */
     get sketch() {
       return stub.map.layers.filter((l) => l.kind === 'marker');
+    },
+    /** The line drawn through the sketch, if there is one yet. */
+    get line() {
+      return stub.map.layers.find((l) => l.kind === 'polyline');
     }
   };
 }
@@ -304,5 +310,19 @@ describe('the Plan sheet', () => {
     expect(p.$('planSnapPaths').classList.contains('sel')).toBe(false);
     p.tap('planSnapPaths');
     expect(p.$('planSnapPaths').getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+describe('the line colour', () => {
+  it('draws in the colour Settings names, and follows it when it changes', async () => {
+    const p = await boot();
+    p.tapPlan();
+    p.tapMap(54.45, -3.21);
+    p.tapMap(54.46, -3.22);
+    await p.settle();
+    expect(p.line?.options.color).toBe('#d8303c');
+    p.settings.routeColour = '#d6249f';
+    p.planner.restylePlanLine();
+    expect(p.line?.options.color).toBe('#d6249f');
   });
 });

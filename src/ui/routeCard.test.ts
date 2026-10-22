@@ -38,8 +38,8 @@ const CARD = (() => {
 const route = { coords: [[54.5, -3], [54.51, -3]] as LatLng[], distanceM: 13_800, ascentM: 971, descentM: 971 };
 
 let view: RouteCardView;
-const show = (progress: WalkProgress | null): void => {
-  view = { src: route, name: 'Helvellyn via Striding Edge', progress, hereM: null, speedKmh: 4 };
+const show = (progress: WalkProgress | null, offRouteM: number | null = null, src = route): void => {
+  view = { src, name: 'Helvellyn via Striding Edge', progress, hereM: null, speedKmh: 4, offRouteM, routeColour: '#d8303c' };
   updateRouteCard();
 };
 
@@ -117,7 +117,69 @@ describe('while walking', () => {
 });
 
 it('hides the card when there is no route', () => {
-  view = { src: null, name: '', progress: null, hereM: null, speedKmh: 4 };
+  view = { src: null, name: '', progress: null, hereM: null, speedKmh: 4, offRouteM: null, routeColour: '#d8303c' };
   updateRouteCard();
   expect($('routeCard').classList.contains('hidden')).toBe(true);
+});
+
+describe('minimised', () => {
+  const along: WalkProgress = {
+    started: true, walkedM: 5_660, totalM: 13_800, remainingM: 8_140, ascentM: 240, descentM: 810
+  };
+  const chip = () => [text('rcChipV'), text('rcChipS'), text('rcRingMark')];
+  const isMin = () => $('routeCard').classList.contains('min');
+
+  // The card is a module, and its minimised state outlives a test: put it back.
+  beforeEach(() => {
+    show(null);
+    if (isMin()) $('rcChip').click();
+  });
+
+  it('swaps the card for the chip, and back, saying which it is to a screen reader', () => {
+    show(along);
+    $('rcMin').click();
+    expect(isMin()).toBe(true);
+    expect($('rcChip').getAttribute('aria-expanded')).toBe('false');
+    $('rcChip').click();
+    expect(isMin()).toBe(false);
+    expect($('rcMin').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('leads with what is left while walking, and how far round the ring you are', () => {
+    show(along);
+    $('rcMin').click();
+    expect(chip()).toEqual(['8.1 km', 'to go · 2 h 26', '41%']);
+    expect($('rcChip').getAttribute('aria-label')).toBe('Expand route card: 8.1 km, to go · 2 h 26');
+  });
+
+  it('shows the route\'s totals before there is a fix, with no percentage to give', () => {
+    $('rcMin').click();
+    expect(chip().slice(0, 2)).toEqual(['13.8 km', '↑ 971 m · 5 h 04']);
+    expect($('rcRing').classList.contains('noProgress')).toBe(true);
+  });
+
+  it('says how far off the route you are before the walk has started, without turning red', () => {
+    show({ started: false, toRouteM: 350 }, 350);
+    $('rcMin').click();
+    expect(chip().slice(0, 2)).toEqual(['13.8 km', '350 m to the route']);
+    expect($('routeCard').classList.contains('off')).toBe(false);
+  });
+
+  it('turns red off the line mid-walk, and back once you are on it again', () => {
+    show(along, 120);
+    $('rcMin').click();
+    expect(chip()).toEqual(['Off route', '120 m away', '!']);
+    expect($('routeCard').classList.contains('off')).toBe(true);
+    show(along);
+    expect($('routeCard').classList.contains('off')).toBe(false);
+  });
+
+  it('stays minimised for the same route, and opens a different one in full', () => {
+    show(along);
+    $('rcMin').click();
+    show(along);
+    expect(isMin()).toBe(true);
+    show(along, null, { ...route, coords: [[54.6, -3], [54.61, -3]] });
+    expect(isMin()).toBe(false);
+  });
 });

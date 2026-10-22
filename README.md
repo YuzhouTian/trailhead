@@ -33,12 +33,15 @@ has no dimmed backdrop, because you tap the map behind it to add points.
 
 When a route is loaded, a card floats just above the tabs with its name, three cells —
 Distance, Climb, Time, which become To go, Climb left and Time left once you're on the
-line — a progress bar, and buttons for the elevation profile and offline tiles. A
+line — a progress bar, and buttons for the elevation profile and offline tiles. The
+chevron beside × minimises it to a chip in the bottom-left corner, level with the locate
+button: the main figure and a progress ring, red if you have strayed off the line mid-walk.
+Tap the chip to bring the card back. A
 long-press anywhere on the map opens a card for that spot, and so does tapping a search
 result or a nearby point.
 
-The map opens where you last left it, and the build's version sits in small print in its
-bottom-left corner.
+The map opens where you last left it, and the build's version sits in small print at the
+top of Settings.
 
 ## Features
 
@@ -145,8 +148,7 @@ bottom-left corner.
   rivers, woods and peaks explain themselves and are left out.
 - **Dark mode** — light, dark, or follow the phone. Dark themes the app only: the map keeps
   full brightness, because the phone is often in dark mode in broad daylight.
-- Distances are shown in **km and miles** together, heights in metres, and there's a metric
-  scale bar on the map.
+- Distances are shown in **km and miles** together, and heights in metres.
 
 ### Sharing and offline
 
@@ -302,8 +304,8 @@ publishes to GitHub Pages. Nothing else to do — `git push` is the deploy.
 
 (Pages source is set to "GitHub Actions" in repo Settings → Pages; that's a one-time setting.)
 
-The build's version is stamped in the map's bottom-left corner, so you can tell at a glance
-whether a phone is running the latest deploy.
+The build's version is shown at the top of Settings, so you can tell at a glance whether a
+phone is running the latest deploy.
 
 A new deploy reaches the phone on the next open. The app asks the service worker at launch
 and whenever it comes back to the foreground: if there's a newer build, it reloads onto it

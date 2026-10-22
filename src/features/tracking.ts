@@ -101,6 +101,9 @@ let lastProg: RouteProgress | null = null;
 // Stays put while you are away from the route, so the readout holds the last
 // real position instead of following a meaningless nearest-point guess.
 let lastOnRouteProg: RouteProgress | null = null;
+// How far off the line the banner last said you were, or null when it said
+// anything else (on route, arrived) or nothing at all.
+let offBy: number | null = null;
 
 // ---------------------------------------------------------------- accessors
 
@@ -118,6 +121,11 @@ export function getKnownPosition(): LatLng | null {
 /** Remember a position found outside the watch (startup recentre, one-shot fix). */
 export function setKnownPosition(p: LatLng): void {
   lastKnownPos = p;
+}
+
+/** How far off the line you are while the banner says you are off route, else null. */
+export function offRouteM(): number | null {
+  return offBy;
 }
 
 /** Metres along the route to mark as "you are here", or null if not believable. */
@@ -144,6 +152,7 @@ export function updateBanner(): void {
   if (!lastFix || !activeRoute) {
     lastProg = null;
     lastOnRouteProg = null;
+    offBy = null;
     banner.classList.add('hidden');
     updateRouteCard();
     return;
@@ -163,6 +172,7 @@ export function updateBanner(): void {
   const { className, text } = bannerFor(lastFix, activeRoute, prog);
   banner.className = className;
   banner.textContent = text;
+  offBy = className === 'off' ? prog?.offRouteM ?? Infinity : null;
   updateRouteCard();
 }
 

@@ -6,6 +6,11 @@
 // one of them: Plan's sheet carries its own stats and profile.) Callers describe what to show as a
 // RouteCardView; this module turns that into DOM and owns nothing else.
 //
+// It can be minimised to a chip in the bottom-left corner — one figure and a
+// progress ring — for when the map matters more than the numbers. That is the
+// card's own state, not the app's: nothing else needs to know which form it
+// is in, beyond the locate button reading where it now has to sit.
+//
 // The one thing it draws on the map is the scrub marker: the dot that follows
 // your finger along the elevation chart. It belongs to the chart, so it lives
 // and dies with the card rather than with any feature.
@@ -50,6 +55,10 @@ export interface RouteCardView {
   hereM: number | null;
   /** Walking pace for the time estimate. */
   speedKmh: number;
+  /** How far off the line you are while the banner says you are off route, else null. */
+  offRouteM: number | null;
+  /** The route line's colour, which the scrubber's ring on the map matches. */
+  routeColour: string;
 }
 
 /** "↑ 180 m · ↓ 120 m" — the climb half of a route's stats line. */
@@ -61,6 +70,15 @@ export function climbText(ascentM: number, descentM?: number): string {
 
 let getView: () => RouteCardView;
 let chartOpen = false;
+let minimised = false;
+// The route the card was minimised on. A different route opens in full, so its
+// name and totals are seen at least once; the same one shown again — after a
+// spell in Plan, say — stays as it was left.
+let minimisedFor: LatLng[] | null = null;
+// True for the length of a minimise or expand. The card's height is animated
+// frame by frame then, and none of those in-between heights is one the locate
+// button should chase.
+let morphing = false;
 let scrubMarker: L.CircleMarker | null = null;
 // Where the chart's scrubber was left, in metres along the route. Held here
 // rather than in the chart because the chart is thrown away and redrawn now and
@@ -87,7 +105,7 @@ function onProfileScrub(scrub: Scrub | null): void {
   if (!scrubMarker) {
     scrubMarker = L.circleMarker(pos, {
       radius: 7,
-      color: '#d8303c',
+      color: getView().routeColour,
       weight: 3,
       fillColor: '#fff',
       fillOpacity: 1,
@@ -99,25 +117,25 @@ function onProfileScrub(scrub: Scrub | null): void {
 }
 
 /**
- * How much more than the card's own height the furniture above it has to rise.
- * The card no longer starts at the top of the tab bar: it floats 8px above a
- * 56px bar, while the scale bar's resting offset is 50px, so 14px of the
- * margin simply buys back the difference and the remaining 10px is the gap you
- * actually see between the card's top edge and the scale bar.
- * Was 12 when the card was an edge-to-edge strip sitting directly on the bar.
+ * The gap between the card's top edge and the locate button above it. The
+ * button rests at the card's own offset from the tab bar, so this is all the
+ * lift adds beyond the card's height.
+ * Was 24 while the scale bar sat between the two and needed room of its own.
  */
-const LIFT_MARGIN = 24;
+const LIFT_MARGIN = 12;
 
 /**
- * Publish the active-route card's height so the bottom-anchored map furniture
- * can clear it (see --card-lift in style.css). The card is not a fixed size —
- * it grows with the elevation chart and the progress bar, and reflows on
- * rotation — so a hard-coded offset left the scale bar and the locate button
- * buried under a tall card. Measuring is the only thing that tracks all three.
+ * Publish the active-route card's height so the locate button can clear it
+ * (see --card-lift in style.css). The card is not a fixed size — it grows with
+ * the elevation chart and the progress bar, and reflows on rotation — so a
+ * hard-coded offset left the button buried under a tall card. Measuring is the
+ * only thing that tracks all three. Minimised, the card is beside the button
+ * rather than under it, so there is nothing to clear.
  */
 function publishCardLift(): void {
   const card = $('routeCard');
-  const h = card.classList.contains('hidden') ? 0 : card.getBoundingClientRect().height;
+  const under = !card.classList.contains('hidden') && !card.classList.contains('min');
+  const h = under ? card.getBoundingClientRect().height : 0;
   document.documentElement.style.setProperty('--card-lift', h ? `${Math.round(h) + LIFT_MARGIN}px` : '0px');
 }
 
@@ -133,11 +151,18 @@ export function updateRouteCard(): void {
     return;
   }
   card.classList.remove('hidden');
+  if (minimised && src.coords !== minimisedFor) minimised = false;
+  card.classList.toggle('min', minimised);
+  setAttr('rcMin', 'aria-expanded', String(!minimised));
+  setAttr('rcChip', 'aria-expanded', String(!minimised));
   setText('rcName', view.name);
   renderStats(src, view.progress, view.speedKmh);
+  renderChip(src, view.progress, view.speedKmh, view.offRouteM);
   $('rcChart').classList.toggle('active', chartOpen);
   const chart = $('elevChart');
-  if (chartOpen) {
+  // Minimised, the chart is out of sight, so it goes the way a closed one does
+  // — its scrubber off the map with it — and is drawn afresh on the way back.
+  if (chartOpen && !minimised) {
     chart.classList.remove('hidden');
     if (scrubCoords && scrubCoords !== src.coords) onProfileScrub(null);
     // Only mark a position we actually believe: hereM is null until a fix lands
@@ -172,6 +197,12 @@ export function updateRouteCard(): void {
 function setText(id: string, text: string): void {
   const el = $(id);
   if (el.textContent !== text) el.textContent = text;
+}
+
+/** The same, for an attribute. */
+function setAttr(id: string, name: string, value: string): void {
+  const el = $(id);
+  if (el.getAttribute(name) !== value) el.setAttribute(name, value);
 }
 
 const metric = (m: number): string => distanceParts(m)[0];
@@ -221,6 +252,114 @@ function renderStats(src: RouteCardSource, progress: WalkProgress | null, speedK
   }
 }
 
+/** Length of the ring's circle (r = 17 in index.html), for its dash pattern. */
+const RING_C = 2 * Math.PI * 17;
+
+/**
+ * The minimised chip: one headline figure, a line under it, and progress as a
+ * ring. Which figure leads follows the card's own cells — what is left once
+ * you are walking, the route's totals before — except off the line mid-walk,
+ * where the one thing worth saying is that you have left it.
+ */
+function renderChip(src: RouteCardSource, progress: WalkProgress | null, speedKmh: number, offRouteM: number | null): void {
+  const walk = progress?.started ? progress : null;
+  const off = walk !== null && offRouteM !== null;
+  const pct = walk && walk.totalM > 0 ? Math.min(100, Math.round((walk.walkedM / walk.totalM) * 100)) : 0;
+
+  let value: string;
+  let sub: string;
+  if (off) {
+    value = 'Off route';
+    // Kilometres alone: the banner above already gives the miles, and the
+    // chip has a thumb's width to say it in.
+    sub = Number.isFinite(offRouteM) ? `${metric(offRouteM)} away` : '';
+  } else if (walk) {
+    value = metric(walk.remainingM);
+    sub = `to go · ${shortDuration(naismithHours(walk.remainingM, walk.ascentM, speedKmh))}`;
+  } else if (progress && !progress.started) {
+    value = metric(src.distanceM);
+    sub = `${metric(progress.toRouteM)} to the route`;
+  } else {
+    value = metric(src.distanceM);
+    sub = `${upText(src.ascentM)} · ${shortDuration(naismithHours(src.distanceM, src.ascentM, speedKmh))}`;
+  }
+  setText('rcChipV', value);
+  setText('rcChipS', sub);
+  setText('rcRingMark', off ? '!' : `${pct}%`);
+  $('rcRing').classList.toggle('noProgress', !progress);
+  $('routeCard').classList.toggle('off', off);
+  const dash = `${((pct / 100) * RING_C).toFixed(1)} ${RING_C.toFixed(1)}`;
+  const arc = $('rcRingArc');
+  if (arc.style.strokeDasharray !== dash) arc.style.strokeDasharray = dash;
+  setAttr('rcChip', 'aria-label', `Expand route card: ${value}${sub ? `, ${sub}` : ''}`);
+}
+
+/** How long the outgoing contents take to fade before the box starts to move. */
+const FADE_MS = 110;
+/** How long the box takes to change shape. Matches #btnLocate's transition. */
+const MORPH_MS = 280;
+const EASE = 'cubic-bezier(.2,.8,.2,1)';
+
+/**
+ * Minimise the card to its chip, or bring it back.
+ *
+ * Swapping the two outright would make the card blink from one shape to the
+ * other, which reads as something going wrong rather than something put away.
+ * So it is done in three beats: what is showing fades out, the box changes
+ * shape between where it was and where it is going (measured, since the card's
+ * height depends on the chart and the progress bar), and the new contents fade
+ * in as it lands. The locate button moves at the same time, on the same curve,
+ * since it rides on the card's height. With reduced motion asked for, or no
+ * Web Animations in the browser, the swap is immediate.
+ */
+async function setMinimised(min: boolean): Promise<void> {
+  if (min === minimised || morphing) return;
+  const card = $('routeCard');
+  const outgoing = $(min ? 'rcFull' : 'rcChip');
+  const incoming = $(min ? 'rcChip' : 'rcFull');
+  // Keep a keyboard user's place: the button they pressed is about to vanish.
+  const refocus = document.activeElement === (min ? $('rcMin') : $('rcChip'));
+  const animate = typeof card.animate === 'function' &&
+    !(typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+  morphing = true;
+  try {
+    // Held at nothing once faded, so it cannot flash back for a frame before
+    // the swap; let go of once it is out of sight.
+    const fade = animate ? outgoing.animate([{ opacity: 1 }, { opacity: 0 }], { duration: FADE_MS, fill: 'forwards' }) : null;
+    if (fade) await fade.finished; // not `await fade?.finished`: that waits even with no fade
+    const from = card.getBoundingClientRect();
+    const fromRadius = getComputedStyle(card).borderRadius;
+    minimised = min;
+    minimisedFor = min ? getView().src?.coords ?? null : null;
+    updateRouteCard();
+    fade?.cancel();
+    publishCardLift();
+    if (animate && !card.classList.contains('hidden')) {
+      const to = card.getBoundingClientRect();
+      // Pinned to the left edge with an explicit width for the length of the
+      // run: the full card is centred by its margins and the chip is not, and
+      // neither of those is something a box can be animated between.
+      const box = (r: DOMRect, radius: string): Keyframe => ({
+        left: `${r.left}px`, right: 'auto', marginLeft: '0px', marginRight: '0px',
+        width: `${r.width}px`, height: `${r.height}px`, borderRadius: radius, overflow: 'hidden'
+      });
+      card.animate([box(from, fromRadius), box(to, getComputedStyle(card).borderRadius)], { duration: MORPH_MS, easing: EASE });
+      if (min) {
+        // The bar's fill, bent round into the ring: it sweeps out from empty.
+        const arc = $('rcRingArc');
+        arc.animate([{ strokeDasharray: `0 ${RING_C.toFixed(1)}` }, { strokeDasharray: arc.style.strokeDasharray }],
+          { duration: 420, delay: MORPH_MS / 2, easing: EASE, fill: 'backwards' });
+      }
+      await incoming.animate([{ opacity: 0 }, { opacity: 0, offset: 0.45 }, { opacity: 1 }], { duration: MORPH_MS }).finished;
+    }
+  } finally {
+    morphing = false;
+  }
+  publishCardLift();
+  if (refocus) (min ? $('rcChip') : $('rcMin')).focus();
+}
+
 /**
  * Drop the chart and its scrubber together, whenever the chart goes out of
  * sight — closed, or the card hidden. The scrubber is forgotten either way, so
@@ -247,11 +386,15 @@ export function initRouteCard(opts: {
 }): void {
   getView = opts.getView;
 
-  new ResizeObserver(publishCardLift).observe($('routeCard'));
+  new ResizeObserver(() => {
+    if (!morphing) publishCardLift();
+  }).observe($('routeCard'));
 
   $('rcChart').addEventListener('click', () => {
     chartOpen = !chartOpen;
     updateRouteCard();
   });
+  $('rcMin').addEventListener('click', () => void setMinimised(true));
+  $('rcChip').addEventListener('click', () => void setMinimised(false));
   $('rcClose').addEventListener('click', opts.onClose);
 }
