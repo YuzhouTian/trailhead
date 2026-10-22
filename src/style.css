@@ -269,22 +269,6 @@ body {
    publishCardLift(). */
 :root { --card-lift: 0px; }
 
-/* Where the search bar's 8px inset is measured from. iOS 27 draws its own
-   frosted blur across the top of the screen, reaching past the status bar, and
-   left at the notch's safe area the search bar sat half inside it, its top
-   half smeared. The blur is drawn over the page, so nothing here can turn it
-   off (a solid fixed strip at the top edge and a solid status bar were both
-   tried on an iPhone and changed nothing), so on iOS the bar starts 32px lower,
-   below it. The search results, the on/off-route banner and the update pill
-   hang under the bar, so they measure from here too, and so does the sheet's
-   height cap, which stops short of the bar's foot. The map still runs all the
-   way to the top, under the blur. -webkit-touch-callout is the WebKit-on-iOS
-   tell. */
-:root { --search-top: env(safe-area-inset-top, 0px); }
-@supports (-webkit-touch-callout: none) {
-  :root { --search-top: calc(env(safe-area-inset-top, 0px) + 32px); }
-}
-
 /* The height of the bottom tab bar above the safe-area strip: 6px + 4px padding
    round a 47px column of icon and label. The bottom sheet rests on top of the
    bar and has to know where the bar's top edge is, and that is the only place
@@ -352,7 +336,7 @@ body.planning #btnLocate { display: none; }
 /* Search */
 #searchWrap {
   position: fixed;
-  top: calc(var(--search-top) + 8px);
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
   left: 12px; right: 12px;
   max-width: 520px; margin: 0 auto;
   height: 48px;
@@ -395,7 +379,7 @@ body.planning #btnLocate { display: none; }
 #searchResults {
   position: fixed;
   /* 8px inset + the bar's own 48px + an 8px gap. */
-  top: calc(var(--search-top) + 64px);
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
   left: 12px; right: 12px;
   max-width: 520px; margin: 0 auto;
   background: var(--surface);
@@ -422,7 +406,7 @@ body.planning #btnLocate { display: none; }
 /* Status banner (on/off route) */
 #statusBanner {
   position: fixed;
-  top: calc(var(--search-top) + 64px);
+  top: calc(env(safe-area-inset-top, 0px) + 64px);
   left: 50%; transform: translateX(-50%);
   height: 40px;
   display: flex; align-items: center;
@@ -446,7 +430,7 @@ body.planning #statusBanner { display: none; }
    place when not, and inked like the toast so it never reads as on/off route. */
 #updatePill {
   position: fixed;
-  top: calc(var(--search-top) + 112px);
+  top: calc(env(safe-area-inset-top, 0px) + 112px);
   left: 50%; transform: translateX(-50%);
   height: 40px;
   padding: 0 16px;
@@ -458,7 +442,7 @@ body.planning #statusBanner { display: none; }
   white-space: nowrap; cursor: pointer;
 }
 #statusBanner.hidden + #updatePill,
-body.planning #updatePill { top: calc(var(--search-top) + 64px); }
+body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) #updatePill {
     background: var(--surface-2); color: var(--ink);
@@ -513,9 +497,9 @@ body.planning #updatePill { top: calc(var(--search-top) + 64px); }
   position: fixed;
   left: 0; right: 0;
   bottom: calc(var(--bar-foot) + var(--bar-h));
-  max-height: calc(min(88vh, 100vh - var(--search-top) - 56px - var(--sheet-gap))
+  max-height: calc(min(88vh, 100vh - env(safe-area-inset-top, 0px) - 56px - var(--sheet-gap))
                    - var(--bar-foot) - var(--bar-h));
-  max-height: calc(min(88dvh, 100dvh - var(--search-top) - 56px - var(--sheet-gap))
+  max-height: calc(min(88dvh, 100dvh - env(safe-area-inset-top, 0px) - 56px - var(--sheet-gap))
                    - var(--bar-foot) - var(--bar-h));
   background: var(--bg);
   border-top: 1px solid var(--hairline);
