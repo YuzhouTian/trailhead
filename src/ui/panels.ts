@@ -108,12 +108,6 @@ export function openMapPanel(): void {
   showPanel(`
     <h4 class="secTitle">Base map</h4>
     <div class="cells">${baseRows}</div>
-    <div class="cells">
-      <div class="row">
-        <input type="checkbox" id="osNative" ${settings.osNative ? 'checked' : ''}/>
-        <label for="osNative">OS Explorer at OS's own scale<span class="keyNote">Sharper: each OS pixel is one screen pixel, where matched to Freemap's scale it is drawn 1.14–1.5× larger. The cost is that switching to or from OS zooms the map in or out by that much.</span></label>
-      </div>
-    </div>
     <button id="keyBtn" class="secondary wide">Map key</button>
     <h4 class="secTitle">Nearby</h4>
     <div class="pc-chips nearbyChips">${POI_CATEGORIES.map(
@@ -130,9 +124,6 @@ export function openMapPanel(): void {
       applyLayers();
     });
   });
-  $('osNative').addEventListener('change', (e) =>
-    setOsNativeScale((e.target as HTMLInputElement).checked)
-  );
   $('keyBtn').addEventListener('click', () =>
     showPanel(legendHtml(settings.baseLayer))
   );
@@ -174,6 +165,12 @@ export function openSettingsPanel(): void {
     <h4 class="secTitle">OS Data Hub API key</h4>
     <input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/>
     <p class="hint">For OS Explorer. The 1:25k zooms need the Premium plan. <a href="https://osdatahub.os.uk/" target="_blank" rel="noopener">osdatahub.os.uk</a></p>
+    <div class="cells">
+      <div class="row">
+        <input type="checkbox" id="osNative" ${settings.osNative ? 'checked' : ''}/>
+        <label for="osNative">OS Explorer at OS's own scale<span class="keyNote">Sharper: each OS pixel is one screen pixel, where matched to Freemap's scale it is drawn 1.14–1.5× larger. The cost is that switching to or from OS zooms the map in or out by that much.</span></label>
+      </div>
+    </div>
     <h4 class="secTitle">Routing profile</h4>
     <select id="profileSel">${profileOpts}</select>
     <h4 class="secTitle">Walking speed</h4>
@@ -214,6 +211,9 @@ export function openSettingsPanel(): void {
     applyLayers();
     toast(settings.osKey ? 'OS key saved — pick OS Explorer in Map' : 'OS key cleared');
   });
+  $('osNative').addEventListener('change', (e) =>
+    setOsNativeScale((e.target as HTMLInputElement).checked)
+  );
   $('profileSel').addEventListener('change', (e) => {
     settings.profile = (e.target as HTMLSelectElement).value;
     saveSettings(settings);
