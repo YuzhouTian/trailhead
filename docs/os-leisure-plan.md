@@ -151,7 +151,10 @@ each tile from the four tiles of the next level in at half size
 ([sharptiles.ts](../src/map/sharptiles.ts)): same ground, same text size, twice
 the pixels each way. That is four tile requests instead of one at those zooms.
 Not zoom 13: level 6 is the 1:50k, and drawing it from level 7 would swap in
-the 1:25k with its text at half size. (This also corrects the "text too small"
+the 1:25k with its text at half size. Extended the same day to zooms 8, 10 and
+12, whose next levels are the same map (MiniScale, the 1:250k and the 1:50k);
+zoom 12's next level is Premium, so it now costs four Premium tiles where it
+cost one free one. (This also corrects the "text too small"
 point above: at the same ground scale, the next level in only adds pixels; the
 text grows smaller only when it is a different map.)
 

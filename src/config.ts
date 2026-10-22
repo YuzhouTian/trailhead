@@ -75,9 +75,11 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     minNativeZoom: 7,
     maxNativeZoom: 16,
     maxZoom: 18,
-    // The 1:25k at zooms 14 and 15 drawn from levels 8 and 9 on a phone.
-    // Not level 6: that is the 1:50k, and level 7 is already the 1:25k.
-    sharpLevels: [7, 8],
+    // On a phone, every zoom whose next level in is the same map: MiniScale at
+    // 8, the 1:250k at 10, the 1:50k at 12 and the 1:25k at 14–15. Zooms 7, 9,
+    // 11 and 13 sit at a change of map. Levels 0–5 are open data; drawing zoom
+    // 12 from level 6 turns each free tile into four Premium ones.
+    sharpLevels: [1, 3, 5, 7, 8],
     needsKey: 'os',
     blurb: 'The Ordnance Survey Explorer map: 1:25,000 from close in, with rights of way and access land. Great Britain only: leave it and the map switches to Freemap. Needs an OS Data Hub key in Settings, and the Premium plan for the 1:25k zooms.'
   },
