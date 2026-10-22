@@ -23,7 +23,7 @@
   --brand-strong:#15654a;/* pressed / active primary */
   --brand-soft:#e3f1e9; /* tinted background behind a brand icon */
   --on-brand:#ffffff;   /* text/icons sitting on a brand fill */
-  --danger:  #d8303c;   /* off-route, delete, route line */
+  --danger:  #d8303c;   /* off-route, delete */
   --danger-soft:#fbe9ea;/* tinted danger background */
   /* Red used as a *sentence*, not as a fill or a glyph. --danger is tuned to
      carry white text on top of it and to match the red of the route line, and
@@ -771,6 +771,25 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
   box-shadow: var(--shadow-card), inset 0 0 0 1px var(--hairline);
 }
 
+/* Route line colour (Settings). Round swatches in the same well as the
+   appearance switch; the chosen one gets a ring in the ink colour, held off the
+   swatch by a gap of the well's own grey so it reads on light and dark alike.
+   Scoped under #panel to beat the generic `#panel button` fill. */
+#panel .swatches {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between;
+  background: var(--surface-2); border-radius: var(--r-md); padding: 8px 12px;
+}
+#panel .swatches button {
+  width: 40px; height: 40px; padding: 0; border-radius: 50%;
+  background: var(--swatch);
+  /* A mid-grey rim, so black still has an edge on the dark sheet. */
+  --rim: inset 0 0 0 1px rgba(128,128,128,.6);
+  box-shadow: var(--rim);
+}
+#panel .swatches button.sel {
+  box-shadow: var(--rim), 0 0 0 3px var(--surface-2), 0 0 0 5px var(--ink);
+}
+
 /* Plan sheet
    Plan used to swap the tab bar for a bar of its own, with the route card
    floating above it: a different look from the three sheets beside it, the
@@ -1131,7 +1150,8 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
 }
 .wpMarker {
   width: 14px; height: 14px; border-radius: 50%;
-  background: #fff; border: 3px solid #d8303c;
+  /* --route is the line colour from Settings, set on the root by main.ts. */
+  background: #fff; border: 3px solid var(--route, #d8303c);
   box-shadow: 0 1px 3px rgba(0,0,0,.4);
 }
 

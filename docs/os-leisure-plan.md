@@ -131,8 +131,8 @@ OS's own native size. The alternative is drawing the next level down shrunk to
 57–88%, which is sharp but has text too small to read on a phone. Enlarging is
 the better trade.
 
-**Option added 2026-10-22: OS's own scale.** A checkbox in the Map panel,
-"OS Explorer at OS's own scale", turns the match off: app zoom *z* is exactly OS
+**Option added 2026-10-22: OS's own scale.** A checkbox in Settings, under the
+OS key, "OS Explorer at OS's own scale", turns the match off: app zoom *z* is exactly OS
 level *z − 7* everywhere, every tile is drawn at 256 px, and nothing re-matches
 on a pan. Each OS pixel is one screen pixel instead of 1.14–1.5 (1.26 in the
 Lakes), so the map carries 1.3–2.2× as many map pixels per screen area (1.6× in

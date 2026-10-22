@@ -39,7 +39,7 @@ const route = { coords: [[54.5, -3], [54.51, -3]] as LatLng[], distanceM: 13_800
 
 let view: RouteCardView;
 const show = (progress: WalkProgress | null, offRouteM: number | null = null, src = route): void => {
-  view = { src, name: 'Helvellyn via Striding Edge', progress, hereM: null, speedKmh: 4, offRouteM };
+  view = { src, name: 'Helvellyn via Striding Edge', progress, hereM: null, speedKmh: 4, offRouteM, routeColour: '#d8303c' };
   updateRouteCard();
 };
 
@@ -117,7 +117,7 @@ describe('while walking', () => {
 });
 
 it('hides the card when there is no route', () => {
-  view = { src: null, name: '', progress: null, hereM: null, speedKmh: 4, offRouteM: null };
+  view = { src: null, name: '', progress: null, hereM: null, speedKmh: 4, offRouteM: null, routeColour: '#d8303c' };
   updateRouteCard();
   expect($('routeCard').classList.contains('hidden')).toBe(true);
 });
