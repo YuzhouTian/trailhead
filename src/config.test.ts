@@ -55,6 +55,16 @@ describe('base layers', () => {
     expect(os.minNativeZoom! + os.zoomOffset!).toBe(0);
     expect(os.url).toContain('{osKey}');
   });
+
+  it('sharpens a level only from the next level of the same map', () => {
+    // Leisure_27700's levels 0–9, from OS's "Layers and styles" page.
+    const map = ['overview', 'miniscale', 'miniscale', '250k', '250k', '50k', '50k', '25k', '25k', '25k'];
+    const os = byId('os-leisure');
+    for (const level of os.sharpLevels!) {
+      expect(level + 1).toBeLessThanOrEqual(os.maxNativeZoom + os.zoomOffset!);
+      expect(map[level + 1]).toBe(map[level]);
+    }
+  });
 });
 
 describe('layer keys', () => {

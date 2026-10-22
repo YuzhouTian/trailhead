@@ -190,6 +190,17 @@ body {
   user-select: text;
 }
 .leaflet-container { background: var(--map-gap); }
+/* A tile drawn from four of the next level's at half size (map/sharptiles.ts).
+   plus-lighter is what Leaflet puts on its own <img> tiles, so the seams
+   between them, and between these four, don't show the background through. */
+.leaflet-container .leaflet-tile.sharp-tile { mix-blend-mode: plus-lighter; }
+.leaflet-container .leaflet-tile.sharp-tile > img {
+  position: absolute;
+  width: 50%;
+  height: 50%;
+  mix-blend-mode: plus-lighter;
+  -webkit-user-drag: none;
+}
 .hidden { display: none !important; }
 
 /* Monochrome icon glyphs (see the sprite in index.html). Stroke-drawn and

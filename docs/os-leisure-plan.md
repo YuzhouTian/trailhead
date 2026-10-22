@@ -142,6 +142,22 @@ in coming off it, and the text is OS's own size, about a fifth smaller than now.
 On a 3× phone screen both are enlarged by the browser anyway (3× vs 3.8×), so
 the gain there is the extra detail rather than a jump from soft to crisp.
 
+**Added 2026-10-22: sharper zooms 14 and 15 on a phone.** OS has no retina
+tiles, so on a 3× screen each OS pixel covered 3×3 screen pixels, and the map
+went soft one step out from 16: crisp mid-pinch while the level-9 tiles were
+being shrunk, soft on letting go when level 8 replaced them. Levels 7, 8 and 9
+are all the one 1:25k map, so on a high-density screen zooms 14 and 15 now draw
+each tile from the four tiles of the next level in at half size
+([sharptiles.ts](../src/map/sharptiles.ts)): same ground, same text size, twice
+the pixels each way. That is four tile requests instead of one at those zooms.
+Not zoom 13: level 6 is the 1:50k, and drawing it from level 7 would swap in
+the 1:25k with its text at half size. Extended the same day to zooms 8, 10 and
+12, whose next levels are the same map (MiniScale, the 1:250k and the 1:50k);
+zoom 12's next level is Premium, so it now costs four Premium tiles where it
+cost one free one. (This also corrects the "text too small"
+point above: at the same ground scale, the next level in only adds pixels; the
+text grows smaller only when it is a different map.)
+
 **Layer definition:** `maxNativeZoom: 16`, `maxZoom: 18`, `minNativeZoom: 7`,
 `minZoom: 7`, `zoomOffset: -7`, and `tileSize` calculated from φ₀ as above.
 

@@ -23,6 +23,13 @@ export interface BaseLayerDef {
   /** Server offers @2x tiles — much sharper on a phone's high-density screen. */
   retina?: boolean;
   /**
+   * For a layer with no @2x tiles: URL levels that a high-density screen draws
+   * from four tiles of the next level in, at half size. The same map with twice
+   * the pixels each way, so only levels that share their map with the next one.
+   * See map/sharptiles.ts.
+   */
+  sharpLevels?: number[];
+  /**
    * Whether the server sends `Access-Control-Allow-Origin`. Default true.
    *
    * Set false and tiles are requested without `crossOrigin`, because a browser
@@ -68,6 +75,11 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     minNativeZoom: 7,
     maxNativeZoom: 16,
     maxZoom: 18,
+    // On a phone, every zoom whose next level in is the same map: MiniScale at
+    // 8, the 1:250k at 10, the 1:50k at 12 and the 1:25k at 14–15. Zooms 7, 9,
+    // 11 and 13 sit at a change of map. Levels 0–5 are open data; drawing zoom
+    // 12 from level 6 turns each free tile into four Premium ones.
+    sharpLevels: [1, 3, 5, 7, 8],
     needsKey: 'os',
     blurb: 'The Ordnance Survey Explorer map: 1:25,000 from close in, with rights of way and access land. Great Britain only: leave it and the map switches to Freemap. Needs an OS Data Hub key in Settings, and the Premium plan for the 1:25k zooms.'
   },

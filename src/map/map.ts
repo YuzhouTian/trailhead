@@ -19,6 +19,7 @@ import { inGB } from '../osgb';
 import { loadLastView, saveLastView, saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
 import { toast } from '../ui/dom';
+import { SharpTileLayer } from './sharptiles';
 import { osGridCrs, osNative, osReference, osTileSize, setOsNative, setOsReference } from './osgrid';
 
 // Where the map opens when we have never seen you before: the whole of the UK.
@@ -78,9 +79,14 @@ export function layerDef(id: string): BaseLayerDef | undefined {
   return BASE_LAYERS.find((l) => l.id === id);
 }
 
+/** A screen with more than one device pixel to the CSS pixel: most phones. */
+function highDensity(): boolean {
+  return window.devicePixelRatio > 1.3;
+}
+
 /** Fill in the API key and the retina suffix for a layer's tile URL. */
 export function tileUrlFor(def: BaseLayerDef): string {
-  const scale = def.retina && window.devicePixelRatio > 1.3 ? '@2x' : '';
+  const scale = def.retina && highDensity() ? '@2x' : '';
   return def.url
     .replace('{tfKey}', settings.tfKey)
     .replace('{osKey}', settings.osKey)
@@ -114,6 +120,9 @@ function makeTileLayer(def: BaseLayerDef): L.TileLayer {
   // OS tiles are drawn larger than 256 px so the scale matches Freemap's at
   // the grid's reference latitude; see map/osgrid.ts.
   if (def.grid === 'osgb') opts.tileSize = osTileSize();
+  if (def.sharpLevels && highDensity()) {
+    return new SharpTileLayer(tileUrlFor(def), { ...opts, sharpLevels: def.sharpLevels });
+  }
   return L.tileLayer(tileUrlFor(def), opts);
 }
 
