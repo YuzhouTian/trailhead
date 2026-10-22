@@ -271,29 +271,23 @@ body {
 /* iOS 27 draws a frosted blur over the top of a Home Screen web app, reaching
    about 40px below the status bar, so the search bar was half smeared. iOS
    draws it over the page, so no CSS on the page can turn it off. What it does
-   look at is the top edge of the viewport: it hit-tests the middle of it, 4px
-   down, and if that lands in a solid fixed box more than 10px tall and about
-   as wide as the screen, it paints a plain status bar in that box's colour and
-   drops the blur (LocalFrameView::fixedContainerEdges in WebKit). This is that
-   box: a 12px strip in the page colour, hidden under the status bar.
-   It must not be pointer-events: none. The first hit-test honours it, and went
-   straight through the strip to the map, which fills the screen and so is
-   never taken as the edge colour; iOS then fell back to the blur.
-   Only on iOS (-webkit-touch-callout is the WebKit-on-iOS tell), and only
-   upright: the installed app is portrait-only, and a Safari tab turned on its
-   side has no status bar to hide this under. Not limited to the installed
-   app, because an icon added with "Open as Web App" off opens in Safari, which
-   samples the edge the same way. This behaviour is undocumented, so a later iOS
-   may need it revisited. */
+   look at is the top few pixels of the viewport: with a solid fixed element
+   there, it paints a plain status bar in that element's colour and drops the
+   blur. This is that element: an 11px strip in the page colour, hidden under
+   the status bar, touching nothing. Only in the installed app on iOS
+   (-webkit-touch-callout is the WebKit-on-iOS tell), and only upright, as the
+   app is portrait-only and there is no status bar on its side. This behaviour
+   is undocumented, so a later iOS may need it revisited. */
 #topEdge { display: none; }
-@media (orientation: portrait) {
+@media (display-mode: standalone) and (orientation: portrait) {
   @supports (-webkit-touch-callout: none) {
     #topEdge {
       display: block;
       position: fixed;
       top: 0; left: 0; right: 0;
-      height: 12px;
+      height: 11px;
       background: var(--bg);
+      pointer-events: none;
       z-index: 1200;
     }
   }
