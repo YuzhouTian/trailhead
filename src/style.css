@@ -281,11 +281,12 @@ body {
    The full inset (34px on a Face ID iPhone) left a tall empty band under the
    icons: the home indicator itself is a thin line in the bottom ~13px, and
    the rest of the strip is just margin. Native tab bars let their labels sit
-   in it, so the bar keeps all but 16px of it — still clear of the indicator —
-   and on a phone with no inset this is 0, as before. Everything that sits a
-   set distance above the bar measures from here rather than from the raw
-   inset, so it all comes down with the bar and keeps its gap. */
-:root { --bar-foot: max(env(safe-area-inset-bottom, 0px) - 16px, 0px); }
+   in it, so the bar gives up 24px of it: with the bar's own 4px, the labels
+   end 14px off the foot of the screen, just above the indicator. On a phone
+   with no inset this is 0, as before. Everything that sits a set distance
+   above the bar measures from here rather than from the raw inset, so it all
+   comes down with the bar and keeps its gap. */
+:root { --bar-foot: max(env(safe-area-inset-bottom, 0px) - 24px, 0px); }
 
 /* Locate ("Me") — a floating control over the map, not a nav destination.
    Sits above the bottom bar, and rides up above the route card when one shows.
