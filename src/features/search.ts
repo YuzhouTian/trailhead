@@ -18,6 +18,7 @@ import { type LatLng } from '../geo';
 import { map } from '../map/map';
 import { fetchPois, nearbyBox, poiCategory, type Poi, type PoiKind } from '../poi';
 import { search, type SearchHit } from '../search';
+import type { Settings } from '../state';
 import { $, hideToast, svgUse, toast } from '../ui/dom';
 
 /** How long to wait after the last keystroke before asking. */
@@ -28,6 +29,8 @@ const MIN_QUERY_LENGTH = 2;
 let searchAbort: AbortController | null = null;
 let searchTimer: number | undefined;
 let searchMarker: L.Marker | null = null;
+/** Said once a session: after that the list from Photon alone is answer enough. */
+let osRejectionShown = false;
 
 // ---------------------------------------------------------------- search box
 
@@ -185,7 +188,8 @@ function poiMarker(p: Poi): L.Marker {
 
 /** Wire up the search box. Nearby has no control of its own — the Map sheet's
  *  chips call toggleNearby() — so only the box needs listeners. */
-export function initSearch(): void {
+export function initSearch(opts: { settings: Settings }): void {
+  const { settings } = opts;
   $('searchInput').addEventListener('input', () => {
     const q = ($('searchInput') as HTMLInputElement).value;
     $('searchClear').classList.toggle('hidden', !q);
@@ -201,9 +205,20 @@ export function initSearch(): void {
         // by the time it does the results may be stale or already dismissed —
         // redrawing then would pop the list back open over a chosen place.
         showSearchHits(
-          await search(q, near, ctrl.signal, (refined) => {
-            const open = !$('searchResults').classList.contains('hidden');
-            if (open && !ctrl.signal.aborted) showSearchHits(refined);
+          await search(q, {
+            near,
+            signal: ctrl.signal,
+            onRefine: (refined) => {
+              const open = !$('searchResults').classList.contains('hidden');
+              if (open && !ctrl.signal.aborted) showSearchHits(refined);
+            },
+            // Read at each search, so a key saved in Settings applies straight away.
+            osKey: settings.osKey,
+            onOsRejected: () => {
+              if (osRejectionShown) return;
+              osRejectionShown = true;
+              toast('OS Names refused the key — turn on OS Names API for it in the OS Data Hub', 6000);
+            }
           })
         );
       } catch (e) {

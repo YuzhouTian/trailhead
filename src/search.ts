@@ -1,5 +1,5 @@
 import { haversine, type LatLng } from './geo';
-import { parseGridRef } from './osgb';
+import { eastingNorthingToLatLng, inGB, parseGridRef } from './osgb';
 import { queryOverpass } from './overpass';
 
 export interface SearchHit {
@@ -119,11 +119,13 @@ function placeType(key: string, value: string, photonType: string): PlaceType {
 
 /**
  * A candidate result and everything the score is allowed to look at. Photon
- * fills all of it except `ele` and `famous`, which only the optional Overpass
- * enrichment can know.
+ * and OS Names fill all of it except `ele` and `famous`, which only the
+ * optional Overpass enrichment can know.
  */
 interface Candidate {
   name: string;
+  /** The place's other names — Welsh or Gaelic beside English, as OS gives them. */
+  aliases: string[];
   pos: LatLng;
   type: PlaceType;
   /** `natural=water` — kept so enrichment can refine what it found. */
@@ -139,6 +141,8 @@ interface Candidate {
   distKm: number;
   ele?: number;
   famous?: boolean;
+  /** OS Names has it too: the name is printed on the OS map. */
+  confirmed?: boolean;
 }
 
 /**
@@ -158,6 +162,8 @@ const W = {
   ele: 30,
   /** Has a bounding box, so it is an area and not a single node. */
   extent: 20,
+  /** OpenStreetMap and OS Names agree on it — a name off the paper map. */
+  confirmed: 20,
   /** Per place in Photon's ranking, capped at ORDER_CAP. */
   order: 3,
   /** Scaled over KM_FULL, and capped there. */
@@ -186,6 +192,17 @@ function nameMatch(name: string, query: string): number {
   return 3;
 }
 
+/** The best match among all of a place's names. */
+function bestMatch(c: Candidate, query: string): number {
+  return Math.min(...[c.name, ...c.aliases].map((n) => nameMatch(n, query)));
+}
+
+/** Two candidates share a name, in any of their languages. */
+function shareName(a: Candidate, b: Candidate): boolean {
+  const names = new Set([a.name, ...a.aliases].map(normalise));
+  return [b.name, ...b.aliases].some((n) => names.has(normalise(n)));
+}
+
 function score(c: Candidate, query: string): number {
   // Height only counts where height is the point: a tall office block with an
   // `ele` tag is not a more likely answer than a short one.
@@ -193,10 +210,11 @@ function score(c: Candidate, query: string): number {
   const fame =
     (c.famous ? W.famous : 0) +
     (c.extent ? W.extent : 0) +
+    (c.confirmed ? W.confirmed : 0) +
     (Math.min(height, ELE_FULL_M) / ELE_FULL_M) * W.ele;
   return (
     c.type.bucket * W.bucket +
-    nameMatch(c.name, query) * W.name +
+    bestMatch(c, query) * W.name +
     Math.min(c.order, ORDER_CAP) * W.order +
     (Math.min(c.distKm, KM_FULL) / KM_FULL) * W.distance -
     fame
@@ -222,9 +240,7 @@ function rank(cands: Candidate[], query: string, limit: number): Candidate[] {
 
   const kept: Candidate[] = [];
   for (const c of sorted) {
-    const dupe = kept.some(
-      (k) => normalise(k.name) === normalise(c.name) && haversine(k.pos, c.pos) < DUPLICATE_M
-    );
+    const dupe = kept.some((k) => shareName(k, c) && haversine(k.pos, c.pos) < DUPLICATE_M);
     if (dupe) continue;
     kept.push(c);
     if (kept.length === limit) break;
@@ -328,24 +344,23 @@ interface PhotonFeature {
 const MAX_HITS = 8;
 
 /**
- * Photon fallback when there's no OS key. It's OpenStreetMap data like
- * Nominatim, but purpose-built for type-ahead (and gentler on the shared
- * Nominatim service we'd otherwise lean on). The `near` bias asks Photon to
- * favour nearby results; our own ranking then does the hiking-specific sort.
+ * Photon is OpenStreetMap data like Nominatim, but purpose-built for type-ahead
+ * (and gentler on the shared Nominatim service we'd otherwise lean on). The
+ * `near` bias asks Photon to favour nearby results; our own ranking then does
+ * the hiking-specific sort.
  */
-async function searchPhoton(
+async function photonCandidates(
   query: string,
   near: LatLng | undefined,
-  signal?: AbortSignal,
-  onRefine?: (hits: SearchHit[]) => void
-): Promise<SearchHit[]> {
+  signal?: AbortSignal
+): Promise<Candidate[]> {
   const bias = near ? `&lat=${near[0]}&lon=${near[1]}` : '';
   const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=20&lang=en${bias}`;
   const res = await fetch(url, { signal });
   if (!res.ok) throw new Error(`Photon ${res.status}`);
   const data = (await res.json()) as { features?: PhotonFeature[] };
 
-  const cands = (data.features ?? []).flatMap((f, order): Candidate[] => {
+  return (data.features ?? []).flatMap((f, order): Candidate[] => {
     const c = f.geometry?.coordinates;
     const p = f.properties;
     if (!c || !p) return [];
@@ -361,6 +376,7 @@ async function searchPhoton(
     const osmType = OSM_TYPES[p.osm_type ?? ''];
     return [{
       name,
+      aliases: [],
       pos,
       type,
       tag: `${p.osm_key ?? ''}=${p.osm_value ?? ''}`,
@@ -371,6 +387,202 @@ async function searchPhoton(
       distKm: near ? haversine(near, pos) / 1000 : 0
     }];
   });
+}
+
+// ------------------------------------------------------------------ OS Names
+
+/**
+ * OS Names' `LOCAL_TYPE`, in the same terms as PLACE_TYPES. Anything missing
+ * falls back on its broader `TYPE` below, so this only needs the types that
+ * are the thing you came for, or whose OS wording reads badly on a row.
+ */
+const OS_LOCAL_TYPES: Record<string, PlaceType> = {
+  'Hill Or Mountain': { label: 'Hill', bucket: TARGET, ele: true },
+  'Hill Or Mountain Ranges': { label: 'Hills', bucket: TARGET },
+  Waterfall: { label: 'Waterfall', bucket: TARGET },
+  // Tarns, lochs, llyns and reservoirs alike.
+  'Inland Water': { label: 'Water', bucket: TARGET },
+  'Cirque Or Hollow': { label: 'Corrie', bucket: FEATURE },
+  'Cliff Or Slope': { label: 'Crag', bucket: FEATURE },
+  'Coastal Headland': { label: 'Headland', bucket: FEATURE },
+  'Woodland Or Forest': { label: 'Woodland', bucket: FEATURE },
+  'Other Landform': { label: 'Landform', bucket: FEATURE },
+  'Other Landcover': { label: 'Land', bucket: FEATURE },
+  'Other Settlement': { label: 'Settlement', bucket: SETTLEMENT },
+  'Named Road': { label: 'Road', bucket: OTHER },
+  'Section Of Named Road': { label: 'Road', bucket: OTHER },
+  'Numbered Road': { label: 'Road', bucket: OTHER },
+  'Section Of Numbered Road': { label: 'Road', bucket: OTHER }
+};
+
+/** OS Names' broad `TYPE`, for the local types not in the table above. */
+const OS_TYPE_BUCKETS: Record<string, number> = {
+  landform: FEATURE,
+  hydrography: FEATURE,
+  landcover: FEATURE,
+  populatedPlace: SETTLEMENT
+};
+
+function osPlaceType(localType: string, type: string): PlaceType {
+  // The JSON spells local types with spaces; `fq` filters with underscores.
+  const local = localType.replace(/_/g, ' ');
+  return (
+    OS_LOCAL_TYPES[local] ?? {
+      label: prettify(local.toLowerCase()) || 'Place',
+      bucket: OS_TYPE_BUCKETS[type] ?? OTHER
+    }
+  );
+}
+
+/** One `GAZETTEER_ENTRY`: only the fields used here. */
+interface OsNamesEntry {
+  NAME1?: string;
+  NAME2?: string;
+  TYPE?: string;
+  LOCAL_TYPE?: string;
+  GEOMETRY_X?: number;
+  GEOMETRY_Y?: number;
+  MBR_XMIN?: number;
+  MBR_XMAX?: number;
+  POPULATED_PLACE?: string;
+  DISTRICT_BOROUGH?: string;
+  COUNTY_UNITARY?: string;
+  REGION?: string;
+}
+
+/** How many entries to ask OS for. It has no "near here" bias, so ask for
+ *  enough that a local Coombe Hill survives the national ones. */
+const OS_MAX_RESULTS = 50;
+
+/**
+ * Past this OS Names is late enough that the Photon list should go up without
+ * it, rather than leaving the search box blank.
+ */
+const OS_TIMEOUT_MS = 5000;
+
+/** OS refused the request outright: a key problem, not a passing one. */
+class OsNamesRejected extends Error {
+  constructor(readonly status: number) {
+    super(`OS Names ${status}`);
+  }
+}
+
+/**
+ * The Ordnance Survey's gazetteer: every name on the OS map of Great Britain,
+ * with Welsh and Gaelic names beside the English, and postcodes. Free on the
+ * OS Data Hub's OpenData plan, with the key already used for OS Explorer.
+ *
+ * Its point for a hill is where OS places the name, which can sit off the top.
+ * That is why, when OpenStreetMap has the same place, the merge below keeps
+ * OpenStreetMap's point — the summit node — and only borrows OS's say-so.
+ */
+async function osNamesCandidates(
+  query: string,
+  near: LatLng | undefined,
+  key: string,
+  signal?: AbortSignal
+): Promise<Candidate[]> {
+  // Its own controller, so a slow OS can be given up on without cancelling
+  // Photon, and a new keystroke still cancels both.
+  const ctrl = new AbortController();
+  const cancel = () => ctrl.abort();
+  signal?.addEventListener('abort', cancel);
+  const timer = setTimeout(cancel, OS_TIMEOUT_MS);
+  try {
+    const url =
+      `https://api.os.uk/search/names/v1/find?query=${encodeURIComponent(query)}` +
+      `&maxresults=${OS_MAX_RESULTS}&key=${encodeURIComponent(key)}`;
+    const res = await fetch(url, { signal: ctrl.signal });
+    if (res.status === 401 || res.status === 403) throw new OsNamesRejected(res.status);
+    if (!res.ok) throw new Error(`OS Names ${res.status}`);
+    // No matches comes back with no `results` at all.
+    const data = (await res.json()) as { results?: { GAZETTEER_ENTRY?: OsNamesEntry }[] };
+
+    const q = normalise(query);
+    return (data.results ?? []).flatMap(({ GAZETTEER_ENTRY: g }, order): Candidate[] => {
+      if (!g?.NAME1 || g.GEOMETRY_X === undefined || g.GEOMETRY_Y === undefined) return [];
+      // Show whichever name was asked for: Yr Wyddfa to someone who typed it.
+      const names = [g.NAME1, g.NAME2].filter((n): n is string => !!n);
+      const name = names.reduce((a, b) => (nameMatch(b, q) < nameMatch(a, q) ? b : a));
+      const pos = eastingNorthingToLatLng(g.GEOMETRY_X, g.GEOMETRY_Y);
+      const type = osPlaceType(g.LOCAL_TYPE ?? '', g.TYPE ?? '');
+      const places =
+        type.bucket <= FEATURE
+          ? [g.COUNTY_UNITARY, g.DISTRICT_BOROUGH, g.POPULATED_PLACE, g.REGION]
+          : [g.POPULATED_PLACE, g.DISTRICT_BOROUGH, g.COUNTY_UNITARY, g.REGION];
+      return [{
+        name,
+        aliases: names.filter((n) => n !== name),
+        pos,
+        type,
+        tag: '',
+        locality: places.find((v) => v && !names.some((n) => normalise(n) === normalise(v))) ?? '',
+        ref: '',
+        extent: g.MBR_XMIN !== undefined && g.MBR_XMAX !== undefined && g.MBR_XMAX > g.MBR_XMIN,
+        order,
+        distKm: near ? haversine(near, pos) / 1000 : 0
+      }];
+    });
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', cancel);
+  }
+}
+
+/**
+ * Fold OS's answers into OpenStreetMap's. A place both know is kept once, as
+ * OpenStreetMap's — it has the summit node, the height and the fame to look
+ * up — marked as confirmed by OS. What only OS knows joins the list as is:
+ * the named crag or corrie nobody has mapped, or a postcode.
+ */
+function mergeOs(osm: Candidate[], os: Candidate[]): Candidate[] {
+  const extra: Candidate[] = [];
+  for (const o of os) {
+    const same = osm.filter((c) => shareName(c, o) && haversine(c.pos, o.pos) < DUPLICATE_M);
+    for (const c of same) {
+      c.confirmed = true;
+      c.aliases = [...new Set([...c.aliases, o.name, ...o.aliases])].filter((n) => n !== c.name);
+    }
+    if (!same.length) extra.push(o);
+  }
+  return [...osm, ...extra];
+}
+
+// -------------------------------------------------------------------- search
+
+export interface SearchOptions {
+  /** Where the searcher is looking from — normally the map centre. */
+  near?: LatLng;
+  signal?: AbortSignal;
+  /**
+   * Called at most once, some time after the returned list, if a background
+   * lookup manages to improve the order or the descriptions. Callers that
+   * don't want to re-render can leave it out and lose nothing else.
+   */
+  onRefine?: (hits: SearchHit[]) => void;
+  /** OS Data Hub key. With one, searches in Great Britain ask OS Names too. */
+  osKey?: string;
+  /** OS Names refused the key — the list still comes back, from Photon alone. */
+  onOsRejected?: (status: number) => void;
+}
+
+async function searchPlaces(query: string, opts: SearchOptions): Promise<SearchHit[]> {
+  const { near, signal, onRefine, osKey, onOsRejected } = opts;
+  // Outside Great Britain OS has nothing to add but GB streets of the same name.
+  const askOs = !!osKey && (!near || inGB(near[0], near[1]));
+  const [osm, os] = await Promise.allSettled([
+    photonCandidates(query, near, signal),
+    askOs ? osNamesCandidates(query, near, osKey, signal) : Promise.resolve([])
+  ]);
+  if (signal?.aborted) throw new DOMException('Search cancelled', 'AbortError');
+  if (os.status === 'rejected' && os.reason instanceof OsNamesRejected) {
+    onOsRejected?.(os.reason.status);
+  }
+  const osCands = os.status === 'fulfilled' ? os.value : [];
+  // OS on its own is still an answer, but "No matches" is not when Photon,
+  // which knows far more kinds of place, never got to say.
+  if (osm.status === 'rejected' && !osCands.length) throw osm.reason;
+  const cands = mergeOs(osm.status === 'fulfilled' ? osm.value : [], osCands);
 
   const q = normalise(query);
   const shortlist = rank(cands, q, MAX_HITS);
@@ -393,19 +605,10 @@ async function searchPhoton(
 
 /**
  * Resolve a search box entry. Grid references and coordinates are handled
- * offline; anything else goes to the Photon place-name search, ranked with
- * `near` (normally the map centre) as a tie-breaker.
- *
- * `onRefine` is called at most once, some time after the returned list, if a
- * background lookup manages to improve the order or the descriptions. Callers
- * that don't want to re-render can leave it out and lose nothing else.
+ * offline; anything else goes to the place-name search — Photon, plus OS Names
+ * when there is an OS key — ranked with `near` as a tie-breaker.
  */
-export async function search(
-  query: string,
-  near?: LatLng,
-  signal?: AbortSignal,
-  onRefine?: (hits: SearchHit[]) => void
-): Promise<SearchHit[]> {
+export async function search(query: string, opts: SearchOptions = {}): Promise<SearchHit[]> {
   const q = query.trim();
   if (!q) return [];
 
@@ -419,5 +622,5 @@ export async function search(
     return [{ name: `${ll[0].toFixed(5)}, ${ll[1].toFixed(5)}`, detail: 'Coordinates', pos: ll }];
   }
 
-  return searchPhoton(q, near, signal, onRefine);
+  return searchPlaces(q, opts);
 }
