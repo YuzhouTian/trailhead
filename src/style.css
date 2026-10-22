@@ -257,6 +257,24 @@ body {
    publishCardLift(). */
 :root { --card-lift: 0px; }
 
+/* Where the usable top of the screen starts. Everything pinned to the top
+   measures from here rather than from the notch's safe area.
+   iOS 27 draws its own frosted blur over the top of a Home Screen web app,
+   fading out about 40px below the status bar. The system draws it over the
+   page, so no CSS here can switch it off (backdrop-filter, an opaque strip and
+   the status-bar-style meta all leave it in place); the search bar sat half
+   inside it, its lower half sharp and its upper half smeared. So in the
+   installed app on iOS the top furniture starts below the blur instead, and the
+   map, which only shows through the blur, is the one thing left under it.
+   -webkit-touch-callout is the WebKit-on-iOS tell; Safari in a tab has its own
+   toolbar and keeps the old spacing. */
+:root { --top-inset: env(safe-area-inset-top, 0px); }
+@media (display-mode: standalone) {
+  @supports (-webkit-touch-callout: none) {
+    :root { --top-inset: calc(env(safe-area-inset-top, 0px) + 40px); }
+  }
+}
+
 /* The height of the bottom tab bar above the safe-area strip: 6px + 4px padding
    round a 47px column of icon and label. The bottom sheet rests on top of the
    bar and has to know where the bar's top edge is, and that is the only place
@@ -314,7 +332,7 @@ body.planning #btnLocate { display: none; }
 /* Search */
 #searchWrap {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  top: calc(var(--top-inset) + 8px);
   left: 12px; right: 12px;
   max-width: 520px; margin: 0 auto;
   height: 48px;
@@ -357,7 +375,7 @@ body.planning #btnLocate { display: none; }
 #searchResults {
   position: fixed;
   /* 8px inset + the bar's own 48px + an 8px gap. */
-  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  top: calc(var(--top-inset) + 64px);
   left: 12px; right: 12px;
   max-width: 520px; margin: 0 auto;
   background: var(--surface);
@@ -384,7 +402,7 @@ body.planning #btnLocate { display: none; }
 /* Status banner (on/off route) */
 #statusBanner {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 64px);
+  top: calc(var(--top-inset) + 64px);
   left: 50%; transform: translateX(-50%);
   height: 40px;
   display: flex; align-items: center;
@@ -408,7 +426,7 @@ body.planning #statusBanner { display: none; }
    place when not, and inked like the toast so it never reads as on/off route. */
 #updatePill {
   position: fixed;
-  top: calc(env(safe-area-inset-top, 0px) + 112px);
+  top: calc(var(--top-inset) + 112px);
   left: 50%; transform: translateX(-50%);
   height: 40px;
   padding: 0 16px;
@@ -420,7 +438,7 @@ body.planning #statusBanner { display: none; }
   white-space: nowrap; cursor: pointer;
 }
 #statusBanner.hidden + #updatePill,
-body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
+body.planning #updatePill { top: calc(var(--top-inset) + 64px); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) #updatePill {
     background: var(--surface-2); color: var(--ink);
@@ -475,9 +493,9 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
   position: fixed;
   left: 0; right: 0;
   bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h));
-  max-height: calc(min(88vh, 100vh - env(safe-area-inset-top, 0px) - 56px - var(--sheet-gap))
+  max-height: calc(min(88vh, 100vh - var(--top-inset) - 56px - var(--sheet-gap))
                    - env(safe-area-inset-bottom, 0px) - var(--bar-h));
-  max-height: calc(min(88dvh, 100dvh - env(safe-area-inset-top, 0px) - 56px - var(--sheet-gap))
+  max-height: calc(min(88dvh, 100dvh - var(--top-inset) - 56px - var(--sheet-gap))
                    - env(safe-area-inset-bottom, 0px) - var(--bar-h));
   background: var(--bg);
   border-top: 1px solid var(--hairline);
@@ -1108,7 +1126,7 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
 }
 #qrHint {
   position: absolute; left: 0; right: 0;
-  top: calc(env(safe-area-inset-top, 0px) + 26px);
+  top: calc(var(--top-inset) + 26px);
   text-align: center; color: #fff; font: var(--t-ui);
   padding: 0 24px; text-shadow: 0 1px 4px rgba(0,0,0,.6);
 }
