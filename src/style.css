@@ -230,7 +230,8 @@ body {
 /* An icon sitting inline in a line of text (e.g. pointing at a nav button). */
 .inlineIco { width: 1.05em; height: 1.05em; vertical-align: -0.18em; }
 
-/* Bottom navigation bar (lives in the strip iOS reserves anyway) */
+/* Bottom navigation bar (docked at the foot, reaching partway into the
+   home-indicator strip — see --bar-foot) */
 #bottomBar {
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -238,10 +239,10 @@ body {
   background: var(--bg);
   /* A hairline, and no shadow. A drop shadow under a docked bar is the one
      piece of chrome that reads as pasted on: it implies the bar is floating
-     when it is bolted to the bottom of the screen. 56px of content plus the
-     safe-area strip iOS reserves anyway. */
+     when it is bolted to the bottom of the screen. 56px of content plus
+     --bar-foot. */
   border-top: 1px solid var(--hairline);
-  padding: 6px 4px calc(env(safe-area-inset-bottom, 0px) + 4px);
+  padding: 6px 4px calc(var(--bar-foot) + 4px);
   /* Above the sheet's scrim (1090), unlike the rest of the bottom furniture:
      the bar is how you swap one sheet for another and how you put a sheet
      away, so it has to stay lit and tappable while a sheet is open. The locate
@@ -292,6 +293,16 @@ body {
    rewriting them in terms of this would say something untrue about them. */
 :root { --bar-h: 57px; }
 
+/* How much of the bottom safe area the tab bar keeps clear under its labels.
+   The full inset (34px on a Face ID iPhone) left a tall empty band under the
+   icons: the home indicator itself is a thin line in the bottom ~13px, and
+   the rest of the strip is just margin. Native tab bars let their labels sit
+   in it, so the bar keeps all but 16px of it — still clear of the indicator —
+   and on a phone with no inset this is 0, as before. Everything that sits a
+   set distance above the bar measures from here rather than from the raw
+   inset, so it all comes down with the bar and keeps its gap. */
+:root { --bar-foot: max(env(safe-area-inset-bottom, 0px) - 16px, 0px); }
+
 /* Locate ("Me") — a floating control over the map, not a nav destination.
    Sits above the bottom bar, and rides up above the route card when one shows.
    Minimised, the card is a chip in the opposite corner at this same height, so
@@ -305,7 +316,7 @@ body {
      button and the minimised card line up. Every px here is thumb reach on a
      slope, so nothing sits under it any more. (It was 90px while the scale bar
      did.) */
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 64px + var(--card-lift));
+  bottom: calc(var(--bar-foot) + 64px + var(--card-lift));
   width: 52px; height: 52px;
   /* The hairline does nothing in light (white on a bright map already reads)
      but on black it is the only thing separating the button from the tiles. */
@@ -501,11 +512,11 @@ body.planning #updatePill { top: calc(var(--search-top) + 64px); }
 #panel, #planSheet {
   position: fixed;
   left: 0; right: 0;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h));
+  bottom: calc(var(--bar-foot) + var(--bar-h));
   max-height: calc(min(88vh, 100vh - var(--search-top) - 56px - var(--sheet-gap))
-                   - env(safe-area-inset-bottom, 0px) - var(--bar-h));
+                   - var(--bar-foot) - var(--bar-h));
   max-height: calc(min(88dvh, 100dvh - var(--search-top) - 56px - var(--sheet-gap))
-                   - env(safe-area-inset-bottom, 0px) - var(--bar-h));
+                   - var(--bar-foot) - var(--bar-h));
   background: var(--bg);
   border-top: 1px solid var(--hairline);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
@@ -898,7 +909,7 @@ body.planning #updatePill { top: calc(var(--search-top) + 64px); }
   background: none; color: var(--brand);
   font: var(--t-body); font-weight: 600;
 }
-body.planning #toast { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar-h) + var(--plan-lift) + 12px); }
+body.planning #toast { bottom: calc(var(--bar-foot) + var(--bar-h) + var(--plan-lift) + 12px); }
 
 /* Active route card — a card that floats on the map, not a strip bolted to the
    screen edge. Edge to edge with a border-top read as a second bottom bar and
@@ -909,7 +920,7 @@ body.planning #toast { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar
 #routeCard {
   position: fixed;
   left: 12px; right: 12px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  bottom: calc(var(--bar-foot) + 64px);
   max-width: 440px; margin: 0 auto;
   background: var(--surface);
   border: 1px solid var(--hairline); border-radius: var(--r-lg);
@@ -995,7 +1006,7 @@ body.planning #toast { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar
 #pinCard {
   position: fixed;
   left: 12px; right: 12px;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  bottom: calc(var(--bar-foot) + 64px);
   max-width: 440px; margin: 0 auto;
   background: var(--surface); color: var(--ink);
   border: 1px solid var(--hairline); border-radius: var(--r-lg);
@@ -1151,7 +1162,7 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
    (a white toast on an OLED screen at night is a flashbulb). */
 #toast {
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
+  bottom: calc(var(--bar-foot) + 150px);
   left: 50%; transform: translateX(-50%);
   background: var(--ink); color: var(--bg);
   padding: 9px 16px; border-radius: var(--r-pill);
