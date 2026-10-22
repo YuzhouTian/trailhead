@@ -9,7 +9,8 @@
 // one at half size over 1.5×1.5. That is the difference between the soft map
 // that appeared on letting go at zoom 15 and the crisp one seen mid-pinch,
 // while Leaflet was still shrinking the zoom-16 tiles. The cost is four tile
-// requests instead of one at those zooms.
+// requests instead of one at those zooms. The 1:50k (levels 5–6), the 1:250k
+// (3–4) and MiniScale (1–2) pair up the same way.
 //
 // Only within one map, though: OS level 6 is the 1:50k, so drawing zoom 13
 // from level 7 would swap it for the 1:25k with its text at half size.
