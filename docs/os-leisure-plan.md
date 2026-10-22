@@ -131,6 +131,17 @@ OS's own native size. The alternative is drawing the next level down shrunk to
 57–88%, which is sharp but has text too small to read on a phone. Enlarging is
 the better trade.
 
+**Option added 2026-10-22: OS's own scale.** A checkbox in the Map panel,
+"OS Explorer at OS's own scale", turns the match off: app zoom *z* is exactly OS
+level *z − 7* everywhere, every tile is drawn at 256 px, and nothing re-matches
+on a pan. Each OS pixel is one screen pixel instead of 1.14–1.5 (1.26 in the
+Lakes), so the map carries 1.3–2.2× as many map pixels per screen area (1.6× in
+the Lakes) and loses the blur of resampling by a fraction. The zoom number stays
+the same on a switch, so the map zooms out by that factor going onto OS and back
+in coming off it, and the text is OS's own size, about a fifth smaller than now.
+On a 3× phone screen both are enlarged by the browser anyway (3× vs 3.8×), so
+the gain there is the extra detail rather than a jump from soft to crisp.
+
 **Layer definition:** `maxNativeZoom: 16`, `maxZoom: 18`, `minNativeZoom: 7`,
 `minZoom: 7`, `zoomOffset: -7`, and `tileSize` calculated from φ₀ as above.
 

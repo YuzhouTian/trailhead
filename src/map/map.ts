@@ -19,7 +19,7 @@ import { inGB } from '../osgb';
 import { loadLastView, saveLastView, saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
 import { toast } from '../ui/dom';
-import { osGridCrs, osReference, osTileSize, setOsReference } from './osgrid';
+import { osGridCrs, osNative, osReference, osTileSize, setOsNative, setOsReference } from './osgrid';
 
 // Where the map opens when we have never seen you before: the whole of the UK.
 // Only reached on a first run, or after localStorage has been cleared, or when
@@ -182,13 +182,33 @@ function onMoveEnd(): void {
 }
 
 function rematchOsGrid(): void {
-  if (currentGrid !== 'osgb' || !baseTiles) return;
+  // OS's own scale is the same everywhere: nothing to re-match.
+  if (currentGrid !== 'osgb' || !baseTiles || osNative()) return;
   const centre = map.getCenter();
   const ref = osReference();
   if (
     Math.abs(centre.lat - ref.lat) <= REMATCH_LAT_DEG &&
     Math.abs(centre.lng - ref.lng) <= REMATCH_LNG_DEG
   ) return;
+  setOsReference(centre.lat, centre.lng);
+  baseTiles.options.tileSize = osTileSize();
+  (map as ResettableMap)._resetView(centre, map.getZoom());
+}
+
+/**
+ * Draw OS Explorer at OS's own scale, or matched to Freemap's. Native keeps
+ * the zoom number, so the map shows 1.14–1.5× more ground than Freemap did at
+ * the same zoom (more the further north) and every tile is drawn pixel for
+ * pixel; matched keeps the ground and enlarges the tiles by that much instead.
+ */
+export function setOsNativeScale(on: boolean): void {
+  settings.osNative = on;
+  saveSettings(settings);
+  setOsNative(on);
+  if (currentGrid !== 'osgb' || !baseTiles) return;
+  const centre = map.getCenter();
+  // Matching only happens on a switch or a long pan; do it here so going back
+  // to matched is matched where the map is now.
   setOsReference(centre.lat, centre.lng);
   baseTiles.options.tileSize = osTileSize();
   (map as ResettableMap)._resetView(centre, map.getZoom());
@@ -354,6 +374,7 @@ export function initMap(opts: {
   onStartupPosition: (p: LatLng) => void;
 }): void {
   settings = opts.settings;
+  setOsNative(settings.osNative);
   recentreOnStartup(opts.onStartupPosition);
   rememberView();
   watchViewport();
