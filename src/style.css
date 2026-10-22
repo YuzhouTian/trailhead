@@ -333,6 +333,30 @@ body.planning #btnLocate { display: none; }
   pointer-events: none;
 }
 
+/* The see-through cover and panel ui/topBlur.ts slides across the installed
+   app once at launch, to clear iOS 27's blur off the top. 1% white and taking
+   no taps, so they never show and never block anything. */
+#blurCover, #blurPanel {
+  position: fixed;
+  background: rgba(255,255,255,.01);
+  pointer-events: none;
+}
+#blurCover {
+  inset: 0;
+  z-index: 9998;
+  opacity: 0;
+  transition: opacity .3s;
+}
+#blurCover.on { opacity: 1; }
+#blurPanel {
+  top: 0; right: 0;
+  width: 90%; height: 100%;
+  z-index: 9999;
+  transform: translateX(100%);
+  transition: transform .3s;
+}
+#blurPanel.on { transform: none; }
+
 /* Search */
 #searchWrap {
   position: fixed;
