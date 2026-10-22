@@ -380,9 +380,4 @@ export function initMap(opts: {
   watchViewport();
   map.on('moveend', onMoveEnd);
   applyLayers();
-
-  // Metric scale bar so distance is readable at a glance. Leaflet calls it
-  // "bottomleft", but style.css moves it to the right-hand edge, just above the
-  // tab bar and under the Me button.
-  L.control.scale({ imperial: false, position: 'bottomleft', maxWidth: 120 }).addTo(map);
 }

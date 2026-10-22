@@ -248,13 +248,12 @@ body {
 #bottomBar button .lbl { font: var(--t-caption); font-weight: 600; }
 #bottomBar button.active { color: var(--brand); }
 
-/* How far the bottom-anchored map furniture — the locate button and the scale
-   bar — has to lift to clear the active-route card. The card's
-   height changes with the chart, the progress bar and the screen orientation,
-   so ui/routeCard.ts measures it and publishes it here; each element adds it to
-   its own resting offset. 0 when no card is showing.
-   The published value is the card's height plus a fixed margin, which covers
-   the gap the card itself now sits in above the tab bar — see the sum in
+/* How far the locate button has to lift to clear the active-route card. The
+   card's height changes with the chart, the progress bar and the screen
+   orientation, so ui/routeCard.ts measures it and publishes it here. 0 when no
+   card is showing, and 0 while it is minimised: the chip sits on the button's
+   own line rather than under it.
+   The published value is the card's height plus the gap left above it — see
    publishCardLift(). */
 :root { --card-lift: 0px; }
 
@@ -267,17 +266,19 @@ body {
 :root { --bar-h: 57px; }
 
 /* Locate ("Me") — a floating control over the map, not a nav destination.
-   Sits above the bottom bar, and rides up above the route card when one shows. */
+   Sits above the bottom bar, and rides up above the route card when one shows.
+   Minimised, the card is a chip in the opposite corner at this same height, so
+   the two read as one row. */
 #btnLocate {
   position: fixed;
   /* 12px: the same screen inset as the route card below it and the search bar
      above, so the three line up down the right-hand edge. */
   right: 12px;
-  /* 90px, not 72px: the scale occupies 65–83px on this side, so the button
-     starts just above it. Every px here is thumb reach on a slope, so it is the
-     smallest lift that clears the bar. (It was 106px while a credit line sat
-     under the scale and pushed it 16px higher.) */
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 90px + var(--card-lift));
+  /* 64px: the route card's own resting offset, 8px above the tab bar, so the
+     button and the minimised card line up. Every px here is thumb reach on a
+     slope, so nothing sits under it any more. (It was 90px while the scale bar
+     did.) */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 64px + var(--card-lift));
   width: 52px; height: 52px;
   /* The hairline does nothing in light (white on a bright map already reads)
      but on black it is the only thing separating the button from the tiles. */
@@ -286,7 +287,9 @@ body {
   box-shadow: var(--shadow-fab);
   display: flex; align-items: center; justify-content: center;
   z-index: 1000; cursor: pointer;
-  transition: bottom .2s ease;
+  /* The same curve and length as the card's own minimise, so the button and
+     the card move as one. */
+  transition: bottom .28s cubic-bezier(.2,.8,.2,1);
 }
 #btnLocate .ico { line-height: 0; }
 #btnLocate .ico svg { width: 24px; height: 24px; display: block; }
@@ -780,10 +783,7 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
    Under the scrim's 1090 rather than beside #panel at 1100: nothing should
    show both, and if a sheet ever did open over Plan, the plan is the one to dim. */
 #planSheet { z-index: 1000; }
-/* How far the toast has to rise to clear the sheet. (The scale bar doesn't:
-   it stays in its corner and the sheet covers it on a phone, as every other
-   sheet does.) Its
-   height moves with the hint, the naming step and the screen width, so
+/* How far the toast has to rise to clear the sheet. Its height moves with the hint, the naming step and the screen width, so
    features/planner.ts measures it and publishes it here, the way the route
    card publishes --card-lift. */
 :root { --plan-lift: 0px; }
@@ -903,6 +903,47 @@ body.planning #toast { bottom: calc(env(safe-area-inset-bottom, 0px) + var(--bar
 #rcHeader button.active { background: var(--brand); color: var(--on-brand); }
 #rcClose { color: var(--muted); background: none !important; }
 #elevChart { touch-action: none; padding-top: 8px; }
+
+/* Minimised: a pill in the bottom-left corner, 52px tall to match the locate
+   button opposite. It shrinks to fit its figures rather than keeping the card's
+   width, and the card's own contents are put away rather than squeezed. */
+#routeCard.min {
+  right: auto; margin: 0; padding: 0;
+  height: 52px;
+  border-radius: var(--r-pill);
+}
+#routeCard.min #rcFull, #routeCard:not(.min) #rcChip { display: none; }
+#rcChip {
+  height: 100%;
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 18px 0 4px;
+  border: none; background: none; color: var(--ink);
+  text-align: left; white-space: nowrap; cursor: pointer;
+}
+/* Progress drawn as a ring rather than the card's bar: the same fill, bent
+   round to fit a corner. The arc's length is set from ui/routeCard.ts. */
+#rcRing { position: relative; flex: none; width: 42px; height: 42px; }
+#rcRing > svg:first-child { display: block; width: 100%; height: 100%; transform: rotate(-90deg); }
+#rcRing circle { fill: none; stroke-width: 4; }
+#rcRing .ringTrack { stroke: var(--surface-2); }
+#rcRingArc { stroke: var(--brand); stroke-linecap: round; }
+#rcRingMark {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font: var(--t-eyebrow); font-variant-numeric: tabular-nums;
+}
+/* With nothing to measure from, there is no percentage to show: the route
+   glyph stands in the middle of an empty ring instead. */
+#rcRingIco { position: absolute; inset: 11px; width: 20px; height: 20px; color: var(--muted); }
+#rcRing:not(.noProgress) #rcRingIco, #rcRing.noProgress #rcRingMark { display: none; }
+#rcChipText { display: flex; flex-direction: column; }
+#rcChipV { font: var(--t-ui); font-weight: 700; font-variant-numeric: tabular-nums; }
+#rcChipS { font: var(--t-caption); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+/* Off the line mid-walk. The banner at the top says so too; the chip turns
+   red so that the one thing left showing at the bottom doesn't contradict it. */
+#routeCard.min.off { background: var(--danger-soft); border-color: var(--danger); }
+#routeCard.off #rcRingArc { stroke: var(--danger); }
+#routeCard.off #rcRingMark, #routeCard.off #rcChipV { color: var(--danger-ink); }
 
 /* Pin card (what's here / saved pin) — a bottom sheet above the nav bar */
 #pinCard {
@@ -1099,53 +1140,6 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
   border-bottom-color: var(--hairline);
 }
 .leaflet-bar a:hover { background: var(--surface-2); }
-
-/* Scale bar, drawn as a small tag. The tag's own width is the measurement:
-   Leaflet sets `width` to the distance's length in pixels, and border-box makes
-   that the outer edge rather than the text box. It is slightly see-through, so
-   over a snow field or a dark forest the label loses a little contrast to the
-   tile underneath.
-   The text-shadow clearing must stay: Leaflet paints a white shadow behind the
-   label, which in dark mode is a white halo and reads as badly out of focus. */
-.leaflet-control-scale-line {
-  box-sizing: border-box;
-  padding: 1px 6px;
-  border: none;
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--muted);
-  font: var(--t-caption); font-size: 10px; font-variant-numeric: tabular-nums;
-  opacity: .85;
-  text-shadow: none;
-}
-
-/* Keep the scale bar visible above the bottom bar, and above the route card
-   when one is showing.
-
-   The max() is the point of this rule. The card's lift is measured from the
-   card, and its resting offset was tuned so that the bar sits ten pixels under
-   the card's top edge — but with no card showing that sum falls back to 50px,
-   which is *less* than the 57px tab bar, and the bar would spend its life with
-   its foot hidden behind it. Taking the larger of the two gives each case the
-   number it actually needs: the card sum while a card is up, and a clean 8px
-   above the bar when none is. */
-.leaflet-bottom {
-  bottom: calc(
-    env(safe-area-inset-bottom, 0px) +
-    max(50px + var(--card-lift), var(--bar-h) + 8px)
-  );
-}
-
-/* The scale is a Leaflet "bottomleft" control, but alone in that corner it read
-   as a stray floating object. It sits against the right-hand edge instead,
-   under the Me button, with the rest of the map furniture — 12px in, the same
-   inset as the Me button above it. */
-.leaflet-bottom.leaflet-left {
-  left: auto;
-  right: 12px;
-}
-/* Leaflet's own 10px control margins would throw those sums out. */
-.leaflet-bottom.leaflet-left .leaflet-control { margin: 0; }
 
 .leaflet-control-zoom { display: none; }
 @media (min-width: 700px) {

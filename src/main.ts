@@ -11,6 +11,7 @@ import { initUpdates } from './features/update';
 import {
   hereAlongM,
   initTracking,
+  offRouteM,
   pauseFollow,
   resetRouteProgress,
   setKnownPosition,
@@ -146,7 +147,8 @@ initRouteCard({
       name: activeRoute?.name ?? '',
       progress: planning ? null : walkProgress(),
       hereM: planning ? null : hereAlongM(),
-      speedKmh: settings.speedKmh
+      speedKmh: settings.speedKmh,
+      offRouteM: planning ? null : offRouteM()
     };
   },
   onClose: () => setActiveRoute(null)
