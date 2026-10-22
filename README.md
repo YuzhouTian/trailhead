@@ -37,8 +37,8 @@ line — a progress bar, and buttons for the elevation profile and offline tiles
 long-press anywhere on the map opens a card for that spot, and so does tapping a search
 result or a nearby point.
 
-The map opens where you last left it, and the build's version sits in small print in its
-bottom-left corner.
+The map opens where you last left it, and the build's version sits in small print at the
+top of Settings.
 
 ## Features
 
@@ -296,8 +296,8 @@ publishes to GitHub Pages. Nothing else to do — `git push` is the deploy.
 
 (Pages source is set to "GitHub Actions" in repo Settings → Pages; that's a one-time setting.)
 
-The build's version is stamped in the map's bottom-left corner, so you can tell at a glance
-whether a phone is running the latest deploy.
+The build's version is shown at the top of Settings, so you can tell at a glance whether a
+phone is running the latest deploy.
 
 A new deploy reaches the phone on the next open. The app asks the service worker at launch
 and whenever it comes back to the foreground: if there's a newer build, it reloads onto it
