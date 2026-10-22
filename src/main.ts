@@ -37,7 +37,6 @@ import {
   showPanel
 } from './ui/panels';
 import { initRouteCard } from './ui/routeCard';
-import { initTopBlurWorkaround } from './ui/topBlur';
 
 // ---------------------------------------------------------------- stored state
 
@@ -296,6 +295,3 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js');
 }
 initUpdates();
-
-// iOS 27's frosted blur over the top of the installed app (ui/topBlur.ts).
-initTopBlurWorkaround();
