@@ -83,15 +83,9 @@ function applyTheme(): void {
   const root = document.documentElement;
   if (settings.theme === 'system') root.removeAttribute('data-theme');
   else root.setAttribute('data-theme', settings.theme);
-  const dark = themeIsDark();
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', dark ? '#000000' : '#ffffff');
-  // The status bar is solid (see index.html), so it has to match the theme:
-  // "default" is white with dark text, "black" is black with white text.
-  document
-    .querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
-    ?.setAttribute('content', dark ? 'black' : 'default');
+    ?.setAttribute('content', themeIsDark() ? '#000000' : '#ffffff');
 }
 
 // Following the OS: react live when it flips between light and dark.
