@@ -2,7 +2,7 @@
 // and let the router snap it to real paths, or read one in from a GPX file.
 // Both end the same way — a SavedRoute handed back to the app to save and show.
 //
-// Everything in here is scratch work. The waypoints, the blue line, the Plan
+// Everything in here is scratch work. The waypoints, the line, the Plan
 // sheet and what it shows: all of it exists only while you are planning and is
 // thrown away once the route is saved, shown or cleared. The finished route is
 // not this module's to keep, so saving it and making it active are both
@@ -39,8 +39,8 @@ const DEFAULT_NAME = 'My route';
 
 const wpIcon = L.divIcon({ className: '', html: '<div class="wpMarker"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
 
-// Owned by the app, shared by reference: the routing profile and the walking
-// pace behind the sheet's time estimate.
+// Owned by the app, shared by reference: the routing profile, the walking
+// pace behind the sheet's time estimate and the colour of the line.
 let settings: Settings;
 let saveRoute: (r: SavedRoute) => void;
 let setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
@@ -81,6 +81,11 @@ export function isPlanning(): boolean {
  */
 export function endPlanning(): void {
   if (planning) setPlanning(false);
+}
+
+/** Redraw the sketch's line in the colour Settings now says. */
+export function restylePlanLine(): void {
+  planLine?.setStyle({ color: settings.routeColour });
 }
 
 // ---------------------------------------------------------------- the sheet
@@ -252,7 +257,7 @@ async function recomputePlan(): Promise<void> {
     const result = await routeMixed(planWaypoints, planSnaps, settings.profile, planAbort.signal);
     planResult = result;
     planLine?.remove();
-    planLine = L.polyline(result.coords, { color: '#1a73e8', weight: 4 }).addTo(map);
+    planLine = L.polyline(result.coords, { color: settings.routeColour, weight: 4 }).addTo(map);
     planRouted();
   } catch (e) {
     if ((e as Error).name === 'AbortError') return;
@@ -268,7 +273,7 @@ async function recomputePlan(): Promise<void> {
     };
     planLine?.remove();
     planLine = L.polyline(planResult.coords, {
-      color: '#1a73e8',
+      color: settings.routeColour,
       weight: 4,
       dashArray: '6 8'
     }).addTo(map);

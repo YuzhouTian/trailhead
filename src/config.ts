@@ -179,6 +179,32 @@ export function knownProfile(id: string | undefined | null): string {
   return BROUTER_PROFILES.find((p) => p.id === id)?.id ?? BROUTER_PROFILES[0].id;
 }
 
+export interface RouteColourDef {
+  colour: string;
+  label: string;
+}
+
+/**
+ * The colours a route line can be drawn in, picked in Settings. One colour for
+ * both the plan being sketched and a route loaded to walk: every base map has
+ * its own lines in red or blue somewhere, so whichever clashes least depends on
+ * the layer and the ground, and only the walker looking at it can tell.
+ * The first is the default — the red loaded routes have always been.
+ */
+export const ROUTE_COLOURS: RouteColourDef[] = [
+  { colour: '#d8303c', label: 'Red' },
+  { colour: '#1a73e8', label: 'Blue' },
+  { colour: '#d6249f', label: 'Magenta' },
+  { colour: '#f57c00', label: 'Orange' },
+  { colour: '#7b1fa2', label: 'Purple' },
+  { colour: '#1a1a1a', label: 'Black' }
+];
+
+/** A colour off the list, or the default for anything that is not on it. */
+export function knownRouteColour(colour: string | undefined | null): string {
+  return ROUTE_COLOURS.find((c) => c.colour === colour)?.colour ?? ROUTE_COLOURS[0].colour;
+}
+
 /** Distance (m) from the route line beyond which you count as off-route. */
 export const OFF_ROUTE_THRESHOLD_M = 50;
 
