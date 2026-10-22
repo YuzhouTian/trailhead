@@ -35,6 +35,8 @@ export interface Settings {
   tfKey: string;
   /** OS Data Hub key — the OS Explorer base layer. */
   osKey: string;
+  /** Draw OS Explorer at OS's own scale rather than matched to Freemap's. */
+  osNative: boolean;
   baseLayer: string;
   profile: string;
   /** Average walking speed on the flat, km/h (Naismith time estimate). */
@@ -98,6 +100,7 @@ export function loadSettings(): Settings {
     speedKmh: 4,
     tfKey: '',
     osKey: '',
+    osNative: false,
     theme: 'system',
     schema: SCHEMA
   };

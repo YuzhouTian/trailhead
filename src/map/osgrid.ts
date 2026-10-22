@@ -9,6 +9,10 @@
 // osTileSize) rather than by pairing levels differently. docs/os-leisure-plan.md
 // §3 has the reasoning and the numbers.
 //
+// Or, with setOsNative(true), OS's own scale: app zoom z is exactly OS level
+// z − 7, every tile drawn at 256 px, one tile pixel to one screen pixel. Sharper,
+// at the cost of the scale jumping by 1.14–1.5× when you switch layers.
+//
 // Projection goes through osgb.ts (Helmert + Transverse Mercator), so it is good
 // to a few metres — and needs no proj4.
 
@@ -31,6 +35,8 @@ export const OS_ZOOM_OFFSET = 7;
 let gridMetresPerDegLng = 0;
 let referenceLat = 54;
 let referenceLng = -2;
+/** On OS's own levels rather than matched to Freemap; see setOsNative. */
+let native = false;
 
 function gridMetresPerDegLngAt(lat: number, lng: number): number {
   const a = latLngToEastingNorthing(lat, lng - 0.005);
@@ -38,15 +44,16 @@ function gridMetresPerDegLngAt(lat: number, lng: number): number {
   return Math.hypot(b.e - a.e, b.n - a.n) / 0.01;
 }
 
-/** OS grid metres per pixel at app zoom z, matched to the standard map. */
+/** OS grid metres per pixel at app zoom z: OS's own, or matched to the standard map. */
 function resolution(z: number): number {
+  if (native) return OS_LEVEL0_RES / 2 ** (z - OS_ZOOM_OFFSET);
   return (gridMetresPerDegLng * 360) / (256 * 2 ** z);
 }
 
 /**
  * Screen size of one OS tile, in pixels, at the current match. The same at
  * every zoom: OS tiles and standard zooms both halve per level. About 291 px in
- * Cornwall, 319 in the Lakes, 354 in Sutherland.
+ * Cornwall, 319 in the Lakes, 354 in Sutherland; 256 everywhere when native.
  */
 export function osTileSize(): number {
   const osResAtZoom0 = OS_LEVEL0_RES * 2 ** OS_ZOOM_OFFSET;
@@ -65,6 +72,19 @@ export function setOsReference(lat: number, lng: number): void {
   gridMetresPerDegLng = gridMetresPerDegLngAt(lat, lng);
 }
 setOsReference(referenceLat, referenceLng);
+
+/**
+ * Draw OS at its own scale (true) or matched to Freemap's (false). The caller
+ * resets the view and the tile size. The reference point is still kept while
+ * native, so switching back matches where the map is.
+ */
+export function setOsNative(on: boolean): void {
+  native = on;
+}
+
+export function osNative(): boolean {
+  return native;
+}
 
 /** Grid positions by LatLng object; see project(). Weak, so a route that is
  *  cleared takes its entries with it. */
@@ -104,6 +124,6 @@ export const osGridCrs: L.CRS = L.extend({}, L.CRS.Earth, {
     return 1 / resolution(zoom);
   },
   zoom(scale: number): number {
-    return Math.log2((scale * gridMetresPerDegLng * 360) / 256);
+    return Math.log2(scale * resolution(0));
   }
 });
