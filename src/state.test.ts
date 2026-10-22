@@ -61,6 +61,14 @@ describe('loadSettings', () => {
     expect(s.speedKmh).toBe(4);
     expect(s.tfKey).toBe('');
     expect(s.theme).toBe('system');
+    expect(s.routeColour).toBe('#d8303c');
+  });
+
+  it('keeps a route colour off the list, and drops one that is not', () => {
+    store.set(SETTINGS_KEY, JSON.stringify({ routeColour: '#d6249f' }));
+    expect(loadSettings().routeColour).toBe('#d6249f');
+    store.set(SETTINGS_KEY, JSON.stringify({ routeColour: 'chartreuse' }));
+    expect(loadSettings().routeColour).toBe('#d8303c');
   });
 
   it('lets a saved value override a default', () => {

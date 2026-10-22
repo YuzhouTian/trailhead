@@ -1,5 +1,5 @@
 // The bottom sheet and the three things that fill it: Map (base layer, map key,
-// nearby), Settings (theme, key, routing, pace, offline maps) and Routes
+// nearby), Settings (theme, line colour, key, routing, pace, offline maps) and Routes
 // (your saved routes and pins, and the ways of getting more in).
 //
 // This is the last module out of main.ts and the most cross-cutting by nature:
@@ -12,7 +12,7 @@
 // own chrome — the grab handle and the close button — lives in index.html and
 // is wired once in initPanels(), because it outlives any one panel.
 
-import { BASE_LAYERS, BROUTER_PROFILES, missingKey } from '../config';
+import { BASE_LAYERS, BROUTER_PROFILES, ROUTE_COLOURS, missingKey } from '../config';
 import { catMeta, deletePin, getPins, hidePinCard, openSavedPin, sharePin } from '../features/pins';
 import { endPlanning, updatePlanStats } from '../features/planner';
 import { startQrScan } from '../features/qr';
@@ -37,6 +37,7 @@ let getRoutes: () => SavedRoute[];
 let deleteRoute: (r: SavedRoute) => boolean;
 let setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
 let applyTheme: () => void;
+let applyRouteColour: () => void;
 
 // ---------------------------------------------------------------- the shell
 
@@ -151,6 +152,9 @@ export function openSettingsPanel(): void {
   const profileOpts = BROUTER_PROFILES.map(
     (p) => `<option value="${p.id}" ${settings.profile === p.id ? 'selected' : ''}>${p.label}</option>`
   ).join('');
+  const colourBtns = ROUTE_COLOURS.map(
+    (c) => `<button role="radio" data-colour="${c.colour}" style="--swatch: ${c.colour}" aria-label="${c.label}" title="${c.label}"></button>`
+  ).join('');
 
   showPanel(`
     <h4 class="secTitle">Appearance</h4>
@@ -159,6 +163,9 @@ export function openSettingsPanel(): void {
       <button data-theme="dark"><svg viewBox="0 0 24 24"><use href="#i-moon"/></svg>Dark</button>
       <button data-theme="system"><svg viewBox="0 0 24 24"><use href="#i-auto"/></svg>System</button>
     </div>
+    <h4 class="secTitle">Route line</h4>
+    <div class="swatches" id="routeColours" role="radiogroup" aria-label="Route line colour">${colourBtns}</div>
+    <p class="hint">For the route you are planning and the one you load. Pick whichever stands out on the map you use.</p>
     <h4 class="secTitle">Thunderforest API key</h4>
     <input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/>
     <p class="hint"><a href="https://www.thunderforest.com/maps/outdoors/" target="_blank" rel="noopener">thunderforest.com/maps/outdoors</a></p>
@@ -196,6 +203,23 @@ export function openSettingsPanel(): void {
       saveSettings(settings);
       applyTheme();
       markTheme();
+    })
+  );
+
+  const colourSel = Array.from($('routeColours').querySelectorAll('button')) as HTMLButtonElement[];
+  const markColour = () =>
+    colourSel.forEach((b) => {
+      const on = b.dataset.colour === settings.routeColour;
+      b.classList.toggle('sel', on);
+      b.setAttribute('aria-checked', String(on));
+    });
+  markColour();
+  colourSel.forEach((b) =>
+    b.addEventListener('click', () => {
+      settings.routeColour = b.dataset.colour!;
+      saveSettings(settings);
+      applyRouteColour();
+      markColour();
     })
   );
 
@@ -372,12 +396,15 @@ export function initPanels(opts: {
   setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
   /** Re-apply the theme after the Settings panel changes it. */
   applyTheme: () => void;
+  /** Redraw the route lines after the Settings panel changes their colour. */
+  applyRouteColour: () => void;
 }): void {
   settings = opts.settings;
   getRoutes = opts.getRoutes;
   deleteRoute = opts.deleteRoute;
   setActiveRoute = opts.setActiveRoute;
   applyTheme = opts.applyTheme;
+  applyRouteColour = opts.applyRouteColour;
   // All wired once, here, rather than on every showPanel: the scrim and the
   // sheet's header are always in the document, only their visibility changes.
   $('panelScrim').addEventListener('click', hidePanel);

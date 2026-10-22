@@ -3,7 +3,7 @@ import './style.css';
 import { initDetour } from './features/detour';
 import { initOffline } from './features/offline';
 import { dismissPinCard, initPins, openSharedPin, refreshCardDistance } from './features/pins';
-import { initPlanner, isPlanning } from './features/planner';
+import { initPlanner, isPlanning, restylePlanLine } from './features/planner';
 import { initQr } from './features/qr';
 import { hideSearchResults, initSearch } from './features/search';
 import { importSharedRoute, initSharing } from './features/sharing';
@@ -107,7 +107,7 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
   activeLine = null;
   if (r) {
     activeLine = L.polyline(r.coords, {
-      color: '#d8303c',
+      color: settings.routeColour,
       weight: 4,
       opacity: 0.85,
       // A route the router never saw is drawn dashed, the same way the planner
@@ -129,6 +129,18 @@ function setActiveRoute(r: SavedRoute | null, fit = true, persist = true): void 
   updateBanner();
 }
 
+/**
+ * Draw every route line in the colour Settings names: the loaded route, the
+ * sketch, and the plan's waypoint rings, which read the --route token so they
+ * stay the same colour as the line between them.
+ */
+function applyRouteColour(): void {
+  document.documentElement.style.setProperty('--route', settings.routeColour);
+  activeLine?.setStyle({ color: settings.routeColour });
+  restylePlanLine();
+}
+applyRouteColour();
+
 // ------------------------------------------------- active-route card
 
 // The card itself lives in ui/routeCard.ts and knows nothing about the planner
@@ -146,7 +158,8 @@ initRouteCard({
       name: activeRoute?.name ?? '',
       progress: planning ? null : walkProgress(),
       hereM: planning ? null : hereAlongM(),
-      speedKmh: settings.speedKmh
+      speedKmh: settings.speedKmh,
+      routeColour: settings.routeColour
     };
   },
   onClose: () => setActiveRoute(null)
@@ -221,7 +234,8 @@ initPanels({
     return true;
   },
   setActiveRoute,
-  applyTheme
+  applyTheme,
+  applyRouteColour
 });
 
 // ---------------------------------------------------------------- navigation

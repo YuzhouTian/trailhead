@@ -50,6 +50,8 @@ export interface RouteCardView {
   hereM: number | null;
   /** Walking pace for the time estimate. */
   speedKmh: number;
+  /** The route line's colour, which the scrubber's ring on the map matches. */
+  routeColour: string;
 }
 
 /** "↑ 180 m · ↓ 120 m" — the climb half of a route's stats line. */
@@ -87,7 +89,7 @@ function onProfileScrub(scrub: Scrub | null): void {
   if (!scrubMarker) {
     scrubMarker = L.circleMarker(pos, {
       radius: 7,
-      color: '#d8303c',
+      color: getView().routeColour,
       weight: 3,
       fillColor: '#fff',
       fillOpacity: 1,

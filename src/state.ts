@@ -1,5 +1,5 @@
 import type { LatLng } from './geo';
-import { knownProfile } from './config';
+import { knownProfile, knownRouteColour } from './config';
 
 export interface SavedRoute {
   id: string;
@@ -43,6 +43,8 @@ export interface Settings {
   speedKmh: number;
   /** UI theme: follow the OS, or force light/dark. */
   theme: 'system' | 'light' | 'dark';
+  /** Colour of the route line, planned or loaded — one of ROUTE_COLOURS. */
+  routeColour: string;
   /**
    * Bumped when a default changes in a way an existing install should follow.
    * Absent on anything saved before base layers were reshuffled.
@@ -102,6 +104,7 @@ export function loadSettings(): Settings {
     osKey: '',
     osNative: false,
     theme: 'system',
+    routeColour: knownRouteColour(null),
     schema: SCHEMA
   };
   try {
@@ -122,6 +125,9 @@ export function loadSettings(): Settings {
     // have gone), so trust the list over whatever an old install saved: one
     // still set to a dropped profile routes as Standard.
     s.profile = knownProfile(s.profile);
+    // Same for the line colour: a hand-edited or since-dropped value draws in
+    // the default rather than in whatever the browser makes of it.
+    s.routeColour = knownRouteColour(s.routeColour);
     return migrate(s, saved);
   } catch {
     return defaults;
