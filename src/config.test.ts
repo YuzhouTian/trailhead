@@ -55,6 +55,14 @@ describe('base layers', () => {
     expect(os.minNativeZoom! + os.zoomOffset!).toBe(0);
     expect(os.url).toContain('{osKey}');
   });
+
+  it('sharpens only 1:25k levels, from a 1:25k level the server has', () => {
+    const os = byId('os-leisure');
+    for (const level of os.sharpLevels!) {
+      expect(level).toBeGreaterThanOrEqual(7);
+      expect(level + 1).toBeLessThanOrEqual(os.maxNativeZoom + os.zoomOffset!);
+    }
+  });
 });
 
 describe('layer keys', () => {
