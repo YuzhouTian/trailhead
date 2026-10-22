@@ -6,11 +6,7 @@
   <title>Trailhead</title>
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <!-- A solid status bar, not black-translucent: under a translucent one iOS 27
-       frosts the top of the app, search bar included. "default" is white with
-       dark text; the script below makes it "black" in dark mode. iOS may only
-       read this when the app is added to the Home Screen. -->
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="theme-color" content="#ffffff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icon-180.png" />
@@ -26,16 +22,11 @@
        long before then. -->
   <link rel="preconnect" href="https://outdoor.tiles.freemap.sk" />
   <link rel="dns-prefetch" href="https://brouter.de" />
-  <!-- Set the theme before first paint so a forced light/dark choice doesn't
-       flash the wrong colours, and so the status bar starts in the right colour
-       (applyTheme in main.ts keeps it in step after that). -->
+  <!-- Set the theme before first paint so a forced light/dark choice doesn't flash the wrong colours. -->
   <script>
     try {
       var s = JSON.parse(localStorage.getItem('trailhead.settings') || '{}');
       if (s.theme === 'light' || s.theme === 'dark') document.documentElement.setAttribute('data-theme', s.theme);
-      var dark = s.theme === 'dark' || (s.theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
-      document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]').setAttribute('content', dark ? 'black' : 'default');
-      document.querySelector('meta[name="theme-color"]').setAttribute('content', dark ? '#000000' : '#ffffff');
     } catch (e) {}
   </script>
 </head>
@@ -94,10 +85,6 @@
   </svg>
 
   <div id="map"></div>
-
-  <!-- Keeps iOS 27's frosted blur off the top of the installed app. See
-       #topEdge in style.css. -->
-  <div id="topEdge" aria-hidden="true"></div>
 
   <div id="searchWrap">
     <span class="searchIco"><svg viewBox="0 0 24 24"><use href="#i-search"/></svg></span>
