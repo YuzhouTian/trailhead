@@ -2,8 +2,7 @@
 //
 // A fake Cache Storage stands in for the browser's: the interesting behaviour
 // here isn't tile fetching, it's which buckets get counted and whether the
-// buckets themselves survive being emptied — the service worker holds an open
-// handle to one of them, so they must.
+// service worker is told to let go of its handle when a bucket is deleted.
 
 import { beforeEach, describe, expect, it } from 'vitest';
 import { clearOfflineTiles, formatBytes, offlineUsage } from './storage';
@@ -29,7 +28,8 @@ function installCaches(contents: Record<string, string[]>) {
   Object.defineProperty(globalThis, 'caches', {
     value: {
       keys: async () => [...buckets.keys()],
-      open: async (name: string) => buckets.get(name) ?? new FakeCache([])
+      open: async (name: string) => buckets.get(name) ?? new FakeCache([]),
+      delete: async (name: string) => buckets.delete(name)
     },
     configurable: true
   });
@@ -40,6 +40,16 @@ function installEstimate(usage: number | undefined) {
     value: { storage: { estimate: async () => ({ usage }) } },
     configurable: true
   });
+}
+
+/** A page under a service worker, recording what it is told. */
+function installWorker(): unknown[] {
+  const told: unknown[] = [];
+  Object.defineProperty(globalThis, 'navigator', {
+    value: { serviceWorker: { controller: { postMessage: (m: unknown) => told.push(m) } } },
+    configurable: true
+  });
+  return told;
 }
 
 const tiles = (n: number, z = 14) =>
@@ -81,19 +91,20 @@ describe('offlineUsage', () => {
 });
 
 describe('clearOfflineTiles', () => {
-  it('empties every tile bucket but keeps the buckets themselves', async () => {
+  it('deletes every tile bucket whole, and tells the service worker to let go', async () => {
     installCaches({
       'trailhead-static-v1': ['./index.html'],
       'trailhead-tiles-v2': tiles(12, 13),
       'trailhead-tiles-v3': tiles(30)
     });
+    const told = installWorker();
     expect(await clearOfflineTiles()).toBe(42);
-    // Emptied...
     expect((await offlineUsage()).tiles).toBe(0);
-    // ...but still there. Deleting the bucket would leave the service worker's
-    // long-lived handle pointing at nothing, and the map would silently stop
-    // caching until the worker restarted.
-    expect([...buckets.keys()]).toContain('trailhead-tiles-v3');
+    // Gone in one go rather than entry by entry, which took minutes for
+    // gigabytes. The worker then drops its handle to the deleted bucket, or
+    // every tile it saved afterwards would be lost.
+    expect([...buckets.keys()]).toEqual(['trailhead-static-v1']);
+    expect(told).toEqual([{ type: 'tiles-cleared' }]);
     // And the app shell is untouched.
     expect(buckets.get('trailhead-static-v1')!.entries).toEqual(['./index.html']);
   });

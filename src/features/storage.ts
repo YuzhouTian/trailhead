@@ -63,22 +63,24 @@ export async function offlineUsage(): Promise<OfflineUsage> {
 /**
  * Delete every saved tile. Returns how many went.
  *
- * Entries are removed one by one rather than with `caches.delete(name)`, which
- * would be faster but breaks the service worker: it holds a single open handle
- * to the tile cache for the life of the worker (public/sw.js), and deleting the
- * bucket leaves that handle pointing at nothing — every tile fetched afterwards
- * would be written into a cache that no longer exists, so the map would quietly
- * stop caching until the worker next restarted. Emptying the bucket in place
- * keeps that handle good.
+ * Each tile bucket is deleted whole. Emptying it entry by entry was the old
+ * way, and with gigabytes saved it took minutes — every entry its own delete,
+ * with "Clearing offline maps…" on screen throughout.
+ *
+ * The catch is the service worker (public/sw.js), which holds the tile bucket
+ * open for the life of the worker. Deleting the bucket leaves that handle
+ * pointing at nothing, so tiles fetched afterwards would be written where no
+ * one can find them and the map would quietly stop saving until the worker
+ * restarted. So the worker is told, and lets go; its next tile opens a fresh
+ * bucket under the same name.
  */
 export async function clearOfflineTiles(): Promise<number> {
   let removed = 0;
   for (const name of await tileCacheNames()) {
-    const cache = await caches.open(name);
-    const keys = await cache.keys();
-    await Promise.all(keys.map((key) => cache.delete(key)));
-    removed += keys.length;
+    removed += (await (await caches.open(name)).keys()).length;
+    await caches.delete(name);
   }
+  navigator.serviceWorker?.controller?.postMessage({ type: 'tiles-cleared' });
   return removed;
 }
 
