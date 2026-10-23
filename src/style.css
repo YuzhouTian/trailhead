@@ -234,16 +234,13 @@ body {
    home-indicator strip — see --bar-foot) */
 #bottomBar {
   position: fixed;
-  left: 0; right: 0;
+  left: 0; right: 0; bottom: 0;
   display: flex;
   background: var(--bg);
   /* A hairline, and no shadow. A drop shadow under a docked bar is the one
      piece of chrome that reads as pasted on: it implies the bar is floating
      when it is bolted to the bottom of the screen. 56px of content plus
      --bar-foot. */
-  /* Down into the strip under a short iOS viewport, to the real foot of the
-     screen (see --screen-gap). */
-  bottom: calc(-1 * var(--screen-gap));
   border-top: 1px solid var(--hairline);
   padding: 6px 4px calc(var(--bar-foot) + 4px);
   /* Above the sheet's scrim (1090), unlike the rest of the bottom furniture:
@@ -287,22 +284,9 @@ body {
    in it, so the bar gives up 24px of it: with the bar's own 4px, the labels
    end 14px off the foot of the screen, just above the indicator. On a phone
    with no inset this is 0, as before. Everything that sits a set distance
-   above the bar measures from --bar-base below rather than from the raw
-   inset, so it all comes down with the bar and keeps its gap. */
+   above the bar measures from here rather than from the raw inset, so it all
+   comes down with the bar and keeps its gap. */
 :root { --bar-foot: max(env(safe-area-inset-bottom, 0px) - 24px, 0px); }
-
-/* How far the page's bottom edge stops short of the screen's. iOS 26 and later
-   lay a home-screen app out in a viewport one status bar shorter than the
-   screen (WebKit bug 301108), so anything pinned to bottom: 0 sat 47px above
-   the real foot of an iPhone screen, over a strip of background — most of the
-   empty band under the tab icons. ui/screenGap.ts measures it; 0 everywhere
-   else. Drawing below the viewport works (the bar's ::after already did), so
-   the bar is pulled down by this much, and --bar-base is where its content
-   now ends, measured from the viewport's bottom edge as bottom: is. */
-:root {
-  --screen-gap: 0px;
-  --bar-base: calc(var(--bar-foot) - var(--screen-gap));
-}
 
 /* Locate ("Me") — a floating control over the map, not a nav destination.
    Sits above the bottom bar, and rides up above the route card when one shows.
@@ -317,7 +301,7 @@ body {
      button and the minimised card line up. Every px here is thumb reach on a
      slope, so nothing sits under it any more. (It was 90px while the scale bar
      did.) */
-  bottom: calc(var(--bar-base) + 64px + var(--card-lift));
+  bottom: calc(var(--bar-foot) + 64px + var(--card-lift));
   width: 52px; height: 52px;
   /* The hairline does nothing in light (white on a bright map already reads)
      but on black it is the only thing separating the button from the tiles. */
@@ -513,11 +497,11 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 #panel, #planSheet {
   position: fixed;
   left: 0; right: 0;
-  bottom: calc(var(--bar-base) + var(--bar-h));
+  bottom: calc(var(--bar-foot) + var(--bar-h));
   max-height: calc(min(88vh, 100vh - env(safe-area-inset-top, 0px) - 56px - var(--sheet-gap))
-                   - var(--bar-base) - var(--bar-h));
+                   - var(--bar-foot) - var(--bar-h));
   max-height: calc(min(88dvh, 100dvh - env(safe-area-inset-top, 0px) - 56px - var(--sheet-gap))
-                   - var(--bar-base) - var(--bar-h));
+                   - var(--bar-foot) - var(--bar-h));
   background: var(--bg);
   border-top: 1px solid var(--hairline);
   border-radius: var(--r-lg) var(--r-lg) 0 0;
@@ -910,7 +894,7 @@ body.planning #updatePill { top: calc(env(safe-area-inset-top, 0px) + 64px); }
   background: none; color: var(--brand);
   font: var(--t-body); font-weight: 600;
 }
-body.planning #toast { bottom: calc(var(--bar-base) + var(--bar-h) + var(--plan-lift) + 12px); }
+body.planning #toast { bottom: calc(var(--bar-foot) + var(--bar-h) + var(--plan-lift) + 12px); }
 
 /* Active route card — a card that floats on the map, not a strip bolted to the
    screen edge. Edge to edge with a border-top read as a second bottom bar and
@@ -921,7 +905,7 @@ body.planning #toast { bottom: calc(var(--bar-base) + var(--bar-h) + var(--plan-
 #routeCard {
   position: fixed;
   left: 12px; right: 12px;
-  bottom: calc(var(--bar-base) + 64px);
+  bottom: calc(var(--bar-foot) + 64px);
   max-width: 440px; margin: 0 auto;
   background: var(--surface);
   border: 1px solid var(--hairline); border-radius: var(--r-lg);
@@ -1007,7 +991,7 @@ body.planning #toast { bottom: calc(var(--bar-base) + var(--bar-h) + var(--plan-
 #pinCard {
   position: fixed;
   left: 12px; right: 12px;
-  bottom: calc(var(--bar-base) + 64px);
+  bottom: calc(var(--bar-foot) + 64px);
   max-width: 440px; margin: 0 auto;
   background: var(--surface); color: var(--ink);
   border: 1px solid var(--hairline); border-radius: var(--r-lg);
@@ -1121,8 +1105,7 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
    Deliberately literal black-on-white in both themes — a scanner needs the
    contrast, and a themed QR code is a QR code that doesn't scan. */
 #qrFull {
-  position: fixed; inset: 0; bottom: calc(-1 * var(--screen-gap));
-  z-index: 3000; background: #fff; color: #1a2420;
+  position: fixed; inset: 0; z-index: 3000; background: #fff; color: #1a2420;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: 16px; padding: 16px; cursor: zoom-out;
 }
@@ -1136,8 +1119,7 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
 
 /* QR scanner (import a route by camera) */
 #qrScan {
-  position: fixed; inset: 0; bottom: calc(-1 * var(--screen-gap));
-  z-index: 3000; background: #000;
+  position: fixed; inset: 0; z-index: 3000; background: #000;
   display: flex; align-items: center; justify-content: center; overflow: hidden;
 }
 #qrVideo { width: 100%; height: 100%; object-fit: cover; }
@@ -1165,7 +1147,7 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
    (a white toast on an OLED screen at night is a flashbulb). */
 #toast {
   position: fixed;
-  bottom: calc(var(--bar-base) + 150px);
+  bottom: calc(var(--bar-foot) + 150px);
   left: 50%; transform: translateX(-50%);
   background: var(--ink); color: var(--bg);
   padding: 9px 16px; border-radius: var(--r-pill);
