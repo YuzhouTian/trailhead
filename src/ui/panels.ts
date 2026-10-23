@@ -29,12 +29,13 @@ import { $, hideToast, svgUse, toast } from './dom';
 import { gridText } from './format';
 import { climbText, updateRouteCard } from './routeCard';
 import { initSheetDrag } from './sheet';
+import { askConfirm } from './confirm';
 
 // Owned by the app and shared by reference; the panels are where most of the
 // settings are actually changed.
 let settings: Settings;
 let getRoutes: () => SavedRoute[];
-let deleteRoute: (r: SavedRoute) => boolean;
+let deleteRoute: (r: SavedRoute) => Promise<boolean>;
 let setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
 let applyTheme: () => void;
 let applyRouteColour: () => void;
@@ -276,7 +277,8 @@ export function openSettingsPanel(): void {
   clearBtn.addEventListener('click', async () => {
     const { tiles } = await offlineUsage();
     if (!tiles) return toast('There is no saved map to clear');
-    if (!confirm(`Delete all ${tiles.toLocaleString()} saved map tiles? Your routes and pins are kept.`)) return;
+    const ask = `Delete all ${tiles.toLocaleString()} saved map tiles? Your routes and pins are kept.`;
+    if (!(await askConfirm(ask, { action: 'Clear', danger: true }))) return;
     clearBtn.disabled = true;
     toast('Clearing offline maps…', 0);
     const removed = await clearOfflineTiles();
@@ -346,7 +348,7 @@ export function openRoutesPanel(): void {
   $('scanQr').addEventListener('click', startQrScan);
 
   content.querySelectorAll<HTMLButtonElement>('.routeItem[data-pin] button').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const id = (btn.closest('.routeItem') as HTMLElement).dataset.pin!;
       const pin = pins.find((x) => x.id === id);
       if (!pin) return;
@@ -357,7 +359,7 @@ export function openRoutesPanel(): void {
         openSavedPin(pin.id);
       } else if (btn.dataset.pact === 'share') {
         void sharePin(pin);
-      } else if (deletePin(pin.id)) {
+      } else if (await deletePin(pin.id)) {
         openRoutesPanel(); // redraw the list without it
       }
     });
@@ -366,7 +368,7 @@ export function openRoutesPanel(): void {
   $('pasteRoute').addEventListener('click', pasteSharedRoute);
 
   content.querySelectorAll<HTMLButtonElement>('.routeItem[data-id] button').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const id = (btn.closest('.routeItem') as HTMLElement).dataset.id!;
       const r = routes.find((x) => x.id === id);
       if (!r) return;
@@ -376,7 +378,7 @@ export function openRoutesPanel(): void {
         hidePanel();
       } else if (act === 'share') {
         openSharePanel(r);
-      } else if (act === 'del' && deleteRoute(r)) {
+      } else if (act === 'del' && (await deleteRoute(r))) {
         openRoutesPanel(); // redraw the list without it
       }
     });
@@ -395,7 +397,7 @@ export function initPanels(opts: {
   /** The saved routes, read fresh each render — the list is reassigned on delete. */
   getRoutes: () => SavedRoute[];
   /** Confirm and delete a route; true if it went, so the list can redraw. */
-  deleteRoute: (r: SavedRoute) => boolean;
+  deleteRoute: (r: SavedRoute) => Promise<boolean>;
   setActiveRoute: (r: SavedRoute | null, fit?: boolean, persist?: boolean) => void;
   /** Re-apply the theme after the Settings panel changes it. */
   applyTheme: () => void;

@@ -15,6 +15,7 @@ import { highDensity, tileUrlFor, usable } from '../map/map';
 import { inGB, osTileAt, osTileInGrid } from '../osgb';
 import { type SavedRoute } from '../state';
 import { $, hideToast, toast } from '../ui/dom';
+import { askConfirm } from '../ui/confirm';
 
 /** How many tiles to fetch at once — enough to be quick, few enough to be polite. */
 const FETCH_WORKERS = 6;
@@ -141,7 +142,7 @@ export function initOffline(opts: {
     const names = defs.map((d) => d.name).join(', ');
     const ask = `Download ~${total} map tiles (${defs.length} layer${defs.length === 1 ? '' : 's'}: ${names}) for offline use?`;
     const cappedNote = capped ? `\n\nRoute too long — capping at ${OFFLINE_MAX_TILES} tiles per layer.` : '';
-    if (!confirm(ask + cappedNote)) return;
+    if (!(await askConfirm(ask + cappedNote, { action: 'Download' }))) return;
 
     let done = 0;
     const queue = layers.flatMap((layer) => layer.urls.map((url) => ({ url, layer })));

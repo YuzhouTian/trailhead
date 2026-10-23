@@ -12,10 +12,12 @@ vi.mock('./tracking', () => ({
   setKnownPosition: vi.fn()
 }));
 vi.mock('../ui/dom', () => ({ toast: vi.fn() }));
+vi.mock('../ui/confirm', () => ({ askConfirm: vi.fn() }));
 
 import { haversine, type LatLng } from '../geo';
 import { routeMixed } from '../routing';
 import type { SavedRoute, Settings } from '../state';
+import { askConfirm } from '../ui/confirm';
 import { toast } from '../ui/dom';
 import { directionsTo, initDetour } from './detour';
 import { getKnownPosition, getLastFix, setKnownPosition } from './tracking';
@@ -73,7 +75,7 @@ beforeEach(() => {
   });
   vi.mocked(getLastFix).mockReturnValue(HERE);
   vi.mocked(routeMixed).mockResolvedValue(ROUTED);
-  globalThis.confirm = vi.fn(() => true);
+  vi.mocked(askConfirm).mockReset().mockResolvedValue(true);
   stubGeolocation('absent');
 });
 
@@ -166,7 +168,7 @@ describe('the route you were already on', () => {
 
   it('is not closed without asking, since an unsaved one would be gone', async () => {
     active = walking();
-    globalThis.confirm = vi.fn(() => false);
+    vi.mocked(askConfirm).mockResolvedValue(false);
     expect(await directionsTo(TARN, label)).toBe(false);
     expect(routeMixed).not.toHaveBeenCalled();
     expect(setActive).not.toHaveBeenCalled();
@@ -176,13 +178,13 @@ describe('the route you were already on', () => {
   it('is named in the question, alongside where you are asking to go', async () => {
     active = walking();
     await directionsTo(TARN, label);
-    expect(vi.mocked(globalThis.confirm).mock.calls[0][0]).toContain('Scafell Pike');
-    expect(vi.mocked(globalThis.confirm).mock.calls[0][0]).toContain('Sprinkling Tarn');
+    expect(vi.mocked(askConfirm).mock.calls[0][0]).toContain('Scafell Pike');
+    expect(vi.mocked(askConfirm).mock.calls[0][0]).toContain('Sprinkling Tarn');
   });
 
   it('goes unmentioned when there is none, rather than asking about nothing', async () => {
     await directionsTo(TARN, label);
-    expect(globalThis.confirm).not.toHaveBeenCalled();
+    expect(askConfirm).not.toHaveBeenCalled();
   });
 });
 

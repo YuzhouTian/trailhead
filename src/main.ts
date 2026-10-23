@@ -37,6 +37,7 @@ import {
   showPanel
 } from './ui/panels';
 import { initRouteCard } from './ui/routeCard';
+import { askConfirm } from './ui/confirm';
 
 // ---------------------------------------------------------------- stored state
 
@@ -228,8 +229,8 @@ initQr({ hidePanel });
 initPanels({
   settings,
   getRoutes,
-  deleteRoute: (r) => {
-    if (!confirm(`Delete “${r.name}”?`)) return false;
+  deleteRoute: async (r) => {
+    if (!(await askConfirm(`Delete “${r.name}”?`, { action: 'Delete', danger: true }))) return false;
     routes = getRoutes().filter((x) => x.id !== r.id);
     saveRoutes(routes);
     if (activeRoute?.id === r.id) setActiveRoute(null);
