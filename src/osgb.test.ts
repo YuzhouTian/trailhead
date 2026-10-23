@@ -4,6 +4,8 @@ import {
   formatGridRef,
   inGB,
   latLngToEastingNorthing,
+  osTileAt,
+  osTileInGrid,
   parseGridRef
 } from './osgb';
 
@@ -290,5 +292,30 @@ describe('inGB', () => {
 
   it.each(outside)('counts %s as not covered', (_name, lat, lng) => {
     expect(inGB(lat, lng)).toBe(false);
+  });
+});
+
+describe('OS tiles', () => {
+  it('finds the tile under a point at its level', () => {
+    // Ben Nevis summit, about E 216666 N 771288. Level 9 tiles are 448 m.
+    const [x, y] = osTileAt(56.7969, -5.0036, 9);
+    expect(x).toBe(Math.floor((216666 + 238375) / 448));
+    expect(y).toBe(Math.floor((1376256 - 771288) / 448));
+  });
+
+  it('nests: a tile is the parent of the tiles under the same point a level in', () => {
+    for (const level of [5, 6, 7, 8]) {
+      const [px, py] = osTileAt(54.45, -3.21, level);
+      const [cx, cy] = osTileAt(54.45, -3.21, level + 1);
+      expect([Math.floor(cx / 2), Math.floor(cy / 2)]).toEqual([px, py]);
+    }
+  });
+
+  it('keeps tiles inside the National Grid and drops those past it', () => {
+    const [x, y] = osTileAt(54.45, -3.21, 7);
+    expect(osTileInGrid(x, y, 7)).toBe(true);
+    // West of easting 0, and north of northing 1 300 000.
+    expect(osTileInGrid(0, 100, 7)).toBe(false);
+    expect(osTileInGrid(x, 0, 7)).toBe(false);
   });
 });

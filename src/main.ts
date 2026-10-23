@@ -287,7 +287,7 @@ openSharedPin();
 // story. Ordering is not what keeps it here — nothing else listens to
 // #rcOffline, and the route arrives as a getter — so it is safe to move if the
 // grouping ever stops earning its place.
-initOffline({ settings, getActiveRoute: () => activeRoute });
+initOffline({ getActiveRoute: () => activeRoute });
 
 // ---------------------------------------------------------------- service worker
 

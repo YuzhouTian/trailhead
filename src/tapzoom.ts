@@ -124,7 +124,7 @@ export function enableDoubleTapDragZoom(leafletMap: L.Map): void {
     // Tiles exist at whole levels only, so a map left at z15.4 is showing z15
     // tiles stretched 1.32x — soft, and worst at just under the half step. It
     // also asks for levels the offline download never cached (OFFLINE_ZOOMS
-    // stops at 16), which on a hill with no signal is a blank square where a
+    // stops at 18), which on a hill with no signal is a blank square where a
     // slightly soft tile would have done. The in-between scales are still the
     // point of the gesture; they just belong to the drag, not to the rest.
     //
