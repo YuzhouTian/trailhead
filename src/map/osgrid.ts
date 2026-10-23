@@ -17,12 +17,13 @@
 // to a few metres — and needs no proj4.
 
 import L from '../leaflet-setup';
-import { eastingNorthingToLatLng, latLngToEastingNorthing } from '../osgb';
+import {
+  OS_LEVEL0_RES,
+  OS_TILE_ORIGIN,
+  eastingNorthingToLatLng,
+  latLngToEastingNorthing
+} from '../osgb';
 
-/** Top-left corner of OS's EPSG:27700 tile matrix, in eastings/northings. */
-export const OS_TILE_ORIGIN = { e: -238375, n: 1376256 };
-/** Metres per pixel of OS level 0; each level halves it. */
-const OS_LEVEL0_RES = 896;
 /** OS level k is app zoom k + this. */
 export const OS_ZOOM_OFFSET = 7;
 /**

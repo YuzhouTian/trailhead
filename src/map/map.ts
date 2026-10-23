@@ -80,7 +80,7 @@ export function layerDef(id: string): BaseLayerDef | undefined {
 }
 
 /** A screen with more than one device pixel to the CSS pixel: most phones. */
-function highDensity(): boolean {
+export function highDensity(): boolean {
   return window.devicePixelRatio > 1.3;
 }
 

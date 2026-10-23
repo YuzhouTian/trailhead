@@ -95,3 +95,25 @@ describe('OS grid', () => {
     });
   });
 });
+
+describe('osTileAt agrees with the map', () => {
+  // The offline download works out OS tiles without a map (osgb.ts). If its
+  // tiles are not the ones Leaflet asks for, everything saved is useless.
+  it('picks the tile Leaflet requests at each offline zoom, matched or native', async () => {
+    const { osTileAt } = await import('../osgb');
+    const L = (await import('../leaflet-setup')).default;
+    const points: [number, number][] = [[54.45, -3.21], [56.7969, -5.0036], [50.2, -5.4], [58.3, -4.9]];
+    for (const native of [false, true]) {
+      setOsNative(native);
+      setOsReference(54.45, -3.21);
+      for (const [lat, lng] of points) {
+        for (const z of [12, 13, 14, 15, 16]) {
+          const px = osGridCrs.latLngToPoint(L.latLng(lat, lng), z);
+          const size = osTileSize();
+          expect(osTileAt(lat, lng, z - 7)).toEqual([Math.floor(px.x / size), Math.floor(px.y / size)]);
+        }
+      }
+    }
+    setOsNative(false);
+  });
+});

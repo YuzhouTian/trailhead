@@ -241,10 +241,18 @@ grid's maths (`latLngToTile` in [geo.ts](../src/geo.ts)) and checks bounds with
 - **Before the download starts,** the confirm says how many OS tiles it is and
   that they count towards the Premium allowance.
 
-**Licence check, before this phase ships:** I couldn't find OS's terms on
-storing tiles offline. Ask OS, or read the Premium licence, before enabling the
-offline button for this layer. If the answer is no, the button is hidden on the
-OS layer and everything else still ships.
+**Licence check:** settled by the user on 2026-10-23. Trailhead is a
+non-profit project that will open to other people once ready, so OS tiles are
+saved offline like any other layer. No cost warning in the confirm either, at
+the user's call.
+
+**As built (2026-10-23):** the maths lives in `osTileAt` / `osTileInGrid` in
+[osgb.ts](../src/osgb.ts) rather than a `tileFor` in `geo.ts`. The offline
+download saves every usable layer (issue #107), so OS comes along whenever an
+OS key is set. Only the GB part of a route counts, and at the sharp levels on
+a high-density screen it saves the four tiles of the next level in, since those
+are what the map draws. `osgrid.test.ts` checks the tiles against Leaflet's own
+grid at every offline zoom.
 
 ## 6. The GB-only fallback
 

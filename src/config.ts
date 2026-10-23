@@ -248,9 +248,25 @@ export const ARRIVAL_M = 30;
  */
 export const UPDATE_AUTO_RELOAD_MS = 10_000;
 
-/** Zoom levels pre-cached by the offline download. */
-export const OFFLINE_ZOOMS = [12, 13, 14, 15, 16];
-/** Corridor half-width in tiles around the route at each zoom. */
-export const OFFLINE_TILE_BUFFER = 1;
+/**
+ * Zoom levels pre-cached by the offline download, each with the corridor's
+ * half-width in tiles either side of the route at that zoom.
+ *
+ * 17 and 18 are there so you can zoom right in on a junction with no signal
+ * and still have map: past the last cached zoom a layer goes blank rather than
+ * stretching what it has. They are narrower on the ground than the rest —
+ * about 200 m either side, against 400 m or more further out — because each
+ * zoom in costs twice the tiles along the line; widening them as well would
+ * make them the bulk of every download. Zoom 18 already shows every path.
+ */
+export const OFFLINE_ZOOMS: { zoom: number; buffer: number }[] = [
+  { zoom: 12, buffer: 1 },
+  { zoom: 13, buffer: 1 },
+  { zoom: 14, buffer: 1 },
+  { zoom: 15, buffer: 1 },
+  { zoom: 16, buffer: 1 },
+  { zoom: 17, buffer: 1 },
+  { zoom: 18, buffer: 2 }
+];
 /** Safety cap so a long route cannot trigger an absurd download. */
 export const OFFLINE_MAX_TILES = 4000;

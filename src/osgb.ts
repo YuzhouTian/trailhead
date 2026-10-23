@@ -252,3 +252,36 @@ export function inGB(lat: number, lng: number): boolean {
   }
   return inside;
 }
+
+// ---------------------------------------------------------------- OS tiles
+
+/** Top-left corner of OS's EPSG:27700 tile matrix, in eastings/northings. */
+export const OS_TILE_ORIGIN = { e: -238375, n: 1376256 };
+/** Metres per pixel of OS level 0; each level halves it. */
+export const OS_LEVEL0_RES = 896;
+/** The National Grid's extent, which OS serves tiles for and nothing past. */
+const GRID_MAX = { e: 700000, n: 1300000 };
+
+/** Ground metres along one side of an OS tile at `level`. */
+function osTileSpan(level: number): number {
+  return (256 * OS_LEVEL0_RES) / 2 ** level;
+}
+
+/**
+ * The OS tile (x, y) at `level` under a point — OS's own level numbers, as
+ * they go in the tile URL, not the app's zoom. Used by the offline download,
+ * which has to ask for the same tiles the map does without a map to ask.
+ */
+export function osTileAt(lat: number, lng: number, level: number): [number, number] {
+  const { e, n } = latLngToEastingNorthing(lat, lng);
+  const span = osTileSpan(level);
+  return [Math.floor((e - OS_TILE_ORIGIN.e) / span), Math.floor((OS_TILE_ORIGIN.n - n) / span)];
+}
+
+/** Whether OS has a tile at (x, y, level): it overlaps the grid's extent. */
+export function osTileInGrid(x: number, y: number, level: number): boolean {
+  const span = osTileSpan(level);
+  const e0 = OS_TILE_ORIGIN.e + x * span;
+  const n0 = OS_TILE_ORIGIN.n - y * span;
+  return e0 < GRID_MAX.e && e0 + span > 0 && n0 > 0 && n0 - span < GRID_MAX.n;
+}
