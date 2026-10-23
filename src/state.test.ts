@@ -59,7 +59,6 @@ describe('loadSettings', () => {
     expect(s.baseLayer).toBe('freemap');
     expect(s.profile).toBe('hiking-beta');
     expect(s.speedKmh).toBe(4);
-    expect(s.tfKey).toBe('');
     expect(s.theme).toBe('system');
     expect(s.routeColour).toBe('#d8303c');
   });
@@ -117,12 +116,27 @@ describe('loadSettings', () => {
     });
 
     it('leaves a layer the user actually chose alone', () => {
-      store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'tf-outdoors' }));
-      expect(loadSettings().baseLayer).toBe('tf-outdoors');
+      store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'os-leisure' }));
+      expect(loadSettings().baseLayer).toBe('os-leisure');
     });
 
-    it('does not run twice — picking OSM after the move sticks', () => {
+    it('moves an install left on the retired Thunderforest layer', () => {
+      // Its tiles need a key the app no longer asks for, and it has no row in
+      // the Map panel to switch away from.
+      store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'tf-outdoors', schema: 1 }));
+      expect(loadSettings().baseLayer).toBe('freemap');
+    });
+
+    it('finishes the OSM move on an install that had already passed v1', () => {
       store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'osm', schema: 1 }));
+      expect(loadSettings().baseLayer).toBe('freemap');
+    });
+
+    it('does not run twice — bailing out to the fallback sticks', () => {
+      // The tile-error escape in map.ts writes 'osm' and saves. On the next
+      // launch the walker stays where the app left them, rather than being
+      // pushed back onto the layer that had just failed.
+      store.set(SETTINGS_KEY, JSON.stringify({ baseLayer: 'osm', schema: 2 }));
       expect(loadSettings().baseLayer).toBe('osm');
     });
   });

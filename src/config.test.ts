@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { BASE_LAYERS, FALLBACK_LAYER_ID, crossOriginFor, keyFor, missingKey } from './config';
+import {
+  BASE_LAYERS,
+  DEFAULT_LAYER_ID,
+  FALLBACK_LAYER_ID,
+  crossOriginFor,
+  keyFor,
+  missingKey
+} from './config';
 
 const byId = (id: string) => {
   const def = BASE_LAYERS.find((l) => l.id === id);
@@ -10,7 +17,7 @@ const byId = (id: string) => {
 describe('base layers', () => {
   it('defaults to asking for CORS, which is what most tile servers send', () => {
     expect(crossOriginFor(byId('osm'))).toBe('anonymous');
-    expect(crossOriginFor(byId('tf-outdoors'))).toBe('anonymous');
+    expect(crossOriginFor(byId('os-leisure'))).toBe('anonymous');
   });
 
   it('leaves crossOrigin off for a server that sends no CORS header', () => {
@@ -29,6 +36,25 @@ describe('base layers', () => {
     // dependable one: global coverage, and CORS so its tiles can be checked
     // before caching.
     expect(fallback.cors).not.toBe(false);
+    // Reached by breakage, never chosen, so it stays out of the Map panel.
+    expect(fallback.hidden).toBe(true);
+  });
+
+  it('points the default at a hill map you could choose yourself', () => {
+    const def = byId(DEFAULT_LAYER_ID);
+    // A fresh install opens on it, a keyless layer is the only thing a fresh
+    // install can open on, and it is also where OS hands over at the border.
+    expect(def.needsKey).toBeUndefined();
+    expect(def.hidden).toBeFalsy();
+    expect(def.grid ?? 'web').toBe('web');
+    // The two fallbacks answer different questions; the same layer for both
+    // would put a walker on the reference rendering for a missing key.
+    expect(DEFAULT_LAYER_ID).not.toBe(FALLBACK_LAYER_ID);
+  });
+
+  it('offers at least one layer in the Map panel without a key', () => {
+    const offered = BASE_LAYERS.filter((l) => !l.hidden);
+    expect(offered.some((l) => !l.needsKey)).toBe(true);
   });
 
   it('never serves a layer past the zoom its server actually renders', () => {
@@ -68,24 +94,23 @@ describe('base layers', () => {
 });
 
 describe('layer keys', () => {
-  const keys = { tfKey: 'tf-123', osKey: '' };
+  const keys = { osKey: '' };
 
   it('reads the key each layer needs from its own Settings field', () => {
-    expect(keyFor(byId('tf-outdoors'), keys)).toBe('tf-123');
     expect(keyFor(byId('os-leisure'), keys)).toBe('');
+    expect(keyFor(byId('os-leisure'), { osKey: 'os-456' })).toBe('os-456');
     expect(keyFor(byId('freemap'), keys)).toBeNull();
   });
 
   it('counts a layer as missing its key only when it needs one and it is blank', () => {
     expect(missingKey(byId('os-leisure'), keys)).toBe(true);
-    expect(missingKey(byId('tf-outdoors'), keys)).toBe(false);
+    expect(missingKey(byId('freemap'), keys)).toBe(false);
     expect(missingKey(byId('osm'), keys)).toBe(false);
-    expect(missingKey(byId('os-leisure'), { ...keys, osKey: 'os-456' })).toBe(false);
+    expect(missingKey(byId('os-leisure'), { osKey: 'os-456' })).toBe(false);
   });
 
   it('names a key placeholder in the URL of every layer that needs a key', () => {
     for (const l of BASE_LAYERS) {
-      if (l.needsKey === 'tf') expect(l.url).toContain('{tfKey}');
       if (l.needsKey === 'os') expect(l.url).toContain('{osKey}');
     }
   });

@@ -29,7 +29,7 @@ has no dimmed backdrop, because you tap the map behind it to add points.
 | **Map** | Base map, nearby-point chips, the map key |
 | **Saved** | Your routes and pins; import GPX, scan a route QR, paste a shared link |
 | **Plan** | The route planner: distance, climb and time, Paths / Straight, Undo, Clear, Save |
-| **Settings** | Appearance, Thunderforest key, routing profile, walking speed, offline maps |
+| **Settings** | Appearance, OS Data Hub key, routing profile, walking speed, offline maps |
 
 When a route is loaded, a card floats just above the tabs with its name, three cells —
 Distance, Climb, Time, which become To go, Climb left and Time left once you're on the
@@ -138,11 +138,12 @@ top of Settings.
 
 ### Maps
 
-- **Base layers** — *Outdoor* from Freemap (the default: contours, hillshading and crag
-  ticks, sharp all the way to zoom 20, Europe only), *OpenStreetMap* (no key, global, the
-  fallback) and *Outdoors* from Thunderforest
-  (hiking cartography, trails graded by difficulty — needs a
-  [free key](#outdoors-layer-optional)).
+- **Base layers** — two to choose from: *Outdoor* from Freemap (the default: contours,
+  hillshading and crag ticks, sharp all the way to zoom 20, no key, Europe only) and *OS
+  Explorer (1:25k)* (the paper Explorer map with rights of way and access land — Great
+  Britain only, and needs an [OS Data Hub key](#os-explorer-layer-optional)). OpenStreetMap
+  is in there as well but not offered: it is what the app bails out to by itself when the
+  layer you are on stops serving tiles.
 - **Map key** — a short per-layer legend of only the symbols a walker could misread: path,
   track or waymarked route, gates and stiles, crags, scree, bog, springs and shelters. Roads,
   rivers, woods and peaks explain themselves and are left out.
@@ -190,15 +191,18 @@ So the routine is:
 Open the live URL in Safari (or Chrome) → Share → **Add to Home Screen**. It launches
 full-screen like a native app, and that installed copy is the one that caches tiles.
 
-## Outdoors layer (optional)
+## OS Explorer layer (optional)
 
-The **Outdoors** base map (Thunderforest) needs a free key:
+The **OS Explorer (1:25k)** base map needs an [OS Data Hub](https://osdatahub.os.uk/) key:
 
-1. Sign up for a free "Hobby Project" plan at https://www.thunderforest.com — 150,000 tiles a
-   month, far more than one walker uses.
-2. Paste the key into **Settings → Thunderforest API key**, then pick Outdoors in the Map tab.
+1. Sign up, make a project, and add the **OS Maps API** to it. Add **OS Names API** to the
+   same key as well and search gets OS place names too.
+2. Paste the key into **Settings → OS Data Hub API key**, then pick OS Explorer in the Map tab.
 
-OpenStreetMap needs no key, and place-name search (Photon), routing (BRouter), elevation
+The 1:25,000 zooms are on OS's Premium plan; the smaller scales are open data. Outside Great
+Britain the map hands back to Freemap on its own.
+
+Freemap needs no key, and place-name search (Photon), routing (BRouter), elevation
 (Open-Meteo) and nearby points (Overpass) are all keyless too — so the app is fully usable
 with nothing configured at all.
 

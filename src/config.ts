@@ -8,7 +8,7 @@ export interface BaseLayerDef {
   maxNativeZoom: number;
   /** Lowest zoom the tile server provides (tiles downscale below it). */
   minNativeZoom?: number;
-  /** Needs an API key from Settings: Thunderforest's or the OS Data Hub's. */
+  /** Needs an API key from Settings: the OS Data Hub's. */
   needsKey?: LayerKey;
   /**
    * Which grid the tiles are cut on. 'osgb' is the British National Grid
@@ -42,10 +42,16 @@ export interface BaseLayerDef {
   cors?: boolean;
   /** Shown under the layer name in the Map panel. */
   blurb?: string;
+  /**
+   * Kept out of the Map panel's list. A hidden layer is still a real layer the
+   * map can show — it is how the app reaches FALLBACK_LAYER_ID when the chosen
+   * layer's tiles fail — it just isn't something to choose for its own sake.
+   */
+  hidden?: boolean;
 }
 
-/** The API keys a layer can need, each a field in Settings. */
-export type LayerKey = 'tf' | 'os';
+/** The API key a layer can need, a field in Settings. */
+export type LayerKey = 'os';
 
 export const BASE_LAYERS: BaseLayerDef[] = [
   {
@@ -84,35 +90,26 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     blurb: 'The Ordnance Survey Explorer map: 1:25,000 from close in, with rights of way and access land. Great Britain only: leave it and the map switches to Freemap. Needs an OS Data Hub key in Settings, and the Premium plan for the 1:25k zooms.'
   },
   {
-    id: 'tf-outdoors',
-    name: 'Outdoors (Thunderforest)',
-    // {r} becomes "@2x" on high-density screens.
-    url: 'https://tile.thunderforest.com/outdoors/{z}/{x}/{y}{r}.png?apikey={tfKey}',
-    maxZoom: 20,
-    maxNativeZoom: 20,
-    needsKey: 'tf',
-    retina: true,
-    blurb: 'Hiking cartography over OpenStreetMap data: trails graded by difficulty, terrain shading, sharp retina tiles. Needs a free key in Settings.'
-  },
-  {
     id: 'osm',
     name: 'OpenStreetMap',
     url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     maxZoom: 19,
     maxNativeZoom: 19,
+    // Not in the Map panel: no contours, no hillshading and no retina tiles, so
+    // there is no walk it is the best map for. It is here to be bailed out to.
+    hidden: true,
     blurb: 'The reference rendering. No key, global coverage and the sturdiest servers, which is why it is the fallback.'
   }
 ];
 
 /** The key `def` needs, if any, read from Settings ('' when it has none). */
-export function keyFor(def: BaseLayerDef, keys: { tfKey: string; osKey: string }): string | null {
-  if (def.needsKey === 'tf') return keys.tfKey;
+export function keyFor(def: BaseLayerDef, keys: { osKey: string }): string | null {
   if (def.needsKey === 'os') return keys.osKey;
   return null;
 }
 
 /** True when `def` needs a key and Settings does not have it. */
-export function missingKey(def: BaseLayerDef, keys: { tfKey: string; osKey: string }): boolean {
+export function missingKey(def: BaseLayerDef, keys: { osKey: string }): boolean {
   return keyFor(def, keys) === '';
 }
 
@@ -131,21 +128,28 @@ export function crossOriginFor(def: BaseLayerDef): 'anonymous' | undefined {
 }
 
 /**
- * The layer to fall back to when the chosen one cannot be used — a missing key,
- * a retired id, tiles that will not load. Named rather than "the first keyless
- * layer" because the default is now Freemap, and the point of a fallback is to
- * be the *dependable* one: OpenStreetMap is global (Freemap is Europe-only) and
- * runs on the most robust servers of the four.
+ * The layer the app comes back to: a fresh install's base map, where a GB-only
+ * layer (OS Explorer) hands over when the map leaves Great Britain, and what a
+ * chosen layer that cannot be used falls back to — a missing key, or settings
+ * naming a layer that has since been retired.
+ *
+ * All three are the same question — what do we show when the chosen map isn't
+ * available here? — and Freemap is the answer to all three: the hill map that
+ * needs no key and carries on past the border. On leaving GB the map stays on
+ * it until OS is picked again, rather than flipping back on the way home.
  */
-export const FALLBACK_LAYER_ID = 'osm';
+export const DEFAULT_LAYER_ID = 'freemap';
 
 /**
- * Where a GB-only layer (OS Explorer) hands over when the map leaves Great
- * Britain. Not the fallback: OS is chosen for the hills, and Freemap is the
- * hill map that carries on past the border. The map stays on it until OS is
- * picked again, rather than flipping back on the way home.
+ * The last resort, for tiles that are actually failing: a wrong key 401ing, or
+ * walking off the edge of Freemap's European data. A different question from
+ * DEFAULT_LAYER_ID, which is why it is a different layer — this one has to be
+ * the *dependable* one, so it is global (Freemap is Europe-only), CORS-clean so
+ * its tiles can be checked before caching, and on the most robust servers here.
+ * Reaching it means something is broken, so it is also the layer kept out of
+ * the Map panel: nothing to choose, only somewhere to land.
  */
-export const OUTSIDE_GB_LAYER_ID = 'freemap';
+export const FALLBACK_LAYER_ID = 'osm';
 
 export const BROUTER_URL = 'https://brouter.de/brouter';
 

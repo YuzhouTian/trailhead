@@ -10,7 +10,11 @@
  * (Apache-2.0) and OpenStreetMap's from openstreetmap-carto (CC0). Freemap
  * also serves every legend item as an image, at
  * outdoor.tiles.freemap.sk/legend/{id}. Both were checked in September 2026.
- * Thunderforest could not be — it needs a key — and is carried over as it was.
+ * OS's is drawn from the printed Explorer key.
+ *
+ * OpenStreetMap keeps its key although the Map panel no longer offers the
+ * layer: the app can still put you on it when the layer you chose fails, and
+ * that is exactly when you need to know what you are looking at.
  */
 
 // ---------------------------------------------------------------- swatches
@@ -229,32 +233,6 @@ const OSM_GROUPS: Group[] = [
   }
 ];
 
-// ---------------------------------------------------------------- Thunderforest
-
-const routeDots = (colour: string) =>
-  sw(`<g fill="${colour}">${[6, 14, 22, 30, 38].map((x) => `<circle cx="${x}" cy="9" r="2.6"/>`).join('')}</g>`);
-
-const TF_GROUPS: Group[] = [
-  {
-    title: 'Paths and routes',
-    entries: [
-      { swatch: routeDots('#c0392b'), name: 'National trail', note: 'Red dots, e.g. the Pennine Way. Signposted the whole way.' },
-      { swatch: routeDots('#8e44ad'), name: 'Regional route', note: 'Purple dots. Usually waymarked too.' },
-      { swatch: way('#333', 2, '2 3'), name: 'Path', note: 'Plain dashes: a path with no waymarked route along it.' },
-      { swatch: way('#a08048', 2.5, '8 5', '#e8d9b8'), name: 'Track' }
-    ],
-    footnote: 'Cycle routes are not drawn as dots on this layer, and solid blue lines are water, not routes.'
-  },
-  {
-    title: 'Ground and shelter',
-    entries: [
-      { swatch: stipple('#e8e0d0', '#9a9a9a'), name: 'Scree or bare rock', note: SCREE_NOTE },
-      { swatch: bog('#e3eef0', '#4a90a4'), name: 'Wetland' },
-      { swatch: glyphs('#8b5a2b', WILDERNESS_HUT), name: 'Hut or shelter' }
-    ]
-  }
-];
-
 // ---------------------------------------------------------------- OS Explorer
 
 /** Green diamonds, the way OS marks a National Trail. */
@@ -288,7 +266,6 @@ const OS_GROUPS: Group[] = [
 const KEYS: Record<string, { title: string; groups: Group[]; rightsOfWay?: boolean }> = {
   freemap: { title: 'Outdoor', groups: FREEMAP_GROUPS },
   'os-leisure': { title: 'OS Explorer', groups: OS_GROUPS, rightsOfWay: true },
-  'tf-outdoors': { title: 'Outdoors', groups: TF_GROUPS },
   osm: { title: 'OpenStreetMap', groups: OSM_GROUPS }
 };
 
