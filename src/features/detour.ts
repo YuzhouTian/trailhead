@@ -25,6 +25,7 @@ import { routeMixed } from '../routing';
 import { type SavedRoute, type Settings } from '../state';
 import { toast } from '../ui/dom';
 import { getKnownPosition, getLastFix, setKnownPosition } from './tracking';
+import { askConfirm } from '../ui/confirm';
 
 /** Where a set of directions leads. */
 export interface DetourTarget {
@@ -107,10 +108,10 @@ function toRoute(
  * happens — and why the question is the whole answer here rather than a stand-in
  * for holding the route aside (see the header).
  */
-function replaceCheck(dest: DetourTarget): boolean {
+function replaceCheck(dest: DetourTarget): Promise<boolean> {
   const current = getActiveRoute();
-  if (!current) return true;
-  return confirm(`Close “${current.name}” and route to “${dest.name}”?`);
+  if (!current) return Promise.resolve(true);
+  return askConfirm(`Close “${current.name}” and route to “${dest.name}”?`, { action: 'Route there' });
 }
 
 /**
@@ -120,7 +121,7 @@ function replaceCheck(dest: DetourTarget): boolean {
  * whether to get its card out of the way.
  */
 export async function directionsTo(dest: DetourTarget, label: DetourLabel): Promise<boolean> {
-  if (!replaceCheck(dest)) return false;
+  if (!(await replaceCheck(dest))) return false;
 
   abort?.abort();
   abort = new AbortController();

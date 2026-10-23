@@ -23,6 +23,7 @@ import { formatGridRef } from '../osgb';
 import { loadPins, savePins, type Pin, type PinCategory } from '../state';
 import { $, svgUse, toast } from '../ui/dom';
 import { gridText } from '../ui/format';
+import { askConfirm } from '../ui/confirm';
 
 /**
  * The class on a place marker — a saved pin, a search pin, a nearby point —
@@ -75,10 +76,10 @@ export function getPins(): Pin[] {
  * actually went, so the caller can decide what to do next — the card hides
  * itself and toasts, the Routes panel just redraws its list.
  */
-export function deletePin(id: string): boolean {
+export async function deletePin(id: string): Promise<boolean> {
   const pin = getPins().find((p) => p.id === id);
   if (!pin) return false;
-  if (!confirm(`Delete “${pin.name}”?`)) return false;
+  if (!(await askConfirm(`Delete “${pin.name}”?`, { action: 'Delete', danger: true }))) return false;
   pins = getPins().filter((p) => p.id !== id);
   savePins(pins);
   renderPinMarkers();
@@ -414,8 +415,8 @@ export function openSavedPin(id: string): void {
 
   card.querySelector('.pc-close')!.addEventListener('click', hidePinCard);
   $('pcShare').addEventListener('click', () => sharePin(pin));
-  $('pcDel').addEventListener('click', () => {
-    if (!deletePin(pin.id)) return;
+  $('pcDel').addEventListener('click', async () => {
+    if (!(await deletePin(pin.id))) return;
     hidePinCard();
     toast('Pin deleted');
   });

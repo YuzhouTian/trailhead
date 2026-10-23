@@ -1195,3 +1195,23 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
    follows the phone's system setting, which is commonly on during the day, and
    a dimmed map in sunlight is exactly the wrong trade on a hill. If dimming is
    ever wanted after dark it belongs behind its own setting, not the theme. */
+
+/* Trailhead's own confirm (ui/confirm.ts). A small card in the middle of the
+   screen, in the top layer above any open sheet, dimmed behind like a sheet. */
+#confirmSheet {
+  width: min(340px, calc(100vw - 32px));
+  /* The border is for dark mode, where the card is the same colour as the
+     sheet behind it and the shadow does not show. */
+  padding: 20px 16px 16px; border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  background: var(--surface); color: var(--ink);
+  box-shadow: var(--shadow-card);
+}
+#confirmSheet::backdrop { background: var(--scrim); }
+#confirmMsg { margin: 0 4px 20px; font: var(--t-ui); overflow-wrap: anywhere; white-space: pre-line; }
+#confirmSheet .confirmActs { display: flex; gap: 8px; }
+#confirmSheet button {
+  flex: 1; height: 48px; padding: 0 16px; border: none; border-radius: var(--r-md);
+  background: var(--brand); color: var(--on-brand); font: var(--t-ui); cursor: pointer;
+}
+#confirmSheet button.secondary { background: var(--surface-2); color: var(--ink); }
+#confirmSheet button.danger { background: var(--danger); color: var(--on-brand); }
