@@ -239,10 +239,10 @@ body {
   background: var(--bg);
   /* A hairline, and no shadow. A drop shadow under a docked bar is the one
      piece of chrome that reads as pasted on: it implies the bar is floating
-     when it is bolted to the bottom of the screen. 56px of content plus
+     when it is bolted to the bottom of the screen. 51px of content plus
      --bar-foot. */
   border-top: 1px solid var(--hairline);
-  padding: 6px 4px calc(var(--bar-foot) + 4px);
+  padding: 4px 4px calc(var(--bar-foot) + 4px);
   /* Above the sheet's scrim (1090), unlike the rest of the bottom furniture:
      the bar is how you swap one sheet for another and how you put a sheet
      away, so it has to stay lit and tappable while a sheet is open. The locate
@@ -256,7 +256,7 @@ body {
   color: var(--muted); cursor: pointer; padding: 2px 0;
 }
 #bottomBar button .ico { line-height: 0; }
-#bottomBar button .ico svg { width: 24px; height: 24px; display: block; }
+#bottomBar button .ico svg { width: 20px; height: 20px; display: block; }
 #bottomBar button .lbl { font: var(--t-caption); font-weight: 600; }
 #bottomBar button.active { color: var(--brand); }
 
@@ -269,24 +269,26 @@ body {
    publishCardLift(). */
 :root { --card-lift: 0px; }
 
-/* The height of the bottom tab bar above the safe-area strip: 6px + 4px padding
-   round a 47px column of icon and label. The bottom sheet rests on top of the
+/* The height of the bottom tab bar above the safe-area strip: the 1px hairline
+   and 4px + 4px padding round a 42px column of icon and label. The bottom sheet rests on top of the
    bar and has to know where the bar's top edge is, and that is the only place
-   this is used — the other bottom offsets in this file (50, 90, 64, 107) are
+   this is used — the other bottom offsets in this file (58, 144) are
    tuned totals for one piece of furniture each, not the bar's height, so
    rewriting them in terms of this would say something untrue about them. */
-:root { --bar-h: 57px; }
+:root { --bar-h: 51px; }
 
-/* How much of the bottom safe area the tab bar keeps clear under its labels.
-   The full inset (34px on a Face ID iPhone) left a tall empty band under the
-   icons: the home indicator itself is a thin line in the bottom ~13px, and
-   the rest of the strip is just margin. Native tab bars let their labels sit
-   in it, so the bar gives up 24px of it: with the bar's own 4px, the labels
-   end 14px off the foot of the screen, just above the indicator. On a phone
-   with no inset this is 0, as before. Everything that sits a set distance
-   above the bar measures from here rather than from the raw inset, so it all
-   comes down with the bar and keeps its gap. */
-:root { --bar-foot: max(env(safe-area-inset-bottom, 0px) - 24px, 0px); }
+/* How much of the bottom safe area the tab bar keeps clear under its labels:
+   none. From iOS 26 a home-screen app is laid out in a page one status bar
+   shorter than the screen (WebKit bug 301108), and iOS fills the strip under
+   it with its own band, which already holds the home indicator clear of the
+   bar. The bar can't reach into that band (it draws over anything put there),
+   so padding the bar for the indicator as well only stacked a second gap on
+   top of it. If iOS ever gives the page the full screen again, the labels
+   will sit on the indicator: max(env(safe-area-inset-bottom, 0px) - 24px, 0px)
+   is what kept them 14px off the foot. Everything that sits a set distance
+   above the bar measures from here rather than from the raw inset, so it
+   keeps its gap whichever value this holds. */
+:root { --bar-foot: 0px; }
 
 /* Locate ("Me") — a floating control over the map, not a nav destination.
    Sits above the bottom bar, and rides up above the route card when one shows.
@@ -297,11 +299,11 @@ body {
   /* 12px: the same screen inset as the route card below it and the search bar
      above, so the three line up down the right-hand edge. */
   right: 12px;
-  /* 64px: the route card's own resting offset, 8px above the tab bar, so the
+  /* 58px: the route card's own resting offset, just above the tab bar, so the
      button and the minimised card line up. Every px here is thumb reach on a
      slope, so nothing sits under it any more. (It was 90px while the scale bar
      did.) */
-  bottom: calc(var(--bar-foot) + 64px + var(--card-lift));
+  bottom: calc(var(--bar-foot) + 58px + var(--card-lift));
   width: 52px; height: 52px;
   /* The hairline does nothing in light (white on a bright map already reads)
      but on black it is the only thing separating the button from the tiles. */
@@ -900,12 +902,12 @@ body.planning #toast { bottom: calc(var(--bar-foot) + var(--bar-h) + var(--plan-
    screen edge. Edge to edge with a border-top read as a second bottom bar and
    made the screen feel like three stacked chrome bands; inset by the same 12px
    as everything else that floats, it reads as one thing sitting over the map.
-   8px above the 56px tab bar. It does not show while planning: Plan's sheet
+   Just above the tab bar. It does not show while planning: Plan's sheet
    carries the route's stats itself. */
 #routeCard {
   position: fixed;
   left: 12px; right: 12px;
-  bottom: calc(var(--bar-foot) + 64px);
+  bottom: calc(var(--bar-foot) + 58px);
   max-width: 440px; margin: 0 auto;
   background: var(--surface);
   border: 1px solid var(--hairline); border-radius: var(--r-lg);
@@ -991,7 +993,7 @@ body.planning #toast { bottom: calc(var(--bar-foot) + var(--bar-h) + var(--plan-
 #pinCard {
   position: fixed;
   left: 12px; right: 12px;
-  bottom: calc(var(--bar-foot) + 64px);
+  bottom: calc(var(--bar-foot) + 58px);
   max-width: 440px; margin: 0 auto;
   background: var(--surface); color: var(--ink);
   border: 1px solid var(--hairline); border-radius: var(--r-lg);
@@ -1147,7 +1149,7 @@ body.planning .leaflet-marker-icon.planPassThrough { pointer-events: none; }
    (a white toast on an OLED screen at night is a flashbulb). */
 #toast {
   position: fixed;
-  bottom: calc(var(--bar-foot) + 150px);
+  bottom: calc(var(--bar-foot) + 144px);
   left: 50%; transform: translateX(-50%);
   background: var(--ink); color: var(--bg);
   padding: 9px 16px; border-radius: var(--r-pill);
