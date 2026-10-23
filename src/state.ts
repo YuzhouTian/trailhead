@@ -1,5 +1,5 @@
 import type { LatLng } from './geo';
-import { knownProfile, knownRouteColour } from './config';
+import { DEFAULT_LAYER_ID, knownProfile, knownRouteColour } from './config';
 
 export interface SavedRoute {
   id: string;
@@ -31,8 +31,6 @@ export interface SavedRoute {
 }
 
 export interface Settings {
-  /** Thunderforest key — the Outdoors base layer. */
-  tfKey: string;
   /** OS Data Hub key — the OS Explorer base layer. */
   osKey: string;
   /** Draw OS Explorer at OS's own scale rather than matched to Freemap's. */
@@ -53,7 +51,7 @@ export interface Settings {
 }
 
 /** Current settings shape. See `migrate` for what each bump carries. */
-const SCHEMA = 1;
+const SCHEMA = 2;
 
 /** A saved place the user dropped and named. */
 export type PinCategory = 'summit' | 'viewpoint' | 'water' | 'camp' | 'parking' | 'other';
@@ -76,13 +74,23 @@ const ACTIVE_ROUTE_KEY = 'trailhead.activeRoute';
 const LAST_VIEW_KEY = 'trailhead.lastView';
 
 /**
+ * Base-layer ids with no row in the Map panel any more. Thunderforest's
+ * Outdoors is gone from the app; OpenStreetMap is still a layer, but only as
+ * the fallback the app reaches for itself. An install left on either would open
+ * on a map with nothing selected in the panel, so both move to the default.
+ */
+const RETIRED_LAYERS = ['osm', 'tf-outdoors'];
+
+/**
  * Carry an existing install forward when a default changes.
  *
- * v1 makes Freemap the base layer. It only moves installs still sitting on the
- * old default of 'osm': a saved value of anything else is a choice the user made
- * from the Map panel, and stays put. Someone who genuinely picked OpenStreetMap
- * back when it was also the default is indistinguishable from someone who never
- * touched it, so they get moved too — one tap in the Map panel puts it back.
+ * v1 made Freemap the base layer, moving installs still sitting on the old
+ * default of 'osm'. v2 adds Thunderforest's retired id and finishes the job for
+ * 'osm' on installs that had already passed v1.
+ *
+ * Someone who genuinely chose one of these is indistinguishable from someone
+ * who never touched the setting, so they get moved too. Anything else saved
+ * there is a choice from the Map panel and stays put.
  */
 function migrate(s: Settings, saved: unknown): Settings {
   // Read the version off what was *stored*, not off the merged object: the
@@ -90,17 +98,18 @@ function migrate(s: Settings, saved: unknown): Settings {
   // and no migration would ever fire. Storage can also hold `null` or a
   // non-object, which spreads harmlessly but cannot be read from.
   const prev = (saved && typeof saved === 'object' ? saved : {}) as Partial<Settings>;
-  if (prev.schema === undefined && prev.baseLayer === 'osm') s.baseLayer = 'freemap';
+  if ((prev.schema ?? 0) < 2 && RETIRED_LAYERS.includes(prev.baseLayer ?? '')) {
+    s.baseLayer = DEFAULT_LAYER_ID;
+  }
   s.schema = SCHEMA;
   return s;
 }
 
 export function loadSettings(): Settings {
   const defaults: Settings = {
-    baseLayer: 'freemap',
+    baseLayer: DEFAULT_LAYER_ID,
     profile: knownProfile(null),
     speedKmh: 4,
-    tfKey: '',
     osKey: '',
     osNative: false,
     theme: 'system',
@@ -112,12 +121,14 @@ export function loadSettings(): Settings {
     // The overlay and its opacity were retired: all the base maps are the same
     // OpenStreetMap data drawn differently, so blending one over another only
     // muddied it. The nearby tick list went too: categories are chosen fresh in
-    // the Map sheet. Old installs still have all three saved; leave them behind
-    // rather than carrying them forward on every save.
+    // the Map sheet. The Thunderforest key went with its layer. Old installs
+    // still have all four saved; leave them behind rather than carrying them
+    // forward on every save.
     const {
       overlayLayer: _layer,
       overlayOpacity: _opacity,
       poiKinds: _kinds,
+      tfKey: _tfKey,
       ...kept
     } = saved && typeof saved === 'object' ? saved : {};
     const s: Settings = { ...defaults, ...kept };

@@ -258,7 +258,8 @@ grid at every offline zoom.
 
 **As built (Phase 3):** you chose to stay on Freemap after leaving GB, so there
 is no split between the layer you chose and the layer shown. Leaving switches
-`settings.baseLayer` to Freemap (`OUTSIDE_GB_LAYER_ID`) until OS is picked
+`settings.baseLayer` to Freemap (`DEFAULT_LAYER_ID`, named `OUTSIDE_GB_LAYER_ID`
+when this was built) until OS is picked
 again. "Leaving" means none of a 3×3 grid of points across the view is inside
 the offshore outline, which works at every zoom, and the offshore margin is the
 dead band. The original design is below for reference.
@@ -345,6 +346,15 @@ enough).
 Answered 2026-10-21: the name is **OS Explorer (1:25k)**, **Freemap stays the
 default**, and **Thunderforest stays** (so layers name their key with
 `needsKey: 'tf' | 'os'`). For question 3: **stay on Freemap** after leaving GB until OS is picked again.
+
+Question 4 reopened and answered 2026-10-23: **Thunderforest goes.** With OS in
+for Great Britain and Freemap keyless everywhere else, it was a keyed layer that
+beat neither — so the layer, the key field and `LayerKey`'s `'tf'` are gone, and
+`needsKey` now only ever means the OS key. OpenStreetMap stayed in `BASE_LAYERS`
+but left the Map panel (`hidden: true`): it is reached only by bailing out of a
+failing layer. That split the one fallback constant in two — `DEFAULT_LAYER_ID`
+(Freemap: fresh install, outside GB, a chosen layer that cannot be used) and
+`FALLBACK_LAYER_ID` (OpenStreetMap: tiles actually failing).
 
 1. **Name in the Map panel:** "OS Explorer (1:25k)" or "OS Leisure"?
 2. **Default layer:** stay on Freemap, or make OS the default once your key is

@@ -99,7 +99,9 @@ export function showPanel(html: string, title = ''): HTMLElement {
 // ---------------------------------------------------------------- map panel
 
 export function openMapPanel(): void {
-  const baseRows = BASE_LAYERS.map(
+  // OpenStreetMap is in BASE_LAYERS to be bailed out to, not to be chosen.
+  const choices = BASE_LAYERS.filter((l) => !l.hidden);
+  const baseRows = choices.map(
     (l) => `<div class="row">
       <input type="radio" name="base" id="base-${l.id}" value="${l.id}" ${settings.baseLayer === l.id ? 'checked' : ''}/>
       <label for="base-${l.id}">${l.name}${
@@ -120,7 +122,7 @@ export function openMapPanel(): void {
     <p class="hint">Shows what OpenStreetMap has around the visible map.</p>
   `, 'Map');
 
-  BASE_LAYERS.forEach((l) => {
+  choices.forEach((l) => {
     $(`base-${l.id}`).addEventListener('change', () => {
       settings.baseLayer = l.id;
       applyLayers();
@@ -170,9 +172,6 @@ export function openSettingsPanel(): void {
     <h4 class="secTitle">Route line</h4>
     <div class="swatches" id="routeColours" role="radiogroup" aria-label="Route line colour">${colourBtns}</div>
     <p class="hint">For the route you are planning and the one you load. Pick whichever stands out on the map you use.</p>
-    <h4 class="secTitle">Thunderforest API key</h4>
-    <input type="password" id="tfKeyInput" value="${settings.tfKey}" placeholder="Thunderforest key"/>
-    <p class="hint"><a href="https://www.thunderforest.com/maps/outdoors/" target="_blank" rel="noopener">thunderforest.com/maps/outdoors</a></p>
     <h4 class="secTitle">OS Data Hub API key</h4>
     <input type="password" id="osKeyInput" value="${settings.osKey}" placeholder="OS Data Hub key"/>
     <p class="hint">For OS Explorer, and OS place names in search (turn on OS Names API for the key). The 1:25k zooms need the Premium plan. <a href="https://osdatahub.os.uk/" target="_blank" rel="noopener">osdatahub.os.uk</a></p>
@@ -227,12 +226,6 @@ export function openSettingsPanel(): void {
     })
   );
 
-  $('tfKeyInput').addEventListener('change', (e) => {
-    settings.tfKey = (e.target as HTMLInputElement).value.trim();
-    saveSettings(settings);
-    applyLayers();
-    toast(settings.tfKey ? 'Thunderforest key saved — pick Outdoors in Map' : 'Thunderforest key cleared');
-  });
   $('osKeyInput').addEventListener('change', (e) => {
     settings.osKey = (e.target as HTMLInputElement).value.trim();
     saveSettings(settings);

@@ -56,7 +56,6 @@ self.addEventListener('activate', (event) => {
 function isTileRequest(url) {
   return (
     url.hostname.endsWith('tile.openstreetmap.org') ||
-    url.hostname.endsWith('tile.thunderforest.com') ||
     url.hostname.endsWith('tiles.freemap.sk') ||
     (url.hostname === 'api.os.uk' && url.pathname.startsWith('/maps/raster/'))
   );
@@ -210,7 +209,7 @@ self.addEventListener('fetch', (event) => {
         // A CORS tile is fetched as a new request built from its URL, not by
         // passing the page's request on. Firefox fails the passed-on request
         // with a NetworkError, even copied with new Request(req, ...), so every
-        // CORS layer (OS, OpenStreetMap, Thunderforest) drew nothing there;
+        // CORS layer (OS, OpenStreetMap) drew nothing there;
         // Chrome and Safari accept either. Freemap's no-CORS request passes on
         // fine in all three.
         const res = await fetch(req.mode === 'cors' ? new Request(req.url, { mode: 'cors' }) : req);

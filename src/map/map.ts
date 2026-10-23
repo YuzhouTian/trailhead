@@ -7,12 +7,11 @@
 import L from '../leaflet-setup';
 import {
   BASE_LAYERS,
+  DEFAULT_LAYER_ID,
   FALLBACK_LAYER_ID,
-  OUTSIDE_GB_LAYER_ID,
   crossOriginFor,
   missingKey,
-  type BaseLayerDef,
-  type LayerKey
+  type BaseLayerDef
 } from '../config';
 import { type LatLng } from '../geo';
 import { inGB } from '../osgb';
@@ -87,10 +86,7 @@ export function highDensity(): boolean {
 /** Fill in the API key and the retina suffix for a layer's tile URL. */
 export function tileUrlFor(def: BaseLayerDef): string {
   const scale = def.retina && highDensity() ? '@2x' : '';
-  return def.url
-    .replace('{tfKey}', settings.tfKey)
-    .replace('{osKey}', settings.osKey)
-    .replace('{r}', scale);
+  return def.url.replace('{osKey}', settings.osKey).replace('{r}', scale);
 }
 
 function makeTileLayer(def: BaseLayerDef): L.TileLayer {
@@ -181,7 +177,7 @@ function viewTouchesGB(): boolean {
 function leaveOsOutsideGB(): boolean {
   if (currentGrid !== 'osgb' || viewTouchesGB()) return false;
   toast('No OS map here — switched to Freemap', 4000);
-  settings.baseLayer = OUTSIDE_GB_LAYER_ID;
+  settings.baseLayer = DEFAULT_LAYER_ID;
   applyLayers();
   return true;
 }
@@ -223,47 +219,51 @@ export function setOsNativeScale(on: boolean): void {
   (map as ResettableMap)._resetView(centre, map.getZoom());
 }
 
-/** The layer we fall back to: always available, never needs a key. */
-const FALLBACK_LAYER =
-  BASE_LAYERS.find((l) => l.id === FALLBACK_LAYER_ID) ??
+/** Resolve one of config's layer ids, with a keyless layer as a backstop. */
+const namedLayer = (id: string): BaseLayerDef =>
+  BASE_LAYERS.find((l) => l.id === id) ??
   BASE_LAYERS.find((l) => !l.needsKey) ??
   BASE_LAYERS[0];
+
+/** The map to show when the chosen one isn't available here. */
+const DEFAULT_LAYER = namedLayer(DEFAULT_LAYER_ID);
+
+/** The last resort, for tiles that are actually failing. */
+const FALLBACK_LAYER = namedLayer(FALLBACK_LAYER_ID);
 
 /** A layer is usable if it exists and any key it needs has been entered. */
 export function usable(def: BaseLayerDef | undefined): def is BaseLayerDef {
   return !!def && !missingKey(def, settings);
 }
 
-/** Toasts for a layer picked without its key, by the key it needs. */
-const NEEDS_KEY_TOAST: Record<LayerKey, string> = {
-  tf: 'Outdoors needs a Thunderforest key — add it in Settings',
-  os: 'OS Explorer needs an OS Data Hub key — add it in Settings'
-};
+/** For the one layer that needs a key, picked without it. */
+const NEEDS_KEY_TOAST = 'OS Explorer needs an OS Data Hub key — add it in Settings';
 
 /**
  * Why a keyed layer's tiles might be failing. OS has a second cause: past the
  * Premium plan's free monthly allowance with no card registered, it stops
  * serving the 1:25k zooms while the rest still load.
  */
-const KEY_FAILING_TOAST: Record<LayerKey, string> = {
-  tf: 'tiles are failing — check the key in Settings',
-  os: 'tiles are failing — check the OS key in Settings, and that your Data Hub plan includes Premium'
-};
+const KEY_FAILING_TOAST =
+  'tiles are failing — check the OS key in Settings, and that your Data Hub plan includes Premium';
 
 export function applyLayers(): void {
   const requested = layerDef(settings.baseLayer);
-  // Falls back for both a missing key and settings still naming a retired
-  // layer (the old OS Outdoor and Light layers among them).
-  let base = usable(requested) ? requested : FALLBACK_LAYER;
+  // Lands on the default map for both a missing key and settings still naming
+  // a retired layer (Thunderforest's Outdoors, and the old OS Outdoor and
+  // Light layers, among them). Deliberately not FALLBACK_LAYER: that is the
+  // escape from tiles that are failing, and the reference rendering is a poor
+  // map to strand a walker on while the keyless hill map is right there.
+  let base = usable(requested) ? requested : DEFAULT_LAYER;
   if (base.id !== settings.baseLayer) {
-    if (requested?.needsKey) toast(NEEDS_KEY_TOAST[requested.needsKey], 4000);
+    if (requested?.needsKey) toast(NEEDS_KEY_TOAST, 4000);
     settings.baseLayer = base.id;
   }
   // Picked, or opened on, somewhere OS has no map: go straight to Freemap
   // rather than switching grids to show a blank one.
   if (base.grid === 'osgb' && !viewTouchesGB()) {
     toast(`${base.name} covers Great Britain only — showing Freemap`, 4000);
-    base = layerDef(OUTSIDE_GB_LAYER_ID) ?? FALLBACK_LAYER;
+    base = DEFAULT_LAYER;
     settings.baseLayer = base.id;
   }
   baseTiles?.remove();
@@ -289,7 +289,7 @@ export function applyLayers(): void {
       if (++failures !== 4 || settings.baseLayer !== base.id) return;
       toast(
         base.needsKey
-          ? `${base.name} ${KEY_FAILING_TOAST[base.needsKey]}`
+          ? `${base.name} ${KEY_FAILING_TOAST}`
           : `${base.name} has no tiles here — switched to ${FALLBACK_LAYER.name}`,
         6000
       );
