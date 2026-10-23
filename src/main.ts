@@ -37,6 +37,7 @@ import {
   showPanel
 } from './ui/panels';
 import { initRouteCard } from './ui/routeCard';
+import { initScreenGap } from './ui/screenGap';
 
 // ---------------------------------------------------------------- stored state
 
@@ -91,6 +92,10 @@ function applyTheme(): void {
 // Following the OS: react live when it flips between light and dark.
 darkQuery.addEventListener('change', () => { if (settings.theme === 'system') applyTheme(); });
 applyTheme();
+
+// The strip a short iOS viewport leaves under the page: measured so the tab bar
+// can reach the real foot of the screen.
+initScreenGap();
 
 // Tiles, viewport and the startup recentre live in map/map.ts; the one-shot
 // startup fix goes to tracking, which owns "where we last were".
