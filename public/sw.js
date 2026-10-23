@@ -159,6 +159,14 @@ async function evictOldBuilds(cache, shells) {
    no launch refresh ever runs. Replies with the latest build's entry script;
    the page compares it with the one it is running. */
 self.addEventListener('message', (event) => {
+  // Settings' Clear all offline maps deletes the tile bucket outright
+  // (src/features/storage.ts). The handle held below would then point at the
+  // deleted bucket, and every tile saved after it would be lost; drop it so
+  // the next tile opens the new one.
+  if (event.data?.type === 'tiles-cleared') {
+    tileCachePromise = null;
+    return;
+  }
   const port = event.ports[0];
   if (event.data?.type !== 'check-update' || !port) return;
   event.waitUntil(
