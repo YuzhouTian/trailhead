@@ -316,6 +316,39 @@ together before switching over, so the new build works offline too. It keeps
 that build and the one before it (a running page may still need its files) and deletes older
 ones, so the app's cache never holds more than two builds.
 
+## Performance
+
+Two things dominate how fast this app feels: how long a launch takes to show the right
+piece of map, and how much work each GPS fix costs while you're walking. Both were
+measured and worked on in September 2026; the plan, the method and the before/after
+tables are in [docs/perf-plan.md](docs/perf-plan.md) (§3, *As built*).
+
+**The app opens where you left it.** Every time you stop moving the map, about half a
+second later it writes the centre and zoom to `trailhead.lastView` in `localStorage`.
+The next launch starts there, so the first tiles you see are the ones you want. It used
+to open on the whole UK at zoom 6 and jump once GPS answered, which meant downloading a
+screenful of tiles nobody wanted and then throwing them away — on a phone-sized screen
+that halved from 24 tile requests to 12. If there's nothing saved (a first run, or after
+clearing site data) it falls back to the whole-UK view, and the first GPS fix recentres
+you as before. To reset it, clear the site's storage in your browser; the next map move
+writes a fresh one. There is no setting for it, and nothing else reads it.
+
+**Following a route costs about the same whatever its length.** The elevation profile
+moves its "you are here" mark rather than redrawing the chart, and the route's length and
+climb are worked out once per route instead of once per fix. A fix on a 50 km imported
+track with the profile open went from 6.2 ms to 0.9 ms on a desktop; a phone is several
+times slower, so that was a dropped frame every second and now isn't.
+
+**A deploy leaves the app launch-ready, online or off.** The service worker downloads the
+new page, script and stylesheet together before switching you over, keeps that build and
+the one before it, and deletes anything older — see [Deploy](#deploy) for the whole story.
+The point for performance is that the launch after a deploy still paints instantly from
+the cache instead of going to the network, and still works with no signal.
+
+**The map tiles are a separate cache** and a deploy never touches them. Settings → Offline
+maps says how many are stored and has a *Clear all offline maps* button; your routes and
+pins are kept.
+
 ## Notes / limits
 
 - iOS PWAs only get GPS while the app is open on screen — fine for "where am I?", but this

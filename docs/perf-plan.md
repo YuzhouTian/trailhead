@@ -227,7 +227,126 @@ section, like the redesign plan's §8).
 
 ---
 
-## 3. Calls made on the user's behalf (flag, don't block)
+## 3. As built (written at the end of PP5)
+
+PP1–PP4 landed as PRs #81, #84, #87 and #89 between 13 and 14 September 2026.
+Everything above is the plan as it stood before any of it was written; this
+section is what actually happened, so the document and the app agree.
+
+### The numbers
+
+Both columns were measured the same way, on 23 October 2026: a production build
+served by `vite preview` in the Browser pane at 375x812, with the service worker
+in control, 20 saved routes of 2,000 points each (968 KB of `localStorage`), 50
+pins and a saved last view. Geolocation is stubbed by an inline script added to
+the *built* `index.html` — a harness, not something in the repo — so that a fix
+arrives 2,000 ms after launch in both builds, which is the cold-iPhone case the
+plan describes. The tile cache is emptied before each launch; each row is the
+median of three.
+
+**Before** is `8f2ecbe`, the commit immediately before PP1 merged. **After** is
+`b2c6689`, `main` today.
+
+| A cold launch | Before (`8f2ecbe`) | After (`b2c6689`) |
+| --- | --- | --- |
+| Tile requests before the map is still | 24 | **12** |
+| Zoom levels requested | 2 — 12 at z6, then 12 at z15 | **1 — 12 at z15** |
+| First tile requested | 27 ms | **21 ms** |
+| Startup script (script arrives to `DOMContentLoaded`) | 21 ms | **10 ms** |
+| Startup JS (the entry chunk) | 282 KB, 90 KB gzipped | 292 KB, 95 KB gzipped |
+
+Reading it:
+
+- **Half the tiles, and no wrong ones.** The zoom-6 screenful is gone, which is
+  PP1 doing exactly what it was for. On a phone on mobile data that is twelve
+  fewer requests and a first screen that is the right place rather than a
+  picture of the UK.
+- **Half the startup script.** 21 ms to 10 ms, from PP4 leaving the saved routes
+  and the pins unparsed. The saved list here is a deliberately large one; with
+  three routes saved the gap is a millisecond or two. Expect roughly 4x these
+  figures on an older phone.
+- **The bytes went up, not down, and that is fine.** Startup JS was never the
+  problem (§1 says so) and no PP tried to shrink it. The 10 KB is six weeks of
+  features that landed after PP4 — the OS Explorer layer, the redesign, the
+  route-card chip. The lazy chunks are not in that figure: jsQR is 131 KB and
+  our BRouter profile 29 KB, neither fetched at launch.
+- **"Time to first tile *response*" is not in the table**, though PP5 asked for
+  it. The Browser pane's own HTTP cache answers tile requests, so any number
+  measured there is a measure of that cache rather than of the app. The time to
+  first tile *request* is the part the app controls, and it is what is reported.
+  The same caveat applies to PP4's `preconnect`: its value is one DNS/TCP/TLS
+  handshake on the first uncached tile, which is a property of the network, not
+  something this harness can show.
+
+| Per GPS fix, median ms (p95) | Before | After |
+| --- | --- | --- |
+| 1,000 points, profile closed | 0.7 (1.0) | **0.5 (0.9)** |
+| 1,000 points, profile open | 2.0 (3.2) | **0.6 (0.9)** |
+| 5,000 points, profile closed | 1.8 (2.4) | **0.7 (1.2)** |
+| 5,000 points, profile open | 6.2 (10.2) | **0.9 (1.4)** |
+
+180 fixes fed straight to the watch callback the app registered, walking the
+whole route; the first 30 are discarded as warm-up, and a forced layout is
+included in each. 1,000 points is a 10 km walk at the spacing BRouter returns;
+5,000 is a long day or an unsimplified GPX import. These are desktop numbers — a
+phone is several times slower, so the "before" 6.2 ms is the dropped frame every
+second that PP3 was written to remove.
+
+The shape matters more than the absolute figures: before, the cost grew with the
+length of the route; after, it is close to flat. Following a 50 km imported
+track now costs about what following a 10 km one does.
+
+### Where the work differed from the plan
+
+1. **PP2's step 1 was already done** by #83, which merged after this file was
+   written: a refresh already fetched the new build's script and stylesheet.
+   PP2 did the eviction and the cache-open parts only.
+2. **PP2 keeps two builds, not one.** The plan said to delete everything the new
+   `index.html` does not name. A launch is served the *old* cached page while
+   the refresh runs, and a resumed app keeps running the old build until you tap
+   *Update ready*, so either can still ask for its own files. The cap is two
+   builds, a few hundred KB.
+3. **PP2 also fixed a first install not working offline** — not in the plan,
+   found while checking it. On a first visit the install cached only the page
+   and the manifest, so an offline relaunch opened a blank app with no map.
+4. **PP3 did not build the suffix table.** The 5 m noise rule in `computeClimbs`
+   means "climb beyond point i" is not the total minus the climb so far, so an
+   exact table costs O(N^2) to build. The step it was meant to replace measured
+   0.02 ms. Instead the route's total length is cached once per route, and the
+   climb ahead is recomputed only when the walker passes a new route point.
+5. **PP3's real win was the profile, not the projection.** Redrawing the chart
+   was 5.1 ms of the 6.8; `moveHere` moves the line and the dot and leaves the
+   SVG alone. The allocation-free `projectOnPolyline` is about 8x faster on a
+   20,000-point line but was only ever 0.74 ms of it.
+6. **PP4 was real but smaller than §1 suggested.** It takes about a third off
+   the work before the first tile request. On a desktop that is ~5 ms, which
+   nobody will feel; on a phone with a long saved list it is tens of ms. Worth
+   doing, not worth expecting to see.
+7. **PP4 step 4 was deliberately not done.** `qrcode-generator` is still
+   imported at the top of `features/sharing.ts`. The service worker precaches
+   only what `index.html` names, so a lazy chunk is kept for offline use only
+   once it has been fetched online — a lazy encoder would leave Share unable to
+   draw a QR code on a hill with no signal, which is the one place showing a
+   route to the phone next to you matters. 7.6 KB gzipped is not worth that.
+   There is a comment at the import saying so.
+8. **PP1's saved view always wins over the startup fix**, rather than only when
+   the two agree to within ~30 km. The GPS watch starts in follow mode and its
+   first fix recentres you anyway, so the new-trip case is handled without a
+   second mover and without a threshold to tune. This is the plan's own step 4
+   taken as the rule.
+
+### Still open
+
+- **The QR *scanner*'s decoder (jsQR) has the gap PP4 step 4 describes.**
+  Scanning a route QR offline fails unless the scanner has been used online
+  since the last deploy. Flagged in #89; it needs `sw.js`, so it is its own
+  piece of work.
+- **No profile on a real phone.** Everything above is a desktop browser with the
+  viewport emulated. The 4x rule of thumb is a rule of thumb.
+
+---
+
+## 4. Calls made on the user's behalf (flag, don't block)
 
 - **Saved view wins over startup geolocation** when they agree to within
   ~30 km. This means the map opens at the zoom you left it, not always at 15.
