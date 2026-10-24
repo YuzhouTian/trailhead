@@ -22,13 +22,14 @@ const device = vi.hoisted(() => ({ dense: false, osKey: '' }));
 
 // map.ts cannot be imported here — it builds a real Leaflet map the moment it
 // loads — so these are its three helpers as offline.ts sees them, keyed off
-// `device` instead of the window and the saved settings.
+// `device` instead of the window and the saved settings. Each is a thin wrapper
+// in map.ts too, over the same config and layers.ts functions used here.
 vi.mock('../map/map', async () => {
   const { missingKey } = await import('../config');
+  const { tileUrl } = await import('../map/layers');
   return {
     highDensity: () => device.dense,
-    tileUrlFor: (def: BaseLayerDef) =>
-      def.url.replace('{osKey}', device.osKey).replace('{r}', def.retina && device.dense ? '@2x' : ''),
+    tileUrlFor: (def: BaseLayerDef) => tileUrl(def, device.osKey, device.dense),
     usable: (def: BaseLayerDef | undefined) => !!def && !missingKey(def, { osKey: device.osKey })
   };
 });
