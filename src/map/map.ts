@@ -5,19 +5,21 @@
 // this module only knows about the canvas they draw on.
 
 import L from '../leaflet-setup';
-import {
-  BASE_LAYERS,
-  DEFAULT_LAYER_ID,
-  FALLBACK_LAYER_ID,
-  crossOriginFor,
-  missingKey,
-  type BaseLayerDef
-} from '../config';
+import { DEFAULT_LAYER_ID, crossOriginFor, missingKey, type BaseLayerDef } from '../config';
 import { type LatLng } from '../geo';
-import { inGB } from '../osgb';
 import { loadLastView, saveLastView, saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
 import { toast } from '../ui/dom';
+import {
+  FALLBACK_LAYER,
+  TILE_FAILURES_BEFORE_FALLBACK,
+  chooseBaseLayer,
+  failingTilesNotice,
+  needsRematch,
+  tileUrl,
+  viewTouchesGB,
+  type ViewBounds
+} from './layers';
 import { SharpTileLayer } from './sharptiles';
 import { osGridCrs, osNative, osReference, osTileSize, setOsNative, setOsReference } from './osgrid';
 
@@ -74,10 +76,6 @@ let settings: Settings;
 
 let baseTiles: L.TileLayer | null = null;
 
-export function layerDef(id: string): BaseLayerDef | undefined {
-  return BASE_LAYERS.find((l) => l.id === id);
-}
-
 /** A screen with more than one device pixel to the CSS pixel: most phones. */
 export function highDensity(): boolean {
   return window.devicePixelRatio > 1.3;
@@ -85,8 +83,7 @@ export function highDensity(): boolean {
 
 /** Fill in the API key and the retina suffix for a layer's tile URL. */
 export function tileUrlFor(def: BaseLayerDef): string {
-  const scale = def.retina && highDensity() ? '@2x' : '';
-  return def.url.replace('{osKey}', settings.osKey).replace('{r}', scale);
+  return tileUrl(def, settings.osKey, highDensity());
 }
 
 function makeTileLayer(def: BaseLayerDef): L.TileLayer {
@@ -147,35 +144,15 @@ function setGrid(grid: 'web' | 'osgb', minZoom: number): void {
   (map as ResettableMap)._resetView(centre, zoom);
 }
 
-/**
- * Freemap's scale changes with latitude and the OS grid's does not, so after a
- * long pan north or south re-match the grid where the map now is. 0.5° keeps
- * each step to about 1% of scale — too little to see. East–west the grid's own
- * scale factor drifts far more slowly, so a whole degree is allowed.
- */
-const REMATCH_LAT_DEG = 0.5;
-const REMATCH_LNG_DEG = 1;
-
-/**
- * Whether any of the visible map is over Great Britain, sampled on a 3×3 grid
- * across the view. Any one point is enough to keep OS: it is the map you chose,
- * and half a screen of it on a coast is still worth having.
- */
-function viewTouchesGB(): boolean {
+/** The map on screen, as layers.ts takes it. */
+function viewBounds(): ViewBounds {
   const b = map.getBounds();
-  for (const fy of [0, 0.5, 1]) {
-    for (const fx of [0, 0.5, 1]) {
-      const lat = b.getSouth() + fy * (b.getNorth() - b.getSouth());
-      const lng = b.getWest() + fx * (b.getEast() - b.getWest());
-      if (inGB(lat, lng)) return true;
-    }
-  }
-  return false;
+  return { south: b.getSouth(), west: b.getWest(), north: b.getNorth(), east: b.getEast() };
 }
 
 /** Hand a GB-only layer over to Freemap once the map has left GB. */
 function leaveOsOutsideGB(): boolean {
-  if (currentGrid !== 'osgb' || viewTouchesGB()) return false;
+  if (currentGrid !== 'osgb' || viewTouchesGB(viewBounds())) return false;
   toast('No OS map here — switched to Freemap', 4000);
   settings.baseLayer = DEFAULT_LAYER_ID;
   applyLayers();
@@ -190,11 +167,7 @@ function rematchOsGrid(): void {
   // OS's own scale is the same everywhere: nothing to re-match.
   if (currentGrid !== 'osgb' || !baseTiles || osNative()) return;
   const centre = map.getCenter();
-  const ref = osReference();
-  if (
-    Math.abs(centre.lat - ref.lat) <= REMATCH_LAT_DEG &&
-    Math.abs(centre.lng - ref.lng) <= REMATCH_LNG_DEG
-  ) return;
+  if (!needsRematch(centre, osReference())) return;
   setOsReference(centre.lat, centre.lng);
   baseTiles.options.tileSize = osTileSize();
   (map as ResettableMap)._resetView(centre, map.getZoom());
@@ -219,53 +192,16 @@ export function setOsNativeScale(on: boolean): void {
   (map as ResettableMap)._resetView(centre, map.getZoom());
 }
 
-/** Resolve one of config's layer ids, with a keyless layer as a backstop. */
-const namedLayer = (id: string): BaseLayerDef =>
-  BASE_LAYERS.find((l) => l.id === id) ??
-  BASE_LAYERS.find((l) => !l.needsKey) ??
-  BASE_LAYERS[0];
-
-/** The map to show when the chosen one isn't available here. */
-const DEFAULT_LAYER = namedLayer(DEFAULT_LAYER_ID);
-
-/** The last resort, for tiles that are actually failing. */
-const FALLBACK_LAYER = namedLayer(FALLBACK_LAYER_ID);
-
 /** A layer is usable if it exists and any key it needs has been entered. */
 export function usable(def: BaseLayerDef | undefined): def is BaseLayerDef {
   return !!def && !missingKey(def, settings);
 }
 
-/** For the one layer that needs a key, picked without it. */
-const NEEDS_KEY_TOAST = 'OS Explorer needs an OS Data Hub key — add it in Settings';
-
-/**
- * Why a keyed layer's tiles might be failing. OS has a second cause: past the
- * Premium plan's free monthly allowance with no card registered, it stops
- * serving the 1:25k zooms while the rest still load.
- */
-const KEY_FAILING_TOAST =
-  'tiles are failing — check the OS key in Settings, and that your Data Hub plan includes Premium';
-
 export function applyLayers(): void {
-  const requested = layerDef(settings.baseLayer);
-  // Lands on the default map for both a missing key and settings still naming
-  // a retired layer (Thunderforest's Outdoors, and the old OS Outdoor and
-  // Light layers, among them). Deliberately not FALLBACK_LAYER: that is the
-  // escape from tiles that are failing, and the reference rendering is a poor
-  // map to strand a walker on while the keyless hill map is right there.
-  let base = usable(requested) ? requested : DEFAULT_LAYER;
-  if (base.id !== settings.baseLayer) {
-    if (requested?.needsKey) toast(NEEDS_KEY_TOAST, 4000);
-    settings.baseLayer = base.id;
-  }
-  // Picked, or opened on, somewhere OS has no map: go straight to Freemap
-  // rather than switching grids to show a blank one.
-  if (base.grid === 'osgb' && !viewTouchesGB()) {
-    toast(`${base.name} covers Great Britain only — showing Freemap`, 4000);
-    base = DEFAULT_LAYER;
-    settings.baseLayer = base.id;
-  }
+  // Which layer, and why if it is not the one Settings names: see layers.ts.
+  const { layer: base, notice } = chooseBaseLayer(settings.baseLayer, settings, viewBounds());
+  if (notice) toast(notice, 4000);
+  settings.baseLayer = base.id;
   baseTiles?.remove();
   // Switch grid before the tile layer is made: its tile size depends on where
   // the OS grid is matched.
@@ -278,21 +214,15 @@ export function applyLayers(): void {
   // will not serve. Leaflet only clamps on the next interaction; do it now.
   if (map.getZoom() > base.maxZoom) map.setZoom(base.maxZoom);
 
-  // Tiles can fail for reasons the checks above cannot see: a *wrong* key 401s,
-  // and Freemap covers Europe only, so walking off the edge of its data returns
-  // nothing. Either way you get a blank map with no explanation — bail out to
-  // the dependable layer instead. Never attached to the fallback itself, which
-  // would loop. Four failures rather than one so a blip does not switch layers.
-  if (base.id !== FALLBACK_LAYER.id) {
+  // Tiles that keep failing — a wrong key, or the edge of Freemap's data —
+  // bail out to the dependable layer rather than leave a blank map. Never
+  // watched on the fallback itself, which would loop; see failingTilesNotice.
+  const failing = failingTilesNotice(base);
+  if (failing) {
     let failures = 0;
     baseTiles.on('tileerror', () => {
-      if (++failures !== 4 || settings.baseLayer !== base.id) return;
-      toast(
-        base.needsKey
-          ? `${base.name} ${KEY_FAILING_TOAST}`
-          : `${base.name} has no tiles here — switched to ${FALLBACK_LAYER.name}`,
-        6000
-      );
+      if (++failures !== TILE_FAILURES_BEFORE_FALLBACK || settings.baseLayer !== base.id) return;
+      toast(failing, 6000);
       settings.baseLayer = FALLBACK_LAYER.id;
       applyLayers();
     });
