@@ -320,6 +320,40 @@ together before switching over, so the new build works offline too. It keeps
 that build and the one before it (a running page may still need its files) and deletes older
 ones, so the app's cache never holds more than two builds.
 
+## Performance
+
+The bundle was never the slow part. What the app did after it loaded was, and the fixes
+were made in the order of `docs/perf-plan.md` (tracked in issue #78):
+
+- **It opens where you left it.** The map's centre and zoom are saved to localStorage
+  (`trailhead.lastView`) half a second after the map stops moving, and the next launch opens
+  straight onto them. No whole-of-UK view at zoom 6 to download and then jump away from.
+  Only a first run, with nothing saved, recentres on a one-off location fix. Otherwise the
+  GPS watch's first fix is the only thing that moves the map, so there's never a double jump.
+- **A deploy doesn't slow the next launch.** See [Deploy](#deploy): the service worker
+  fetches the new build in full before switching, so it starts from cache and works offline,
+  and it keeps only two builds.
+- **A GPS fix costs the same on a long route as a short one.** Distances and remaining
+  climb are worked out once when a route becomes active, and then looked up on each fix
+  instead of recomputed. The elevation profile moves its "you are here" mark in place
+  rather than redrawing the chart.
+- **Nothing runs before the map that the map doesn't need.** The map starts first, saved
+  routes are only read when something asks for them, pins are drawn a frame after the map,
+  and `index.html` warms the connection to the Freemap tile server and BRouter.
+
+Clearing them, if a launch ever looks wrong:
+
+- **Last view:** just move the map, and the new view replaces it. To remove it entirely,
+  delete the `trailhead.lastView` key in the browser's dev tools (Application → Local
+  storage). Don't clear the whole site's data to do this: routes, pins and settings live
+  there too.
+- **Map tiles:** Settings → Offline maps → Clear all offline maps.
+- **App files:** these replace themselves on every deploy. To force the change in code,
+  bump `STATIC_CACHE` in `public/sw.js`.
+
+Before/after timings weren't recorded: the improvement was obvious in use, and getting
+a "before" number would have meant rebuilding the app as it was before the work.
+
 ## Notes / limits
 
 - iOS PWAs only get GPS while the app is open on screen — fine for "where am I?", but this

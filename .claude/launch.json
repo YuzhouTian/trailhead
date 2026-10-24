@@ -22,6 +22,19 @@
         "--strictPort"
       ],
       "port": 5174
+    },
+    {
+      "name": "trailhead-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "preview",
+        "--",
+        "--port",
+        "4173",
+        "--strictPort"
+      ],
+      "port": 4173
     }
   ]
 }
