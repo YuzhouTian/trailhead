@@ -139,7 +139,7 @@ top of Settings.
 ### Maps
 
 - **Base layers** — two to choose from: *Outdoor* from Freemap (the default: contours,
-  hillshading and crag ticks, sharp all the way to zoom 20, no key, Europe only) and *OS
+  hillshading and crag ticks, sharp all the way to zoom 18, no key, Europe only) and *OS
   Explorer (1:25k)* (the paper Explorer map with rights of way and access land — Great
   Britain only, and needs an [OS Data Hub key](#os-explorer-layer-optional)). OpenStreetMap
   is in there as well but not offered: it is what the app bails out to by itself when the

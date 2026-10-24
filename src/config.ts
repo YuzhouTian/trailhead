@@ -60,12 +60,15 @@ export const BASE_LAYERS: BaseLayerDef[] = [
     // No extension and no subdomain; {r} becomes "@2x", which this server
     // renders natively rather than upscaling.
     url: 'https://outdoor.tiles.freemap.sk/{z}/{x}/{y}{r}',
-    maxZoom: 20,
-    maxNativeZoom: 20,
+    // Freemap capped third-party use at z18 on 23 October 2026: 19 and 20 now
+    // return one identical grey PNG reading "This zoom is available in Freemap
+    // only" for every tile. So the map stops at 18 too.
+    maxZoom: 18,
+    maxNativeZoom: 18,
     retina: true,
     // Serves tiles happily but sends no Access-Control-Allow-Origin.
     cors: false,
-    blurb: 'Contours, hillshading and crag ticks over OpenStreetMap data, with waymarked routes named along the line. The sharpest layer here — its own tiles all the way to z20, at true retina resolution. Covers Europe only.'
+    blurb: 'Contours, hillshading and crag ticks over OpenStreetMap data, with waymarked routes named along the line. The sharpest layer here — its own tiles all the way in, at true retina resolution. Covers Europe only.'
   },
   {
     id: 'os-leisure',
