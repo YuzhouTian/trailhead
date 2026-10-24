@@ -343,7 +343,7 @@ Clearing them, if a launch ever looks wrong:
   delete the `trailhead.lastView` key in the browser's dev tools (Application → Local
   storage). Don't clear the whole site's data to do this: routes, pins and settings live
   there too.
-- **Map tiles:** Settings → Offline maps → clear.
+- **Map tiles:** Settings → Offline maps → Clear all offline maps.
 - **App files:** these replace themselves on every deploy. To force the change in code,
   bump `STATIC_CACHE` in `public/sw.js`.
 
