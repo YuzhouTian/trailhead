@@ -11,8 +11,10 @@
 /**
  * Cache Storage buckets holding map tiles. Matched by prefix rather than by the
  * exact name in public/sw.js: that name carries a version which is bumped
- * whenever bad tiles need discarding, and a prefix match both survives the next
- * bump without an edit here and sweeps up what an older version left behind.
+ * whenever the caching rules change, and a prefix match both survives the next
+ * bump without an edit here and takes in the older buckets alongside it. Those
+ * are not leftovers — the worker still serves tiles from them when the network
+ * cannot, so a count or a clear that skipped them would be lying.
  */
 const TILE_CACHE_PREFIX = 'trailhead-tiles';
 

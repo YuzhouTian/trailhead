@@ -4,11 +4,24 @@
 // bundles v1 kept forever (one set per deploy, never deleted).
 const STATIC_CACHE = 'trailhead-static-v2';
 // v2: v1 could contain opaque error responses cached as if they were tiles
-// (permanent grey squares) — bumping the name discards them.
+// (permanent grey squares) — bumping the name stopped them being served.
 // v3: the default layer moved to Freemap, which sends no CORS header, so its
 // tiles are opaque and cached on trust again (see the fetch handler). Bumping
-// discards anything the previous rules let through.
-const TILE_CACHE = 'trailhead-tiles-v3';
+// discarded anything the previous rules let through.
+//
+// A bump no longer deletes anything. It now means "prefer a fresh copy of every
+// tile": the new bucket starts empty, so each tile is fetched again the first
+// time it is viewed online, and the stale copy is dropped as the fresh one
+// lands. The old bucket stays readable until then, because the alternative was
+// wiping a map somebody had deliberately downloaded for Saturday — the one
+// thing this app must not do to them (#65).
+/* Every tile bucket this app has used starts with this; the current one is
+   TILE_CACHE, and any other is what an earlier version left behind. Matched by
+   prefix in src/features/storage.ts too, so Settings counts and clears them
+   all. */
+const TILE_CACHE_PREFIX = 'trailhead-tiles';
+const TILE_CACHE = `${TILE_CACHE_PREFIX}-v3`;
+const isTileCache = (name) => name.startsWith(TILE_CACHE_PREFIX);
 
 /* index.html is not listed: refreshShell stores it together with the files it
    needs, so there is never a cached page whose script is missing. `./` used to
@@ -45,10 +58,11 @@ self.addEventListener('activate', (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k !== STATIC_CACHE && k !== TILE_CACHE)
+            .filter((k) => k !== STATIC_CACHE && !isTileCache(k))
             .map((k) => caches.delete(k))
         )
       )
+      .then(dropEmptyTileCaches)
       .then(() => self.clients.claim())
   );
 });
@@ -164,6 +178,7 @@ self.addEventListener('message', (event) => {
   // the next tile opens the new one.
   if (event.data?.type === 'tiles-cleared') {
     tileCachePromise = null;
+    oldTileCachesPromise = null;
     return;
   }
   const port = event.ports[0];
@@ -182,6 +197,42 @@ self.addEventListener('message', (event) => {
    it per request adds latency to the one thing that must feel instant. */
 let tileCachePromise = null;
 const tileCache = () => (tileCachePromise ??= caches.open(TILE_CACHE));
+
+/* The buckets an earlier TILE_CACHE left behind, read-only from here on. There
+   are none in the ordinary case — only a version bump makes one — so the two
+   helpers below cost an empty loop on the way to the network. */
+let oldTileCachesPromise = null;
+const oldTileCaches = () =>
+  (oldTileCachesPromise ??= caches
+    .keys()
+    .then((keys) =>
+      Promise.all(keys.filter((k) => isTileCache(k) && k !== TILE_CACHE).map((k) => caches.open(k)))
+    )
+    .catch(() => []));
+
+/** A tile from before the last bump, if one of those buckets still holds it. */
+async function oldTile(key) {
+  for (const cache of await oldTileCaches()) {
+    const hit = await cache.match(key);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+/** Drop a tile from them, a fresh copy having taken its place. */
+async function forgetOldTile(key) {
+  for (const cache of await oldTileCaches()) await cache.delete(key);
+}
+
+/* An old bucket that has given up every tile is a name taking up a slot, so it
+   goes on the next activate. One keys() per bucket, and in the ordinary case
+   there is no bucket to ask. */
+async function dropEmptyTileCaches() {
+  for (const name of await caches.keys()) {
+    if (!isTileCache(name) || name === TILE_CACHE) continue;
+    if ((await (await caches.open(name)).keys()).length === 0) await caches.delete(name);
+  }
+}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -212,8 +263,25 @@ self.addEventListener('fetch', (event) => {
         // CORS layer (OS, OpenStreetMap) drew nothing there;
         // Chrome and Safari accept either. Freemap's no-CORS request passes on
         // fine in all three.
-        const res = await fetch(req.mode === 'cors' ? new Request(req.url, { mode: 'cors' }) : req);
-        if (res.ok || res.type === 'opaque') cache.put(key, res.clone());
+        let res;
+        try {
+          res = await fetch(req.mode === 'cors' ? new Request(req.url, { mode: 'cors' }) : req);
+        } catch (err) {
+          // No signal. A copy from before the last bump is the only map there
+          // is, and a tile that might be stale beats a blank screen on a hill.
+          const old = await oldTile(key);
+          if (old) return old;
+          throw err;
+        }
+        if (!(res.ok || res.type === 'opaque')) {
+          // The server answered, but with nothing worth keeping. Same again:
+          // an older copy beats the grey square this would otherwise draw.
+          return (await oldTile(key)) || res;
+        }
+        cache.put(key, res.clone());
+        // The fresh copy supersedes what an old bucket held, so that one goes
+        // now — otherwise a bump would leave two copies of the map on the phone.
+        await forgetOldTile(key);
         return res;
       })
     );
