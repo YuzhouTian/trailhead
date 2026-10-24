@@ -273,7 +273,7 @@ export function applyLayers(): void {
   map.setMinZoom(base.minZoom ?? 0);
   baseTiles = makeTileLayer(base).addTo(map);
 
-  // Layers disagree about how far in they go (Freemap 20, OpenStreetMap 19), so
+  // Layers disagree about how far in they go (OpenStreetMap 19, Freemap and OS 18), so
   // switching down from a deeper layer can leave the map at a zoom the new one
   // will not serve. Leaflet only clamps on the next interaction; do it now.
   if (map.getZoom() > base.maxZoom) map.setZoom(base.maxZoom);
