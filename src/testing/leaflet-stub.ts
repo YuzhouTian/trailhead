@@ -22,13 +22,15 @@
 /** Positions go in and come out as the app writes them: [lat, lng]. */
 export type StubLatLng = [number, number];
 
-/** A marker, circle or line: where it is, whether it is drawn, what it was given. */
+/** A marker, circle, line or group: where it is, whether it is drawn, what it was given. */
 export interface StubLayer {
-  readonly kind: 'marker' | 'circle' | 'polyline';
+  readonly kind: 'marker' | 'circle' | 'polyline' | 'group';
   /** Where it sits now — its constructor position, then each setLatLng. */
   latlng: StubLatLng;
   /** Lines: every point they were drawn through. Empty for anything else. */
   readonly coords: StubLatLng[];
+  /** Groups: the layers they were made from. Empty for anything else. */
+  readonly children: StubLayer[];
   /** Every position it has held, oldest first: the path the app moved it along. */
   readonly track: StubLatLng[];
   /** Circles: radius in metres, from the options or the last setRadius. */
@@ -57,6 +59,14 @@ export interface StubView {
   options: Record<string, unknown>;
 }
 
+/** The edges of the map on screen, in degrees. */
+export interface StubBounds {
+  south: number;
+  west: number;
+  north: number;
+  east: number;
+}
+
 export interface StubMap {
   /**
    * What getZoom() reports. Writable, because "was I zoomed out when the fix
@@ -65,6 +75,12 @@ export interface StubMap {
   zoom: number;
   /** Rotation in degrees, as the last setBearing left it. */
   bearing: number;
+  /** What getCenter() reports: where the last setView put it, or a test. */
+  center: StubLatLng;
+  /** What getBounds() reports. Writable, for "what is on screen" tests. */
+  bounds: StubBounds;
+  /** Every panBy offset in pixels, oldest first. */
+  readonly pans: [number, number][];
   /** Every setView, oldest first — a map that never moved has none. */
   readonly views: StubView[];
   /** Every setBearing, oldest first. */
@@ -73,6 +89,10 @@ export interface StubMap {
   readonly layers: StubLayer[];
   setView(center: StubLatLng, zoom: number, options?: Record<string, unknown>): StubMap;
   getZoom(): number;
+  getCenter(): { lat: number; lng: number };
+  /** Leaflet's LatLngBounds, as far as its four edge getters. */
+  getBounds(): { getSouth(): number; getWest(): number; getNorth(): number; getEast(): number };
+  panBy(offset: [number, number], options?: Record<string, unknown>): StubMap;
   /**
    * The element the map is drawn on. Real Leaflet hands out a live <div>, and
    * the app listens on it for the touches Leaflet's own events do not carry —
@@ -97,6 +117,7 @@ export interface StubL {
   marker(p: StubLatLng, options?: Record<string, unknown>): StubLayer;
   circle(p: StubLatLng, options?: Record<string, unknown>): StubLayer;
   polyline(coords: StubLatLng[], options?: Record<string, unknown>): StubLayer;
+  layerGroup(layers: StubLayer[]): StubLayer;
 }
 
 export interface LeafletStub {
@@ -121,28 +142,48 @@ export interface LeafletStub {
     a fix zooms in to, so a test that wants "already close enough" has to say so. */
 const DEFAULT_ZOOM = 13;
 
+/** Where a fresh map sits, and the screenful around it. Nowhere in particular. */
+const DEFAULT_CENTER: StubLatLng = [0, 0];
+const DEFAULT_BOUNDS: StubBounds = { south: -0.05, west: -0.05, north: 0.05, east: 0.05 };
+
 export function createLeafletStub(): LeafletStub {
   const created: StubLayer[] = [];
   const icons: Record<string, unknown>[] = [];
   const views: StubView[] = [];
   const bearings: number[] = [];
   const layers: StubLayer[] = [];
+  const pans: [number, number][] = [];
   const handlers = new Map<string, ((e: unknown) => void)[]>();
   let container = document.createElement('div');
 
   const map: StubMap = {
     zoom: DEFAULT_ZOOM,
     bearing: 0,
+    center: DEFAULT_CENTER,
+    bounds: { ...DEFAULT_BOUNDS },
     views,
     bearings,
     layers,
+    pans,
     getContainer: () => container,
     setView(center, zoom, options = {}) {
       views.push({ center, zoom, options });
+      map.center = center;
       map.zoom = zoom;
       return map;
     },
     getZoom: () => map.zoom,
+    getCenter: () => ({ lat: map.center[0], lng: map.center[1] }),
+    getBounds: () => ({
+      getSouth: () => map.bounds.south,
+      getWest: () => map.bounds.west,
+      getNorth: () => map.bounds.north,
+      getEast: () => map.bounds.east
+    }),
+    panBy(offset) {
+      pans.push(offset);
+      return map;
+    },
     setBearing(deg) {
       bearings.push(deg);
       map.bearing = deg;
@@ -167,7 +208,8 @@ export function createLeafletStub(): LeafletStub {
     kind: StubLayer['kind'],
     p: StubLatLng,
     options: Record<string, unknown>,
-    coords: StubLatLng[] = []
+    coords: StubLatLng[] = [],
+    children: StubLayer[] = []
   ): StubLayer {
     // A layer's own subscribers, kept per layer rather than per type on the
     // map: two waypoint markers both listen for 'dragend' and must not hear
@@ -177,6 +219,7 @@ export function createLeafletStub(): LeafletStub {
       kind,
       latlng: p,
       coords,
+      children,
       track: [p],
       radius: typeof options.radius === 'number' ? options.radius : null,
       options,
@@ -227,7 +270,10 @@ export function createLeafletStub(): LeafletStub {
     circle: (p, options = {}) => layer('circle', p, options),
     // A line has no one position; its first point stands in for one so the
     // shared layer record keeps the same shape.
-    polyline: (coords, options = {}) => layer('polyline', coords[0] ?? [0, 0], options, coords)
+    polyline: (coords, options = {}) => layer('polyline', coords[0] ?? [0, 0], options, coords),
+    // A group is drawn as one layer; what is in it is read off `children`,
+    // which stay off `map.layers` themselves, as Leaflet's do from the app's view.
+    layerGroup: (children) => layer('group', children[0]?.latlng ?? [0, 0], {}, [], children)
   };
 
   const stub: LeafletStub = {
@@ -241,10 +287,13 @@ export function createLeafletStub(): LeafletStub {
       views.length = 0;
       bearings.length = 0;
       layers.length = 0;
+      pans.length = 0;
       handlers.clear();
       container = document.createElement('div');
       map.zoom = DEFAULT_ZOOM;
       map.bearing = 0;
+      map.center = DEFAULT_CENTER;
+      map.bounds = { ...DEFAULT_BOUNDS };
     }
   };
   return stub;
