@@ -1,7 +1,7 @@
 // Reading a route QR off another screen with the camera. A separate file from
 // sharing because it is a different job with different failure modes — camera
 // permissions, a lazily fetched decoder, a per-frame decode loop — and because
-// the decoder is a chunk of its own that most people never download.
+// the decoder is a chunk of its own that launching the app never waits for.
 //
 // It knows only enough about sharing to recognise a route link; what a link
 // means is sharing's business, so a find is handed straight to importParsed().
@@ -37,8 +37,11 @@ export async function startQrScan(): Promise<void> {
     return toast('No camera access in this app', 4000);
   }
   const video = $('qrVideo') as HTMLVideoElement;
-  // The decoder is a chunk of its own, fetched only the first time you scan, so
-  // it never weighs down the app for people who don't. Cached after first use.
+  // The decoder is a chunk of its own, loaded only when you scan, so launching
+  // the app never waits on it. The service worker stores it in the background
+  // on install and after every deploy (cacheOnDemandFiles in public/sw.js), so
+  // this works with no signal even if the scanner has never been opened; the
+  // failure below is left for a browser with no service worker.
   let jsQR: typeof import('jsqr').default;
   try {
     jsQR = (await import('jsqr')).default;
