@@ -107,10 +107,35 @@ export function chooseBaseLayer(
 }
 
 /**
- * How many tile errors on a layer before giving up on it: four rather than one,
- * so a blip does not switch layers.
+ * How many tiles on screen must have failed before giving up on a layer: four
+ * rather than one, so a blip does not switch layers.
  */
 export const TILE_FAILURES_BEFORE_FALLBACK = 4;
+
+/** The tiles covering the screen once they have all settled, by how they ended. */
+export interface TileTally {
+  loaded: number;
+  failed: number;
+}
+
+/**
+ * Whether a layer has no map for what is on screen, and so is worth leaving.
+ *
+ * Only when *nothing* on screen drew. Failures used to be counted on their own,
+ * four in the life of the layer, and that walked people off a map they had
+ * downloaded: with no signal the strip saved along a route draws and the tiles
+ * either side of it never can, so four failures arrive within a few minutes'
+ * walk. A layer that is drawing any of the screen is the map to stay on. The
+ * cases this is for all fail everywhere at once — a wrong key, a zoom the OS
+ * plan does not cover, ground past the edge of Freemap's data.
+ *
+ * And never while the phone says it is offline: no layer can do better then.
+ * A phone with a bar of signal that carries nothing still says it is online,
+ * so map.ts also checks the fallback can draw here before moving to it.
+ */
+export function layerHasNoMapHere(view: TileTally, online: boolean): boolean {
+  return online && view.loaded === 0 && view.failed >= TILE_FAILURES_BEFORE_FALLBACK;
+}
 
 /**
  * What to say when `base`'s tiles keep failing and the map bails out to
