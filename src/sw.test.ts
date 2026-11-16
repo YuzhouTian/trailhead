@@ -81,6 +81,11 @@ class FakeCacheStorage {
 // -------------------------------------------------------------- the harness
 
 interface Worker {
+  /** Dispatch `install` and wait for it; rejects if the install failed. */
+  install(): Promise<void>;
+  /** Open the app: a page load, answered with the page the worker serves. Waits
+   *  for the background refresh the launch sets off. */
+  launch(): Promise<Response>;
   /** Dispatch `activate` and wait for the work it took on. */
   activate(): Promise<void>;
   /** Dispatch `fetch` and return what the worker answered with. */
@@ -113,6 +118,26 @@ function boot(): Worker {
   return {
     caches,
     fetchStub,
+    async install() {
+      let work: Promise<unknown> = Promise.resolve();
+      dispatch('install', { waitUntil: (p: Promise<unknown>) => (work = p) });
+      await work;
+    },
+    async launch() {
+      let answer: Promise<Response> | undefined;
+      const waits: Promise<unknown>[] = [];
+      dispatch('fetch', {
+        // Node's Request refuses mode 'navigate', which only a browser may
+        // set, so the worker is handed the three fields it reads.
+        request: { method: 'GET', url: SCOPE, mode: 'navigate' },
+        respondWith: (p: Promise<Response>) => (answer = p),
+        waitUntil: (p: Promise<unknown>) => waits.push(p)
+      });
+      if (!answer) throw new Error('the worker did not answer the page load');
+      const res = await answer;
+      await Promise.all(waits);
+      return res;
+    },
     async activate() {
       let work: Promise<unknown> = Promise.resolve();
       dispatch('activate', { waitUntil: (p: Promise<unknown>) => (work = p) });
@@ -222,5 +247,119 @@ describe('service worker tile cache', () => {
 
       expect(await w.caches.keys()).not.toContain(OLD_TILE_CACHE);
     });
+  });
+});
+
+// ---------------------------------------------------------------- app shell
+
+/** A deployed build, as the files a server would hand out. The names are what
+ *  Vite produces: the page names its script and stylesheet, and the script
+ *  names the QR decoder it only loads when the scanner is opened. */
+function build(tag: string): Record<string, string> {
+  return {
+    'index.html':
+      `<script type="module" crossorigin src="./assets/index-${tag}.js"></script>` +
+      `<link rel="stylesheet" crossorigin href="./assets/index-${tag}.css">`,
+    [`assets/index-${tag}.css`]: 'body{}',
+    // "./sw.js" is in the real script too, where the page registers this
+    // worker. Read as a file next to the script, it names one that isn't there.
+    [`assets/index-${tag}.js`]:
+      `import("./jsQR-${tag}.js");navigator.serviceWorker.register("./sw.js")`,
+    [`assets/jsQR-${tag}.js`]: `import"./index-${tag}.js";/* decoder ${tag} */`
+  };
+}
+
+const pathOf = (req: unknown): string => urlOf(req as string | Request).slice(SCOPE.length);
+
+/** Make the network serve these files and nothing else. */
+function deploy(w: Worker, files: Record<string, string>): void {
+  w.fetchStub.mockImplementation(async (...args: unknown[]) => {
+    const path = pathOf(args[0]);
+    return path in files ? new Response(files[path]) : new Response('', { status: 404 });
+  });
+}
+
+/** Every file the worker holds for offline use, as paths under the app. */
+async function held(w: Worker): Promise<string[]> {
+  const urls: string[] = [];
+  for (const [name, cache] of w.caches.buckets) {
+    if (!name.startsWith('trailhead-tiles')) urls.push(...cache.entries.keys());
+  }
+  return urls.map((u) => u.slice(SCOPE.length)).sort();
+}
+
+describe('service worker app shell', () => {
+  let w: Worker;
+
+  beforeEach(() => {
+    w = boot();
+  });
+
+  // #142: the decoder is fetched the first time the scanner is opened, so a
+  // phone that had never scanned online could not scan on a hill.
+  it('holds the QR decoder after install, before the scanner is ever opened', async () => {
+    deploy(w, build('one'));
+
+    await w.install();
+
+    expect(await held(w)).toContain('assets/jsQR-one.js');
+  });
+
+  // How the fix reaches a phone that already has the app: the worker file
+  // changed, so it installs again, over a build stored without its decoder.
+  it('fetches the decoder on install when the build is already held without it', async () => {
+    deploy(w, build('one'));
+    await w.install();
+    for (const cache of w.caches.buckets.values()) await cache.delete('assets/jsQR-one.js');
+
+    await w.install();
+
+    expect(await held(w)).toContain('assets/jsQR-one.js');
+  });
+
+  it('installs even though the script quotes a name that is not a file', async () => {
+    deploy(w, build('one'));
+
+    await expect(w.install()).resolves.toBeUndefined();
+
+    expect(await held(w)).not.toContain('assets/sw.js');
+  });
+
+  it("holds the new build's decoder once a launch has picked up a deploy", async () => {
+    deploy(w, build('one'));
+    await w.install();
+    deploy(w, build('two'));
+
+    await w.launch();
+
+    expect(await held(w)).toContain('assets/jsQR-two.js');
+  });
+
+  it('stays on the old build when the new decoder cannot be fetched', async () => {
+    deploy(w, build('one'));
+    await w.install();
+    const two = build('two');
+    w.fetchStub.mockImplementation(async (...args: unknown[]) => {
+      const path = pathOf(args[0]);
+      if (path === 'assets/jsQR-two.js') throw new Error('signal dropped');
+      return new Response(two[path]);
+    });
+    await w.launch();
+
+    // The next launch must not be a new page whose scanner cannot load.
+    w.fetchStub.mockRejectedValue(new Error('offline'));
+    const page = await w.launch();
+
+    expect(await page.text()).toBe(build('one')['index.html']);
+  });
+
+  it('asks the network for nothing but the page on a launch with no deploy', async () => {
+    deploy(w, build('one'));
+    await w.install();
+    w.fetchStub.mockClear();
+
+    await w.launch();
+
+    expect(w.fetchStub.mock.calls.map(([req]) => pathOf(req))).toEqual(['index.html']);
   });
 });

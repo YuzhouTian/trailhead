@@ -43,7 +43,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     staticCache()
       .then((c) => c.addAll(PRECACHE))
-      .then(refreshShell)
+      .then(() => refreshShell(true))
       .then((html) => {
         if (!html) throw new Error('index.html unavailable');
         return self.skipWaiting();
@@ -102,9 +102,15 @@ const htmlResponse = (html) =>
    app on a hill. Shared between the launch refresh and the page's own check so
    the two do not download the same build twice at once.
 
+   The same goes for the files that script only loads on demand (see
+   cacheOnDemandFiles), and for the same reason: a new shell whose QR scanner
+   cannot load with no signal is a smaller version of the blank app. They are
+   fetched when the shell changed, and on install (`whole`), so a launch that
+   finds no deploy still costs one request for the page and nothing more.
+
    When the shell did change, older builds are evicted (see evictOldBuilds). */
 let refreshing = null;
-function refreshShell() {
+function refreshShell(whole = false) {
   return (refreshing ??= (async () => {
     const res = await fetch('./index.html', { cache: 'no-cache' });
     if (!res.ok) return null;
@@ -121,9 +127,11 @@ function refreshShell() {
     );
     const previous = await cache.match('./index.html');
     const previousHtml = previous ? await previous.text() : null;
+    const changed = previousHtml !== html;
+    if (changed || whole) await cacheOnDemandFiles(cache, html);
     await cache.put('./index.html', htmlResponse(html));
     // Cleanup only: a failure here must not undo an update that already landed.
-    if (previousHtml !== html) await evictOldBuilds(cache, [html, previousHtml]).catch(() => {});
+    if (changed) await evictOldBuilds(cache, [html, previousHtml]).catch(() => {});
     return html;
   })().finally(() => {
     refreshing = null;
@@ -131,6 +139,48 @@ function refreshShell() {
 }
 
 const ASSETS_URL = new URL('./assets/', self.location).href;
+const isTextAsset = (url) => /\.(js|css)$/.test(url);
+
+/* Fetch and store the files a build only loads on demand: the QR decoder, read
+   the first time the scanner is opened, and the routing profile. Nothing in the
+   page names them — only the script does — so until this existed the decoder
+   was stored the first time somebody scanned online, and every deploy renamed
+   it. Scanning a route off a friend's phone on a hill said "connect to the
+   internet once and retry" unless you had already scanned since the last
+   deploy (#142).
+
+   Called once the page's own script and stylesheet are stored, and follows the
+   names quoted in them, and in whatever those name in turn.
+
+   A 404 is skipped rather than treated as a failure. referencedFiles reads
+   names out of minified code, so it also finds strings that are not files next
+   to the script — "./sw.js", where the page registers this worker, is one —
+   and a build that could never install because of a string would be far worse
+   than the bug this fixes. Anything else (no signal, a server error) throws:
+   the refresh is abandoned with the old shell still in place and tried again on
+   the next launch. */
+async function cacheOnDemandFiles(cache, html) {
+  const seen = new Set(referencedFiles(html, self.location.href));
+  const pending = [...seen];
+  while (pending.length) {
+    const from = pending.pop();
+    const hit = isTextAsset(from) && (await cache.match(from));
+    if (!hit) continue;
+    const found = referencedFiles(await hit.text(), from).filter((url) => !seen.has(url));
+    await Promise.all(
+      found.map(async (url) => {
+        seen.add(url);
+        if (!(await cache.match(url))) {
+          const r = await fetch(url);
+          if (r.status === 404) return;
+          if (!r.ok) throw new Error(`${url}: ${r.status}`);
+          await cache.put(url, r);
+        }
+        pending.push(url);
+      })
+    );
+  }
+}
 
 /* Relative file names quoted in a page, script or stylesheet: the page's
    `./assets/…` src and href, and the `./name-hash.js` a script imports lazily
@@ -160,7 +210,7 @@ async function evictOldBuilds(cache, shells) {
     const url = pending.pop();
     if (keep.has(url)) continue;
     keep.add(url);
-    const hit = /\.(js|css)$/.test(url) && (await cache.match(url));
+    const hit = isTextAsset(url) && (await cache.match(url));
     if (hit) pending.push(...referencedFiles(await hit.text(), url));
   }
   const stale = (await cache.keys()).filter((r) => r.url.startsWith(ASSETS_URL) && !keep.has(r.url));
