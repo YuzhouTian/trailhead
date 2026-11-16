@@ -6,18 +6,19 @@
 
 import L from '../leaflet-setup';
 import { DEFAULT_LAYER_ID, crossOriginFor, missingKey, type BaseLayerDef } from '../config';
-import { type LatLng } from '../geo';
+import { latLngToTile, type LatLng } from '../geo';
 import { loadLastView, saveLastView, saveSettings, type Settings } from '../state';
 import { enableDoubleTapDragZoom } from '../tapzoom';
 import { toast } from '../ui/dom';
 import {
   FALLBACK_LAYER,
-  TILE_FAILURES_BEFORE_FALLBACK,
   chooseBaseLayer,
   failingTilesNotice,
+  layerHasNoMapHere,
   needsRematch,
   tileUrl,
   viewTouchesGB,
+  type TileTally,
   type ViewBounds
 } from './layers';
 import { SharpTileLayer } from './sharptiles';
@@ -214,14 +215,24 @@ export function applyLayers(): void {
   // will not serve. Leaflet only clamps on the next interaction; do it now.
   if (map.getZoom() > base.maxZoom) map.setZoom(base.maxZoom);
 
-  // Tiles that keep failing — a wrong key, or the edge of Freemap's data —
-  // bail out to the dependable layer rather than leave a blank map. Never
+  // A layer with no map here at all — a wrong key, or the edge of Freemap's
+  // data — bails out to the dependable layer rather than leave a blank map.
+  // Asked each time the screen's tiles have all settled, about the screen as a
+  // whole: see layerHasNoMapHere for why failures alone are not enough. Never
   // watched on the fallback itself, which would loop; see failingTilesNotice.
   const failing = failingTilesNotice(base);
   if (failing) {
-    let failures = 0;
-    baseTiles.on('tileerror', () => {
-      if (++failures !== TILE_FAILURES_BEFORE_FALLBACK || settings.baseLayer !== base.id) return;
+    const layer = baseTiles;
+    let checking = false;
+    layer.on('load', async () => {
+      if (checking || !layerHasNoMapHere(tallyOnScreen(layer), navigator.onLine)) return;
+      // Only leave for somewhere better. With no real connection the fallback
+      // fails too, and the map you chose, blank, is at least still your map
+      // the moment its tiles can load again.
+      checking = true;
+      const better = await fallbackDrawsHere();
+      checking = false;
+      if (!better || baseTiles !== layer || settings.baseLayer !== base.id) return;
       toast(failing, 6000);
       settings.baseLayer = FALLBACK_LAYER.id;
       applyLayers();
@@ -229,6 +240,51 @@ export function applyLayers(): void {
   }
 
   saveSettings(settings);
+}
+
+/** How the tiles covering the screen ended up, once none is still loading. */
+function tallyOnScreen(layer: L.TileLayer): TileTally {
+  // Only the tiles the view itself needs: Leaflet also keeps rings of tiles
+  // from where the map has been (keepBuffer), and those say nothing about
+  // here. It classes the ones that drew.
+  const internals = layer as unknown as {
+    _tiles: Record<string, { coords: L.Coords; el: HTMLElement }>;
+    _tileZoom: number;
+    _getTiledPixelBounds(centre: L.LatLng): L.Bounds;
+    _pxBoundsToTileRange(bounds: L.Bounds): L.Bounds;
+  };
+  const onScreen = internals._pxBoundsToTileRange(internals._getTiledPixelBounds(map.getCenter()));
+  const tally = { loaded: 0, failed: 0 };
+  for (const tile of Object.values(internals._tiles)) {
+    const { x, y, z } = tile.coords;
+    if (z !== internals._tileZoom || !onScreen.contains(L.point(x, y))) continue;
+    if (tile.el.classList.contains('leaflet-tile-loaded')) tally.loaded++;
+    else tally.failed++;
+  }
+  return tally;
+}
+
+/**
+ * Whether the fallback layer can draw the middle of the screen right now: from
+ * the network, or from an offline download, since the request goes through the
+ * service worker's tile cache like any other.
+ */
+function fallbackDrawsHere(): Promise<boolean> {
+  const { lat, lng } = map.getCenter();
+  const z = Math.min(Math.round(map.getZoom()), FALLBACK_LAYER.maxNativeZoom);
+  const [x, y] = latLngToTile(lat, lng, z);
+  return new Promise((resolve) => {
+    const img = new Image();
+    const cross = crossOriginFor(FALLBACK_LAYER);
+    if (cross) img.crossOrigin = cross;
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = tileUrlFor(FALLBACK_LAYER)
+      .replace('{s}', 'a')
+      .replace('{z}', String(z))
+      .replace('{x}', String(x))
+      .replace('{y}', String(y));
+  });
 }
 
 // ---------------------------------------------------------------- startup

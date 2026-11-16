@@ -16,6 +16,7 @@ import {
   chooseBaseLayer,
   failingTilesNotice,
   layerDef,
+  layerHasNoMapHere,
   needsRematch,
   tileUrl,
   viewTouchesGB,
@@ -153,6 +154,27 @@ describe('choosing the base layer', () => {
 describe('when tiles keep failing', () => {
   it('gives a layer four failures, not one, so a blip does not switch it', () => {
     expect(TILE_FAILURES_BEFORE_FALLBACK).toBe(4);
+  });
+
+  it('gives up on a layer with nothing on screen but failures', () => {
+    expect(layerHasNoMapHere({ loaded: 0, failed: 8 }, true)).toBe(true);
+    expect(layerHasNoMapHere({ loaded: 0, failed: 4 }, true)).toBe(true);
+  });
+
+  it('keeps a layer that is drawing any of the screen, however much else fails', () => {
+    // A downloaded route with no signal: the strip along the line draws and
+    // the tiles either side of it cannot. This is the walk the rule is for.
+    expect(layerHasNoMapHere({ loaded: 9, failed: 6 }, true)).toBe(false);
+    expect(layerHasNoMapHere({ loaded: 1, failed: 14 }, true)).toBe(false);
+  });
+
+  it('keeps a layer through a blip', () => {
+    expect(layerHasNoMapHere({ loaded: 0, failed: 3 }, true)).toBe(false);
+    expect(layerHasNoMapHere({ loaded: 0, failed: 0 }, true)).toBe(false);
+  });
+
+  it('never gives up on a layer while the phone says it is offline', () => {
+    expect(layerHasNoMapHere({ loaded: 0, failed: 15 }, false)).toBe(false);
   });
 
   it('says a keyless layer has no tiles here, naming where it went', () => {
