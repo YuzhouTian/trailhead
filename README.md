@@ -351,8 +351,10 @@ Clearing them, if a launch ever looks wrong:
 - **App files:** these replace themselves on every deploy. To force the change in code,
   bump `STATIC_CACHE` in `public/sw.js`.
 
-Before/after timings weren't recorded: the improvement was obvious in use, and getting
-a "before" number would have meant rebuilding the app as it was before the work.
+Before/after timings were measured on 23 October 2026 and are in
+[docs/perf-plan.md](docs/perf-plan.md) (§3, *As built*). In short: a cold launch went from
+24 tile requests across two zoom levels to 12 at one, the startup script from 21 ms to
+10 ms, and a GPS fix on a 50 km route with the profile open from 6.2 ms to 0.9 ms.
 
 ## Notes / limits
 
